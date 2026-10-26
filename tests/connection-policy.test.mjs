@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createHeartbeat,retryDelay,peerLabel} from '../public/xparty/connection-policy.js';
+test('returning from a suspended page probes before disconnecting',()=>{let time=0;const h=createHeartbeat({now:()=>time});h.heard();h.pause();time=180000;assert.equal(h.poll(),'wait');h.resume();assert.equal(h.poll(),'probe');assert.equal(h.poll(),'wait');time+=11999;assert.equal(h.poll(),'wait');h.heard();assert.equal(h.poll(),'wait');});
+test('a truly unresponsive connection closes after its response window',()=>{let time=0;const h=createHeartbeat({now:()=>time});time=15001;assert.equal(h.poll(),'probe');time+=12000;assert.equal(h.poll(),'reconnect');h.heard();assert.equal(h.poll(),'wait');});
+test('retry delay grows, has jitter, and is bounded',()=>{assert.deepEqual([0,1,2,3,4,5,6].map(n=>retryDelay(n,()=>.5)),[1000,2000,4000,8000,16000,30000,30000]);assert(retryDelay(5,()=>0)<retryDelay(5,()=>1));});
+test('signaling presence and failed call transport have distinct statuses',()=>{assert.equal(peerLabel({online:true,inCall:true,peerState:'failed'}),'Call failed · retrying');assert.equal(peerLabel({online:true,inCall:false}),'Watching');assert.equal(peerLabel({online:false}),'Reconnecting to room');assert.equal(peerLabel({local:true,signaling:'offline'}),'You · Offline');});

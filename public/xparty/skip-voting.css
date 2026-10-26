@@ -1,0 +1,8 @@
+﻿.skip-voting-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;font-size:11px}
+.skip-voting-controls .switch-row{display:flex;align-items:center;gap:5px;margin:0}
+.skip-voting-controls input{width:17px;height:17px}
+.skip-voting-controls button{font-size:11px;padding:5px 8px}
+.skip-voting-status{font-size:10px;color:var(--muted)}
+.skip-voting-controls[hidden],.skip-voting-controls [hidden]{display:none!important}
+.queue-heading{flex-wrap:wrap;gap:8px}
+.queue-heading>label{display:flex;align-items:center;gap:5px;font-size:11px}

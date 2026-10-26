@@ -1,0 +1,19 @@
+{
+  "frames": 25,
+  "maxDelta": 0.040032999999999985,
+  "p95RenderMs": 3.1,
+  "rect": {
+    "x": 0,
+    "y": 0,
+    "width": 1366,
+    "height": 900
+  },
+  "viewport": {
+    "width": 1366,
+    "height": 900
+  },
+  "canvasVisible": true,
+  "errors": [],
+  "rendering": "Real CC0 MP4 decoded by Chrome; SwiftShader software GPU. Not a hardware benchmark.",
+  "providers": "Simulated Twitch/SoundCloud SDKs; Netflix/Prime setup only. No real signed-in service playback."
+}

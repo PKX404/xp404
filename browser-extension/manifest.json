@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "XParty Companion — Netflix & Prime",
+  "version": "0.1.0",
+  "description": "Connect your own Netflix or Prime Video tab to your XParty room. Preview for desktop Chrome and Edge.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage"],
+  "host_permissions": ["https://pkxparty.onrender.com/*", "https://pkx404.github.io/xparty/*", "http://localhost/*", "http://127.0.0.1/*", "https://www.netflix.com/*", "https://www.primevideo.com/*", "https://www.amazon.com/gp/video/*", "https://www.amazon.co.uk/gp/video/*", "https://www.amazon.de/gp/video/*", "https://www.amazon.co.jp/gp/video/*", "https://www.amazon.in/gp/video/*"],
+  "background": {"service_worker": "worker.js", "type": "module"},
+  "action": {"default_title": "XParty Companion", "default_popup": "popup.html"},
+  "content_scripts": [
+    {"matches": ["https://pkxparty.onrender.com/*", "https://pkx404.github.io/xparty/*", "http://localhost/*", "http://127.0.0.1/*"], "js": ["protocol.js", "room-bridge.js"], "run_at": "document_start"},
+    {"matches": ["https://www.netflix.com/*", "https://www.primevideo.com/*", "https://www.amazon.com/gp/video/*", "https://www.amazon.co.uk/gp/video/*", "https://www.amazon.de/gp/video/*", "https://www.amazon.co.jp/gp/video/*", "https://www.amazon.in/gp/video/*"], "js": ["protocol.js", "provider.js"], "run_at": "document_idle"}
+  ]
+}

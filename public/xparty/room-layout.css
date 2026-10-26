@@ -1,0 +1,108 @@
+/* One room shell: player, conversation, and a non-modal participant rail. */
+body.in-room{--room-rail:clamp(148px,27vw,280px);--room-panel:rgba(19,17,26,.58);--room-control:rgba(40,35,48,.66);--room-line:rgba(255,255,255,.16)}
+body.in-room:not(.watch-fullscreen):not(.focus-call){height:100dvh;overflow:hidden}
+body.in-room:not(.watch-fullscreen):not(.focus-call) main{height:100dvh!important;margin:0!important;padding:0!important;max-width:none!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) .topbar,body.in-room .header-reveal{display:none!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room{height:100dvh!important;max-height:100dvh!important;display:flex!important;flex-direction:column!important;gap:0!important;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)!important;margin:0!important;box-sizing:border-box;overflow:hidden}
+body.in-room:not(.watch-fullscreen):not(.focus-call) .mobile-room-header{display:grid!important;grid-template-columns:44px 44px 1fr 44px 44px!important;align-items:center;flex:none;height:52px;padding:0 12px;background:rgba(13,13,19,.42);backdrop-filter:blur(14px);border-bottom:1px solid #ffffff0d;z-index:30}
+.mobile-room-header button{display:grid;place-items:center;width:44px!important;height:44px!important;min-height:44px!important;padding:10px!important;border:0!important;border-radius:22px!important;background:transparent!important;color:white!important;box-shadow:none!important;font-size:0!important}
+.mobile-room-header .icon-control:before{width:22px;height:22px;background-color:currentColor}.mobile-room-brand{text-align:center;font:800 26px/1 system-ui;letter-spacing:-1px;color:#fff}
+.room-connection-status{flex:none;background:#41291fd9;color:#ffdcc1;padding:6px 14px;font-size:12px}.room-connection-status[hidden]{display:none}
+.room-lighting-status{font-size:10px;line-height:1.4;color:#ddd4e5;padding:4px 8px;margin:0;background:#17131c80}.room-lighting-status[hidden]{display:none}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room :is(.room-scene-header,.room-scene-tools,.member-roster,.theatre-toolbar,#movie-resizer,#conversation-resizer,.conversation-resizer,.room-splitter,.vc-pip-tools){display:none!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .room-grid{display:grid!important;grid-template-columns:minmax(0,1.6fr) minmax(240px,1fr)!important;flex:1 1 0!important;min-height:0!important;width:100%;height:auto!important;gap:12px!important;margin:0!important;padding:12px!important;box-sizing:border-box;overflow:hidden!important;transition:width .2s ease}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .watch-column{display:flex!important;flex-direction:column!important;justify-content:center;width:100%!important;min-height:0!important;min-width:0!important;padding:0!important;gap:0!important;overflow:hidden}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #player-shell{position:relative!important;flex:none;width:100%!important;border:0!important;border-radius:12px!important;overflow:hidden!important;padding:0!important;margin:0!important;background:transparent!important;box-sizing:border-box}
+body.in-room.room-video-pinned:not(.watch-fullscreen):not(.focus-call) #room #player-shell{outline:1px solid #8cff4d;outline-offset:-1px;box-shadow:0 0 0 1px #8cff4d22!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{width:100%!important;height:auto!important;min-height:0!important;max-height:calc(100dvh - 130px)!important;aspect-ratio:16/9!important;border:0!important;border-radius:inherit!important;box-shadow:none!important;margin:0!important;background:transparent!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room :is(#file-player,#device-local-player,#youtube-wrap,#vimeo-wrap){width:100%!important;height:100%!important;object-fit:contain!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .together-column{display:flex!important;flex-direction:column!important;flex:1 1 0!important;width:100%!important;min-height:0!important;max-height:none!important;padding:0!important;gap:6px!important;overflow:hidden!important;background:transparent!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .conversation-tabs{display:flex!important;flex:none!important;justify-content:center;min-height:36px;padding:2px 6px!important;gap:4px;background:transparent!important;border:0!important;margin:0!important}
+body.in-room #room .conversation-tabs :is(#panel-both,.view-menu-icon){display:none!important}
+body.in-room #room .conversation-tabs button{min-height:30px!important;height:30px!important;padding:4px 16px!important;background:transparent!important;border:1px solid transparent!important;border-radius:15px!important;font-size:12px!important;color:white!important;box-shadow:none!important}
+body.in-room #room .conversation-tabs button[aria-pressed=true]{background:#ffffff14!important;border-color:#ffffff26!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room :is(.call-panel,.chat-panel){position:relative!important;inset:auto!important;flex:1 1 0!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;max-width:none!important;margin:0!important;padding:6px!important;border:0!important;border-radius:16px!important;background:var(--room-panel)!important;box-shadow:none!important;overflow:hidden!important;transform:none!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .call-panel{display:flex!important;flex-direction:column!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .chat-panel{display:flex!important;flex-direction:column!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .chat-panel>.panel-title{display:none!important}
+body.in-room[data-conversation=call]:not(.watch-fullscreen):not(.focus-call) #room .chat-panel,body.in-room[data-conversation=chat]:not(.watch-fullscreen):not(.focus-call) #room .call-panel{display:none!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #messages{flex:1 1 0!important;min-height:0!important;height:auto!important;max-height:none!important;overflow:auto!important;overscroll-behavior:contain;padding:8px!important}
+body.in-room #room #messages .message{padding-left:42px!important;min-height:40px;text-align:left!important;align-self:stretch!important;align-items:flex-start!important}
+body.in-room #room #messages .message>p{color:white!important;-webkit-text-fill-color:white!important;background:transparent!important;border:0!important;padding:0!important;border-radius:0!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;grid-template-rows:minmax(140px,1fr)!important;grid-auto-rows:92px!important;align-content:start!important;align-items:stretch!important;flex:1 1 0!important;min-height:0!important;gap:8px!important;overflow:auto!important;padding:0!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants .participant{position:relative!important;inset:auto!important;min-height:0!important;max-height:none!important;max-width:none!important;width:100%!important;height:100%!important;aspect-ratio:auto!important;transform:none!important;background:rgba(23,20,31,.55)!important;border:1px solid var(--room-line)!important;border-radius:18px!important;grid-column:span 3;box-shadow:none!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count="1"] .participant{grid-column:1/-1}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants .bubble-call-tile{grid-column:span 2;border-radius:24px!important;min-height:80px!important}
+body.in-room #room #participants .bubble-call-tile .avatar{font-size:17px!important;width:36px!important;height:36px!important}
+body.in-room #room #participants .bubble-call-tile :is(.tile-pip,.tile-move,.tile-resize,.media-status,.local-controls){display:none!important}
+body.in-room #room #participants .bubble-call-tile .person-label{padding:4px!important;font-size:10px!important}
+body.in-room #room #participants .bubble-call-tile .person-label small{font-size:8px!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .participant video{width:100%!important;height:100%!important;object-fit:cover!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .participant-strip{display:flex!important;align-items:center!important;order:5;flex:none!important;min-height:44px!important;gap:8px!important;margin:0!important;padding:4px 8px!important;background:rgba(15,12,21,.48)!important;border:1px solid #ffffff14!important;border-radius:22px!important}
+body.in-room #room .participant-strip h2{flex:1;min-width:0;margin:0!important;font-size:11px!important}
+body.in-room #room .participant-strip .room-participants-label{font-size:0!important;background:none!important;border:0!important;padding:0!important}
+body.in-room #room .participant-strip .room-participants-label *{font-size:0!important}.room-participants-label:before{content:attr(data-count);font:500 11px system-ui;color:white}
+body.in-room #room .participant-strip .call-seat-row{display:flex!important;align-items:center;gap:4px!important;flex-wrap:nowrap!important}
+body.in-room #room .participant-strip button{width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;border-radius:18px!important;border:1px solid var(--room-line)!important;background:#ffffff0c!important;padding:8px!important;color:white!important;box-shadow:none!important}
+body.in-room #room .participant-strip .icon-control:before{width:18px;height:18px}
+body.in-room #room .room-footer{flex:none;font-size:9px;padding:8px!important;margin:0!important;text-align:center}
+/* The rail consumes space, rather than obscuring the player or call. */
+body.in-room.room-people-open:not(.watch-fullscreen):not(.focus-call) #room .room-grid{width:calc(100% - var(--room-rail))!important}
+body.in-room #participants-drawer[open]{position:fixed!important;top:calc(52px + env(safe-area-inset-top))!important;bottom:env(safe-area-inset-bottom)!important;right:0!important;left:auto!important;width:var(--room-rail)!important;max-width:var(--room-rail)!important;max-height:none!important;height:auto!important;box-sizing:border-box!important;margin:0!important;padding:12px 10px!important;border:0!important;border-left:1px solid var(--room-line)!important;border-radius:18px 0 0 18px!important;background:rgba(20,17,28,.58)!important;background-image:none!important;backdrop-filter:blur(20px) saturate(1.15)!important;box-shadow:none!important;overflow:auto!important;z-index:35!important}
+body.in-room #participants-drawer .drawer-heading{gap:4px;flex-wrap:wrap;font-size:12px}
+body.in-room #participants-drawer .drawer-heading button{width:30px!important;height:30px!important;min-width:30px!important;min-height:30px!important;border-radius:15px!important;padding:6px!important}
+body.in-room #participants-drawer .room-drawer-count{font-size:10px;line-height:1.4}
+body.in-room #participants-drawer .room-member-search input{height:36px!important;padding:6px 8px!important;font-size:12px!important}
+body.in-room #participants-drawer .room-member-identity{min-height:56px!important;gap:8px!important;background:transparent!important;border:0!important;padding:4px 0!important}
+body.in-room #participants-drawer .room-member-avatar{width:34px!important;height:34px!important;min-width:34px!important;font-size:14px!important;box-shadow:none!important}
+body.in-room #participants-drawer .room-member-name{font-size:12px;overflow-wrap:anywhere}body.in-room #participants-drawer .room-member-state{font-size:10px}
+body.in-room #participants-drawer .member-row{padding:8px 0!important;gap:4px!important;background:none!important;border:0!important;border-bottom:1px solid #ffffff12!important}
+/* Dialogs and sheets reveal the same live room layer, without another decoder. */
+body.in-room :is(dialog,.source-panel[role=dialog],.member-permissions,.approval-card,.room-report,.room-mini-profile){background:rgba(25,20,33,.62)!important;background-image:none!important;backdrop-filter:blur(20px) saturate(1.15)!important;border-color:var(--room-line)!important;color:#fff!important;box-shadow:0 14px 40px #0004!important}
+body.in-room dialog::backdrop{background:#09071138!important;backdrop-filter:blur(2px)}
+body.in-room dialog{max-height:80dvh;overflow:auto}
+body.in-room .source-panel[role=dialog]{max-height:72dvh!important}
+body.in-room :is(dialog,.source-panel,#participants-drawer) :is(button,.primary,.secondary){border-radius:20px;background:var(--room-control);border:1px solid var(--room-line);color:#fff;min-height:40px;box-shadow:none}
+body.in-room .room-speaker,body.in-room #playback-speaker{display:grid!important;place-items:center;width:28px!important;height:28px!important;min-width:28px!important;min-height:28px!important;padding:4px!important;border:0!important;background:transparent!important;border-radius:14px!important;color:#fff!important;font-size:0!important}
+body.in-room .room-speaker:before,body.in-room #playback-speaker:before{width:18px!important;height:18px!important}
+body.in-room .vertical-volume .volume-symbol{display:none!important}.vertical-volume #playback-speaker{order:-1}
+body.in-room.room-empty-video:not(.watch-fullscreen):not(.focus-call) #room .watch-column{display:none!important}
+body.in-room.room-empty-video:not(.watch-fullscreen):not(.focus-call) #room .room-grid{grid-template-columns:minmax(0,1fr)!important}
+body.in-room.room-empty-video #room .together-column{max-width:1040px;margin:0 auto!important}
+@media(max-width:900px) and (orientation:portrait){
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room .room-grid{display:flex!important;flex-direction:column!important;gap:6px!important;padding:0!important}
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room .watch-column{justify-content:flex-start;flex:none!important;overflow:visible}
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{max-height:36dvh!important}
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room #player-shell{border-radius:0!important}
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room .together-column{gap:4px!important}
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room :is(.call-panel,.chat-panel){border-radius:0!important}
+ body.in-room #room .participant-strip{border-radius:0!important;border-left:0!important;border-right:0!important}
+ body.in-room.room-people-open #room #participants{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:repeat(2,minmax(100px,1fr))!important;grid-auto-rows:70px!important}
+ body.in-room.room-people-open #room #participants .participant{grid-column:1!important}
+ body.in-room.room-people-open #room .participant-strip h2,body.in-room.room-people-open #room #call-seats{display:none!important}
+ body.in-room.room-people-open #room .participant-strip{justify-content:center}
+ body.in-room.room-people-open #room #chat-form{gap:0!important;padding:2px!important}
+ body.in-room.room-people-open #room #chat-form button{width:28px!important;min-width:28px!important}
+ body.in-room.room-people-open #room #chat-form #chat-mic{display:none!important}
+ body.in-room.room-people-open #room .conversation-tabs button{padding:4px 8px!important}
+}
+@media(orientation:landscape) and (max-width:960px){body.in-room:not(.watch-fullscreen):not(.focus-call) #room .room-grid{grid-template-columns:minmax(0,1.45fr) minmax(200px,1fr)!important;padding:6px!important;gap:6px!important}body.in-room #room #participants{grid-template-rows:minmax(90px,1fr)!important;grid-auto-rows:64px!important}body.in-room #room .room-footer{padding:3px!important}body.in-room .mobile-room-header{height:44px!important}body.in-room #participants-drawer[open]{top:calc(44px + env(safe-area-inset-top))!important}}
+@media(prefers-reduced-motion:reduce){body.in-room #room .room-grid{transition:none!important}}
+
+/* Explicit track sizing prevents legacy theatre rules from collapsing the call. */
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .room-grid{align-items:stretch!important;grid-template-rows:minmax(0,1fr)!important;grid-auto-rows:minmax(0,1fr)!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .together-column{height:100%!important;align-self:stretch!important;justify-self:stretch!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]>.participant{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:100%!important;min-width:0!important;max-width:none!important;height:100%!important;margin:0!important;grid-column:span 3!important;grid-row:auto!important;transform:none!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]>.bubble-call-tile{grid-column:span 2!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count="1"]>.participant{grid-column:1/-1!important}
+body.in-room #room #call-resizer{display:none!important}
+@media(max-width:900px) and (orientation:portrait){
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room .together-column{height:0!important;flex:1 1 0!important}
+ body.in-room.room-people-open:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]>.participant{grid-column:1/-1!important;grid-row:auto!important}
+}
+
+.official-wordmark{display:block;width:138px;height:45px;object-fit:cover;object-position:50% 49%;border-radius:4px}
+.hero-wordmark{width:240px;height:78px}.mobile-room-brand{display:flex;justify-content:center;align-items:center}.room-wordmark{width:112px;height:37px}
+body .topbar .brand{padding:0;background:transparent;min-width:0}
+body.in-room #people-button{position:relative;overflow:visible}
+body.in-room #people-button .participant-count-badge{position:absolute;right:2px;top:2px;display:grid;place-items:center;min-width:15px;height:15px;padding:0 3px;box-sizing:border-box;border-radius:8px;background:#e8e0ef;color:#211b2b;font:700 9px/1 system-ui!important;border:1px solid #17121f;pointer-events:none}

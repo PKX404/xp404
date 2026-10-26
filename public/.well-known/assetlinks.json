@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.pkx404.xparty",
+      "sha256_cert_fingerprints": [
+        "62:09:59:63:AF:7F:C8:D2:E8:80:12:63:8A:96:13:F1:2C:CD:04:A1:A9:59:25:23:9C:DA:33:5F:F3:63:BE:92"
+      ]
+    }
+  }
+]

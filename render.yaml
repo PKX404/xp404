@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: xp404
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false

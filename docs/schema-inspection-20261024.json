@@ -1,0 +1,2859 @@
+{
+  "project": "gydhasaztdanfidrysfp",
+  "inspectedAt": "2026-10-24",
+  "sourcePath": "xparty-service/accounts/inspect-existing-schema.sql",
+  "method": "Supabase connector; catalog metadata only",
+  "accountRowsRead": false,
+  "mutations": false,
+  "results": [
+    {
+      "statement": 1,
+      "rows": [
+        {
+          "table_name": "xparty_friends",
+          "migration_relevant": true,
+          "relkind": "r",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "migration_relevant": true,
+          "relkind": "r",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "migration_relevant": false,
+          "relkind": "r",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "migration_relevant": false,
+          "relkind": "r",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "migration_relevant": false,
+          "relkind": "r",
+          "rls_enabled": true,
+          "rls_forced": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "migration_relevant": false,
+          "relkind": "r",
+          "rls_enabled": true,
+          "rls_forced": false
+        }
+      ]
+    },
+    {
+      "statement": 2,
+      "rows": [
+        {
+          "table_name": "xparty_calls",
+          "ordinal_position": 1,
+          "column_name": "id",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_calls",
+          "ordinal_position": 2,
+          "column_name": "caller",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_calls",
+          "ordinal_position": 3,
+          "column_name": "callee",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_calls",
+          "ordinal_position": 4,
+          "column_name": "status",
+          "data_type": "text",
+          "udt_schema": "pg_catalog",
+          "udt_name": "text",
+          "is_nullable": "NO",
+          "column_default": "'ringing'::text",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_calls",
+          "ordinal_position": 5,
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "udt_schema": "pg_catalog",
+          "udt_name": "timestamptz",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_friends",
+          "ordinal_position": 1,
+          "column_name": "id",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_friends",
+          "ordinal_position": 2,
+          "column_name": "requester",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_friends",
+          "ordinal_position": 3,
+          "column_name": "addressee",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_friends",
+          "ordinal_position": 4,
+          "column_name": "status",
+          "data_type": "text",
+          "udt_schema": "pg_catalog",
+          "udt_name": "text",
+          "is_nullable": "NO",
+          "column_default": "'pending'::text",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_friends",
+          "ordinal_position": 5,
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "udt_schema": "pg_catalog",
+          "udt_name": "timestamptz",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_messages",
+          "ordinal_position": 1,
+          "column_name": "id",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_messages",
+          "ordinal_position": 2,
+          "column_name": "sender",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_messages",
+          "ordinal_position": 3,
+          "column_name": "recipient",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_messages",
+          "ordinal_position": 4,
+          "column_name": "body",
+          "data_type": "text",
+          "udt_schema": "pg_catalog",
+          "udt_name": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_messages",
+          "ordinal_position": 5,
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "udt_schema": "pg_catalog",
+          "udt_name": "timestamptz",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "ordinal_position": 1,
+          "column_name": "id",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "ordinal_position": 2,
+          "column_name": "age",
+          "data_type": "integer",
+          "udt_schema": "pg_catalog",
+          "udt_name": "int4",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_profiles",
+          "ordinal_position": 1,
+          "column_name": "id",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_profiles",
+          "ordinal_position": 2,
+          "column_name": "display_name",
+          "data_type": "text",
+          "udt_schema": "pg_catalog",
+          "udt_name": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_profiles",
+          "ordinal_position": 3,
+          "column_name": "photo_data",
+          "data_type": "text",
+          "udt_schema": "pg_catalog",
+          "udt_name": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_profiles",
+          "ordinal_position": 4,
+          "column_name": "bio",
+          "data_type": "text",
+          "udt_schema": "pg_catalog",
+          "udt_name": "text",
+          "is_nullable": "NO",
+          "column_default": "''::text",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_profiles",
+          "ordinal_position": 5,
+          "column_name": "interests",
+          "data_type": "ARRAY",
+          "udt_schema": "pg_catalog",
+          "udt_name": "_text",
+          "is_nullable": "NO",
+          "column_default": "'{}'::text[]",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_profiles",
+          "ordinal_position": 6,
+          "column_name": "likes",
+          "data_type": "ARRAY",
+          "udt_schema": "pg_catalog",
+          "udt_name": "_text",
+          "is_nullable": "NO",
+          "column_default": "'{}'::text[]",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_profiles",
+          "ordinal_position": 7,
+          "column_name": "dislikes",
+          "data_type": "ARRAY",
+          "udt_schema": "pg_catalog",
+          "udt_name": "_text",
+          "is_nullable": "NO",
+          "column_default": "'{}'::text[]",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_signals",
+          "ordinal_position": 1,
+          "column_name": "id",
+          "data_type": "bigint",
+          "udt_schema": "pg_catalog",
+          "udt_name": "int8",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "YES",
+          "identity_generation": "ALWAYS",
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_signals",
+          "ordinal_position": 2,
+          "column_name": "call_id",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_signals",
+          "ordinal_position": 3,
+          "column_name": "sender",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_signals",
+          "ordinal_position": 4,
+          "column_name": "recipient",
+          "data_type": "uuid",
+          "udt_schema": "pg_catalog",
+          "udt_name": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_signals",
+          "ordinal_position": 5,
+          "column_name": "payload",
+          "data_type": "jsonb",
+          "udt_schema": "pg_catalog",
+          "udt_name": "jsonb",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        },
+        {
+          "table_name": "xparty_signals",
+          "ordinal_position": 6,
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "udt_schema": "pg_catalog",
+          "udt_name": "timestamptz",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "generation_expression": null,
+          "character_maximum_length": null
+        }
+      ]
+    },
+    {
+      "statement": 3,
+      "rows": [
+        {
+          "table_name": "xparty_calls",
+          "constraint_name": "xparty_calls_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (caller <> callee)"
+        },
+        {
+          "table_name": "xparty_calls",
+          "constraint_name": "xparty_calls_status_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (status = ANY (ARRAY['ringing'::text, 'accepted'::text, 'ended'::text]))"
+        },
+        {
+          "table_name": "xparty_calls",
+          "constraint_name": "xparty_calls_callee_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (callee) REFERENCES xparty_profiles(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_calls",
+          "constraint_name": "xparty_calls_caller_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (caller) REFERENCES xparty_profiles(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_calls",
+          "constraint_name": "xparty_calls_pkey",
+          "constraint_type": "primary key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "table_name": "xparty_friends",
+          "constraint_name": "xparty_friends_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (requester <> addressee)"
+        },
+        {
+          "table_name": "xparty_friends",
+          "constraint_name": "xparty_friends_status_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text]))"
+        },
+        {
+          "table_name": "xparty_friends",
+          "constraint_name": "xparty_friends_addressee_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (addressee) REFERENCES xparty_profiles(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_friends",
+          "constraint_name": "xparty_friends_requester_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (requester) REFERENCES xparty_profiles(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_friends",
+          "constraint_name": "xparty_friends_pkey",
+          "constraint_type": "primary key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "table_name": "xparty_messages",
+          "constraint_name": "xparty_messages_body_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (length(body) >= 1 AND length(body) <= 1500)"
+        },
+        {
+          "table_name": "xparty_messages",
+          "constraint_name": "xparty_messages_recipient_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (recipient) REFERENCES xparty_profiles(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_messages",
+          "constraint_name": "xparty_messages_sender_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (sender) REFERENCES xparty_profiles(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_messages",
+          "constraint_name": "xparty_messages_pkey",
+          "constraint_type": "primary key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "constraint_name": "xparty_private_profiles_age_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (age >= 18 AND age <= 120)"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "constraint_name": "xparty_private_profiles_id_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "constraint_name": "xparty_private_profiles_pkey",
+          "constraint_type": "primary key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "constraint_name": "xparty_profiles_bio_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (length(bio) <= 240)"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "constraint_name": "xparty_profiles_dislikes_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (cardinality(dislikes) <= 8 AND octet_length(dislikes::text) <= 2048)"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "constraint_name": "xparty_profiles_display_name_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (length(display_name) >= 1 AND length(display_name) <= 24)"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "constraint_name": "xparty_profiles_interests_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (cardinality(interests) <= 8 AND octet_length(interests::text) <= 2048)"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "constraint_name": "xparty_profiles_likes_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (cardinality(likes) <= 8 AND octet_length(likes::text) <= 2048)"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "constraint_name": "xparty_profiles_photo_data_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (photo_data IS NULL OR length(photo_data) < 100000 AND photo_data ~~ 'data:image/jpeg;base64,%'::text)"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "constraint_name": "xparty_profiles_id_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "constraint_name": "xparty_profiles_pkey",
+          "constraint_type": "primary key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "table_name": "xparty_signals",
+          "constraint_name": "xparty_signals_payload_check",
+          "constraint_type": "check",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (octet_length(payload::text) < 65536)"
+        },
+        {
+          "table_name": "xparty_signals",
+          "constraint_name": "xparty_signals_call_id_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (call_id) REFERENCES xparty_calls(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_signals",
+          "constraint_name": "xparty_signals_recipient_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (recipient) REFERENCES xparty_profiles(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_signals",
+          "constraint_name": "xparty_signals_sender_fkey",
+          "constraint_type": "foreign key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (sender) REFERENCES xparty_profiles(id) ON DELETE CASCADE"
+        },
+        {
+          "table_name": "xparty_signals",
+          "constraint_name": "xparty_signals_pkey",
+          "constraint_type": "primary key",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    {
+      "statement": 4,
+      "rows": [
+        {
+          "tablename": "xparty_calls",
+          "policyname": "call_change",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "UPDATE",
+          "qual": "((auth.uid() = caller) OR (auth.uid() = callee))",
+          "with_check": "(((status = 'accepted'::text) AND (callee = auth.uid())) OR (status = 'ended'::text))"
+        },
+        {
+          "tablename": "xparty_calls",
+          "policyname": "call_read",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "SELECT",
+          "qual": "((auth.uid() = caller) OR (auth.uid() = callee))",
+          "with_check": null
+        },
+        {
+          "tablename": "xparty_calls",
+          "policyname": "call_start",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "INSERT",
+          "qual": null,
+          "with_check": "((caller = auth.uid()) AND (status = 'ringing'::text) AND (EXISTS ( SELECT 1\n   FROM xparty_friends f\n  WHERE ((f.status = 'accepted'::text) AND (((f.requester = xparty_calls.caller) AND (f.addressee = xparty_calls.callee)) OR ((f.requester = xparty_calls.callee) AND (f.addressee = xparty_calls.caller)))))))"
+        },
+        {
+          "tablename": "xparty_friends",
+          "policyname": "friend_answer",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "UPDATE",
+          "qual": "((addressee = auth.uid()) AND (status = 'pending'::text))",
+          "with_check": "((addressee = auth.uid()) AND (status = ANY (ARRAY['accepted'::text, 'declined'::text])))"
+        },
+        {
+          "tablename": "xparty_friends",
+          "policyname": "friend_delete",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "DELETE",
+          "qual": "((auth.uid() = requester) OR (auth.uid() = addressee))",
+          "with_check": null
+        },
+        {
+          "tablename": "xparty_friends",
+          "policyname": "friend_read",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "SELECT",
+          "qual": "((auth.uid() = requester) OR (auth.uid() = addressee))",
+          "with_check": null
+        },
+        {
+          "tablename": "xparty_friends",
+          "policyname": "friend_request",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "INSERT",
+          "qual": null,
+          "with_check": "((requester = auth.uid()) AND (status = 'pending'::text))"
+        },
+        {
+          "tablename": "xparty_messages",
+          "policyname": "message_read",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "SELECT",
+          "qual": "((auth.uid() = sender) OR (auth.uid() = recipient))",
+          "with_check": null
+        },
+        {
+          "tablename": "xparty_messages",
+          "policyname": "message_send",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "INSERT",
+          "qual": null,
+          "with_check": "((sender = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM xparty_friends f\n  WHERE ((f.status = 'accepted'::text) AND (((f.requester = xparty_messages.sender) AND (f.addressee = xparty_messages.recipient)) OR ((f.requester = xparty_messages.recipient) AND (f.addressee = xparty_messages.sender)))))))"
+        },
+        {
+          "tablename": "xparty_private_profiles",
+          "policyname": "private_profile_owner",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "ALL",
+          "qual": "(id = auth.uid())",
+          "with_check": "(id = auth.uid())"
+        },
+        {
+          "tablename": "xparty_profiles",
+          "policyname": "profile_insert",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "INSERT",
+          "qual": null,
+          "with_check": "(id = auth.uid())"
+        },
+        {
+          "tablename": "xparty_profiles",
+          "policyname": "profile_read",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "SELECT",
+          "qual": "((id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM xparty_friends f\n  WHERE (((f.requester = auth.uid()) AND (f.addressee = xparty_profiles.id)) OR ((f.addressee = auth.uid()) AND (f.requester = xparty_profiles.id))))))",
+          "with_check": null
+        },
+        {
+          "tablename": "xparty_profiles",
+          "policyname": "profile_update",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "UPDATE",
+          "qual": "(id = auth.uid())",
+          "with_check": "(id = auth.uid())"
+        },
+        {
+          "tablename": "xparty_signals",
+          "policyname": "signal_read",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "SELECT",
+          "qual": "((recipient = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM xparty_calls c\n  WHERE ((c.id = xparty_signals.call_id) AND ((auth.uid() = c.caller) OR (auth.uid() = c.callee))))))",
+          "with_check": null
+        },
+        {
+          "tablename": "xparty_signals",
+          "policyname": "signal_send",
+          "permissive": "PERMISSIVE",
+          "roles": "{authenticated}",
+          "cmd": "INSERT",
+          "qual": null,
+          "with_check": "((sender = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM xparty_calls c\n  WHERE ((c.id = xparty_signals.call_id) AND (c.status = 'accepted'::text) AND (((c.caller = xparty_signals.sender) AND (c.callee = xparty_signals.recipient)) OR ((c.callee = xparty_signals.sender) AND (c.caller = xparty_signals.recipient)))))))"
+        }
+      ]
+    },
+    {
+      "statement": 5,
+      "rows": [
+        {
+          "table_name": "xparty_calls",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "service_role",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "service_role",
+          "privilege_type": "MAINTAIN",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "service_role",
+          "privilege_type": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "service_role",
+          "privilege_type": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_calls",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "authenticated",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "service_role",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "service_role",
+          "privilege_type": "MAINTAIN",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "service_role",
+          "privilege_type": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "service_role",
+          "privilege_type": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_friends",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "service_role",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "service_role",
+          "privilege_type": "MAINTAIN",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "service_role",
+          "privilege_type": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "service_role",
+          "privilege_type": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_messages",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "anon",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "anon",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "anon",
+          "privilege_type": "MAINTAIN",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "anon",
+          "privilege_type": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "anon",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "anon",
+          "privilege_type": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "anon",
+          "privilege_type": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "MAINTAIN",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "service_role",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "service_role",
+          "privilege_type": "MAINTAIN",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "service_role",
+          "privilege_type": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "service_role",
+          "privilege_type": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "service_role",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "service_role",
+          "privilege_type": "MAINTAIN",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "service_role",
+          "privilege_type": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "service_role",
+          "privilege_type": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_profiles",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "service_role",
+          "privilege_type": "DELETE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "service_role",
+          "privilege_type": "MAINTAIN",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "service_role",
+          "privilege_type": "TRIGGER",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "service_role",
+          "privilege_type": "TRUNCATE",
+          "is_grantable": false
+        },
+        {
+          "table_name": "xparty_signals",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": false
+        }
+      ]
+    },
+    {
+      "statement": 6,
+      "rows": [
+        {
+          "table_name": "xparty_calls",
+          "column_name": "callee",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "callee",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "callee",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "callee",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "callee",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "callee",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "caller",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "caller",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "caller",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "caller",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "caller",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "caller",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "created_at",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "created_at",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "status",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "status",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "status",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "status",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "status",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "status",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_calls",
+          "column_name": "status",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "addressee",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "addressee",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "addressee",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "addressee",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "addressee",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "addressee",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "created_at",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "created_at",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "requester",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "requester",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "requester",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "requester",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "requester",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "requester",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "status",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "status",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "status",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "status",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "status",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "status",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_friends",
+          "column_name": "status",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "body",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "body",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "body",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "body",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "body",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "body",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "created_at",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "created_at",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "recipient",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "recipient",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "recipient",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "recipient",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "recipient",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "recipient",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "sender",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "sender",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "sender",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "sender",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "sender",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_messages",
+          "column_name": "sender",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "anon",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "anon",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "anon",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "anon",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "authenticated",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "age",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "anon",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "anon",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "anon",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "anon",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "bio",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "bio",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "bio",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "bio",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "bio",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "bio",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "bio",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "dislikes",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "dislikes",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "dislikes",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "dislikes",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "dislikes",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "dislikes",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "dislikes",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "display_name",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "display_name",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "display_name",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "display_name",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "display_name",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "display_name",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "display_name",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "interests",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "interests",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "interests",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "interests",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "interests",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "interests",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "interests",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "likes",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "likes",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "likes",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "likes",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "likes",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "likes",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "likes",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "photo_data",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "photo_data",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "photo_data",
+          "grantee": "authenticated",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "photo_data",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "photo_data",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "photo_data",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "column_name": "photo_data",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "call_id",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "call_id",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "call_id",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "call_id",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "call_id",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "call_id",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "created_at",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "created_at",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "created_at",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "id",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "id",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "payload",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "payload",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "payload",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "payload",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "payload",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "payload",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "recipient",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "recipient",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "recipient",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "recipient",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "recipient",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "recipient",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "sender",
+          "grantee": "authenticated",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "sender",
+          "grantee": "authenticated",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "sender",
+          "grantee": "service_role",
+          "privilege_type": "INSERT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "sender",
+          "grantee": "service_role",
+          "privilege_type": "REFERENCES",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "sender",
+          "grantee": "service_role",
+          "privilege_type": "SELECT",
+          "is_grantable": "NO"
+        },
+        {
+          "table_name": "xparty_signals",
+          "column_name": "sender",
+          "grantee": "service_role",
+          "privilege_type": "UPDATE",
+          "is_grantable": "NO"
+        }
+      ]
+    },
+    {
+      "statement": 7,
+      "rows": [
+        {
+          "table_name": "xparty_calls",
+          "index_name": "xparty_calls_pkey",
+          "is_primary": true,
+          "is_unique": true,
+          "is_valid": true,
+          "definition": "CREATE UNIQUE INDEX xparty_calls_pkey ON public.xparty_calls USING btree (id)"
+        },
+        {
+          "table_name": "xparty_friends",
+          "index_name": "xparty_friend_pair",
+          "is_primary": false,
+          "is_unique": true,
+          "is_valid": true,
+          "definition": "CREATE UNIQUE INDEX xparty_friend_pair ON public.xparty_friends USING btree (LEAST(requester, addressee), GREATEST(requester, addressee))"
+        },
+        {
+          "table_name": "xparty_friends",
+          "index_name": "xparty_friends_pkey",
+          "is_primary": true,
+          "is_unique": true,
+          "is_valid": true,
+          "definition": "CREATE UNIQUE INDEX xparty_friends_pkey ON public.xparty_friends USING btree (id)"
+        },
+        {
+          "table_name": "xparty_messages",
+          "index_name": "xparty_message_pair",
+          "is_primary": false,
+          "is_unique": false,
+          "is_valid": true,
+          "definition": "CREATE INDEX xparty_message_pair ON public.xparty_messages USING btree (sender, recipient, created_at)"
+        },
+        {
+          "table_name": "xparty_messages",
+          "index_name": "xparty_messages_pkey",
+          "is_primary": true,
+          "is_unique": true,
+          "is_valid": true,
+          "definition": "CREATE UNIQUE INDEX xparty_messages_pkey ON public.xparty_messages USING btree (id)"
+        },
+        {
+          "table_name": "xparty_private_profiles",
+          "index_name": "xparty_private_profiles_pkey",
+          "is_primary": true,
+          "is_unique": true,
+          "is_valid": true,
+          "definition": "CREATE UNIQUE INDEX xparty_private_profiles_pkey ON public.xparty_private_profiles USING btree (id)"
+        },
+        {
+          "table_name": "xparty_profiles",
+          "index_name": "xparty_profiles_pkey",
+          "is_primary": true,
+          "is_unique": true,
+          "is_valid": true,
+          "definition": "CREATE UNIQUE INDEX xparty_profiles_pkey ON public.xparty_profiles USING btree (id)"
+        },
+        {
+          "table_name": "xparty_signals",
+          "index_name": "xparty_signals_pkey",
+          "is_primary": true,
+          "is_unique": true,
+          "is_valid": true,
+          "definition": "CREATE UNIQUE INDEX xparty_signals_pkey ON public.xparty_signals USING btree (id)"
+        }
+      ]
+    },
+    {
+      "statement": 8,
+      "rows": [
+        {
+          "signature": "xparty_delete_my_account()",
+          "arguments_with_names": "",
+          "return_type": "void",
+          "owner": "postgres",
+          "language": "plpgsql",
+          "security_definer": true,
+          "volatility": "v",
+          "function_settings": [
+            "search_path=\"\""
+          ],
+          "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+          "definition": "CREATE OR REPLACE FUNCTION public.xparty_delete_my_account()\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\nbegin\r\n if auth.uid() is null then raise exception 'Authentication required'; end if;\r\n delete from auth.sessions where user_id=auth.uid();\r\n delete from auth.users where id=auth.uid();\r\nend;\r\n$function$\n"
+        },
+        {
+          "signature": "xparty_mutual_friends(uuid)",
+          "arguments_with_names": "target uuid",
+          "return_type": "TABLE(id uuid, display_name text, photo_data text)",
+          "owner": "postgres",
+          "language": "sql",
+          "security_definer": true,
+          "volatility": "s",
+          "function_settings": [
+            "search_path=\"\""
+          ],
+          "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+          "definition": "CREATE OR REPLACE FUNCTION public.xparty_mutual_friends(target uuid)\n RETURNS TABLE(id uuid, display_name text, photo_data text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n select p.id,p.display_name,p.photo_data from public.xparty_profiles p\r\n where auth.uid() is not null and target<>auth.uid()\r\n and exists(select 1 from public.xparty_friends f where f.status='accepted'\r\n   and ((f.requester=auth.uid() and f.addressee=target) or (f.requester=target and f.addressee=auth.uid())))\r\n and exists(select 1 from public.xparty_friends f where f.status='accepted'\r\n   and ((f.requester=auth.uid() and f.addressee=p.id) or (f.requester=p.id and f.addressee=auth.uid())))\r\n and exists(select 1 from public.xparty_friends f where f.status='accepted'\r\n   and ((f.requester=target and f.addressee=p.id) or (f.requester=p.id and f.addressee=target)))\r\n order by p.display_name,p.id limit 100;\r\n$function$\n"
+        }
+      ]
+    },
+    {
+      "statement": 9,
+      "rows": []
+    },
+    {
+      "statement": 10,
+      "rows": [
+        {
+          "supabase_migration_ledger_exists": true
+        }
+      ]
+    }
+  ]
+}
