@@ -405,16 +405,22 @@ function updateUnread(){$('panel-unread').hidden=!unread;$('panel-unread').textC
 function addMessage(m,live=true){if([...$('messages').querySelectorAll('[data-message-id]')].some(e=>e.dataset.messageId===m.id))return;typingPeople.delete(m.from);renderTyping();const welcome=$('messages').querySelector('.chat-welcome');welcome?.remove();const el=document.createElement('div');el.dataset.messageId=m.id;el.className='message'+(m.from===me?' mine':'')+(m.to?' private':'');const name=document.createElement('small');name.textContent=m.name+(m.to?' → '+m.toName+' · Private':'')+' · '+new Date(m.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const text=document.createElement('p');text.textContent=m.deleted?'Message deleted':m.text;el.append(name);if(m.text||m.deleted)el.append(text);if(m.attachment)renderAttachment(el,m.attachment);if(m.poll){const card=document.createElement('div');card.dataset.pollId=m.poll.id;el.append(card);renderPoll(card,m.poll);}if(m.from===me){const receipt=document.createElement('span');receipt.className='read-receipt';receipt.dataset.state=m.readBy?.length?'read':m.deliveredBy?.length?'delivered':'sent';receipt.textContent=m.readBy?.length?'◉':m.deliveredBy?.length?'✓✓':'✓';receipt.setAttribute('aria-label',t(m.readBy?.length?'Seen':m.deliveredBy?.length?'Delivered':'Sent'));el.append(receipt);}else if(m.id){el.dataset.unread='true';send('delivered',{ids:[m.id]});} roomInteractions?.decorateMessage(el,m,live);$('messages').append(el);
  const menu=document.createElement('button');menu.type='button';menu.className='message-more';menu.textContent='•••';menu.setAttribute('aria-label','Message actions');el.append(menu);
  menu.onclick=()=>{
-  const choice=prompt('Message actions: copy, reply, pin, edit, delete');
-  if(!choice)return;
-  switch(choice.trim().toLowerCase()){
+  const dialog=document.createElement('dialog');dialog.className='xparty-message-actions';const heading=document.createElement('h2');heading.textContent='Message';dialog.append(heading);
+  for(const label of ['Copy text','Reply','Pin','Edit','Delete','Cancel']){
+   if((label==='Edit'||label==='Delete')&&m.from!==me)continue;
+   if(label==='Pin'&&room?.hostId!==me)continue;
+   const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>{dialog.close();dialog.remove();act(label);};dialog.append(button);
+  }
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
+  function act(choice){switch(choice.toLowerCase()){
+   case 'copy text':
    case 'copy':if(m.text)navigator.clipboard.writeText(m.text).catch(()=>toast('Copy unavailable'));break;
    case 'reply':$('message-input').value='↳ '+m.name+': '+(m.text||'').slice(0,120)+'\\n';$('message-input').focus();break;
    case 'pin':if(room?.hostId===me)send('pin-message',{id:m.id});else toast('Only the host can pin.');break;
    case 'edit':if(m.from!==me)return toast('You can edit only your own messages.');{const value=prompt('Edit message',m.text||'');if(value?.trim())send('chat-edit',{id:m.id,text:value.trim()});}break;
    case 'delete':if(m.from!==me)return toast('You can delete only your own messages.');if(confirm('Delete message for everyone?'))send('chat-delete',{id:m.id});break;
-   default:toast('Choose copy, reply, pin, edit or delete.');
-  }
+   default:break;
+  }}
  };
  if(live)notifySound(m.from===me?'sent':'message');requestAnimationFrame(markVisibleRead);while($('messages').children.length>200)$('messages').firstChild.remove();$('messages').scrollTop=$('messages').scrollHeight;if(live&&m.from!==me&&!chatIsVisible()){unread++;updateUnread();}}
 function renderTyping(){for(const[id,p]of typingPeople)if(p.until<Date.now())typingPeople.delete(id);const names=[...typingPeople.values()].map(p=>p.name);$('typing').hidden=!names.length;$('typing').querySelector('span').textContent=names.slice(0,2).join(', ')+(names.length>2?' +'+(names.length-2):'')+(preferences.language==='hi'?' लिख रहे हैं':preferences.language==='kn'?' ಟೈಪ್ ಮಾಡುತ್ತಿದ್ದಾರೆ':' typing');}
