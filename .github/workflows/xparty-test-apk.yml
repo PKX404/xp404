@@ -6,6 +6,8 @@ on:
       - 'android-test/**'
       - '.github/workflows/xparty-test-apk.yml'
   workflow_dispatch:
+  pull_request:
+    branches: [main]
 jobs:
   android-debug-apk:
     runs-on: ubuntu-latest
