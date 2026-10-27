@@ -17,3 +17,7 @@ jobs:
             head -c 180 /tmp/render-body || true
             echo
           done
+          echo "PROBING_DEPLOYED_JS xp404.onrender.com"
+          js_code=$(curl -LsS --connect-timeout 10 --max-time 55 -o /tmp/xparty-appjs -w '%{http_code}' "https://xp404.onrender.com/xparty/app.js?verify=20261027") || js_code="000"
+          echo "DEPLOYED_JS_HTTP $js_code"
+          if grep -Fq "chat-updated" /tmp/xparty-appjs; then echo "XPARTY_LATEST_CHAT_CODE=YES"; else echo "XPARTY_LATEST_CHAT_CODE=NO"; fi
