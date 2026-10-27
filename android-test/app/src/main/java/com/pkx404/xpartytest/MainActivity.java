@@ -36,8 +36,8 @@ import java.util.Arrays;
  * WebView fallback video != the existing production Android native decoder.
  */
 public final class MainActivity extends Activity {
-    private static final String HOME = "https://xp4040.onrender.com/";
-    private static final String HOST = "xp4040.onrender.com";
+    private static final String HOME = "https://xp404.onrender.com/";
+    private static final String HOST = "xp404.onrender.com";
     private static final int MEDIA_PERMISSIONS = 2001;
     private static final int NOTIFY_PERMISSION = 2002;
     private static final int SELECT_FILE = 2003;
