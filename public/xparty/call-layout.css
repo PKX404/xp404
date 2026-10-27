@@ -180,3 +180,38 @@ body.in-room:not(.watch-fullscreen):not(.focus-call):not(.vc-active) #room .part
 body.watch-fullscreen:not(.vc-active) #room .call-panel,body.watch-fullscreen:not([data-conversation="call"]) #room .call-panel,body.watch-fullscreen:not(.vc-active) #fullscreen-call-toggle{display:none!important}
 body dialog{max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 24px)!important;box-sizing:border-box!important;overflow:auto!important}
 body dialog button{max-width:100%;overflow-wrap:anywhere}
+
+/* Refinements: a transparent room, high-contrast controls, maximum dual-call area. */
+body.native-media-active.in-room:not(.watch-fullscreen) #room .together-column,
+body.native-media-active.in-room:not(.watch-fullscreen) #room .chat-panel,
+body.native-media-active.in-room:not(.watch-fullscreen) #room #messages,
+body.native-media-active.in-room:not(.watch-fullscreen) #room #chat-form{background:transparent!important;background-image:none!important;backdrop-filter:none!important}
+body.in-room #room .conversation-tabs button{font-size:clamp(13px,3.5vw,15px)!important;font-weight:750!important;letter-spacing:-.015em}
+body.in-room #room #chat-form button{display:grid!important;place-items:center!important;flex:0 0 34px!important;min-width:34px!important;width:34px!important;height:38px!important;min-height:38px!important;padding:8px!important}
+body.in-room #room #chat-form button[type=submit]{background:#d7c6fc!important;color:#1b1726!important;border-radius:20px!important}
+body.in-room #room #chat-form button[type=submit]:before{background-color:currentColor!important}
+body.in-room #room #chat-mic{display:grid!important;place-items:center!important;flex:0 0 34px!important;width:34px!important;min-width:34px!important;color:#e6d5ff!important}
+body.in-room #room #chat-mic[aria-pressed=true]{color:#ecdaff!important;background:#604b795e!important;border-radius:19px!important}
+body.in-room.room-people-open #room #chat-form #chat-mic{display:grid!important}
+body.in-room #room #chat-form #message-input{font-size:16px!important;min-width:0!important}
+body.in-room #room .room-footer{padding-bottom:max(4px,env(safe-area-inset-bottom))!important}
+body.in-room #room .mobile-room-header button{touch-action:manipulation}
+body.in-room #room .mobile-room-header button:first-child{margin-inline-start:0!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room .call-panel{min-height:0!important;flex:1 1 0!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo,
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count="2"].duo{
+ width:100%!important;max-width:none!important;min-width:0!important;height:100%!important;flex:1 1 0!important;min-height:0!important;align-self:stretch!important
+}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo>.participant:not(.call-pip-preview){width:100%!important;height:100%!important;max-width:none!important;max-height:none!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo>.participant:not(.call-pip-preview) video{object-fit:cover!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call)[data-conversation=call] #room .watch-column{max-height:20dvh!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call)[data-conversation=call] #room #watch-stage{max-height:20dvh!important}
+@media(max-width:500px){
+ body.in-room #room #chat-form{gap:2px!important;padding-inline:4px!important}
+ body.in-room #room #chat-form button{flex-basis:32px!important;min-width:32px!important;width:32px!important}
+ body.in-room #room #chat-form #chat-mic{flex-basis:32px!important;min-width:32px!important;width:32px!important}
+ body.in-room #room .conversation-tabs button{flex:1!important;min-width:0!important}
+}
+body.in-room #room-settings-dialog,body.in-room .room-report{width:min(370px,calc(100vw - 32px))!important;max-width:calc(100vw - 32px)!important;padding:18px!important}
+body.in-room #room-settings-dialog :is(h2,h3,summary,strong),body.in-room .room-report :is(h2,h3,summary,strong){font-weight:800!important}
+body.in-room #room-settings-dialog button,body.in-room .room-report button{font-weight:700!important}
