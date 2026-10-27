@@ -28,6 +28,14 @@ const assert=require('node:assert/strict');
   assert.equal(await page.locator('#file-player').getAttribute('src'),null);
   assert.equal(await page.locator('.room-ambient-layer').getAttribute('data-mode'),'native');
   assert.equal(await page.evaluate(()=>nativeCommands.filter(x=>x.type==='load').length),1);
+  // Partial native events and typing do not unmount or reload the decoder.
+  await page.evaluate(()=>engine.postMessage(JSON.stringify({type:'progress',sourceId:activeNativeSource,position:2.5})));
+  await page.waitForTimeout(100);
+  assert(await page.locator('body').evaluate(e=>e.classList.contains('native-media-active')));
+  await page.locator('#message-input').fill('typing while native playback stays mounted');
+  await page.waitForTimeout(350);
+  assert.equal(await page.evaluate(()=>nativeCommands.filter(x=>x.type==='load').length),1);
+  assert(await page.locator('body').evaluate(e=>e.classList.contains('native-media-active')));
   await page.locator('#playback-speaker').click();await page.waitForFunction(()=>nativeCommands.filter(x=>x.type==='volume').at(-1)?.value===0);
   await page.locator('#playback-speaker').click();await page.waitForFunction(()=>nativeCommands.filter(x=>x.type==='volume').at(-1)?.value>0);
   await page.click('#fullscreen-video');await page.waitForFunction(()=>nativeCommands.some(x=>x.type==='fullscreen'&&x.value));assert.equal(await page.evaluate(()=>!!document.fullscreenElement),false);assert(await page.locator('.call-panel').isVisible());
