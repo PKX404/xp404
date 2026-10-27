@@ -1,0 +1,19 @@
+name: Check Render URLs
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Render hostname diagnostics
+        shell: bash
+        run: |
+          for host in xp4040.onrender.com xp404.onrender.com; do
+            echo "PROBING https://$host/"
+            code=$(curl -LsS --connect-timeout 10 --max-time 50 -o /tmp/render-body -w '%{http_code}' "https://$host/health") || code="000"
+            echo "PROBE_STATUS $host $code"
+            head -c 180 /tmp/render-body || true
+            echo
+          done
