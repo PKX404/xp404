@@ -1,6 +1,6 @@
 # Xparty Android test wrapper
 
-This is a test-only Android WebView shell for https://xp4040.onrender.com/.
+This is a test-only Android WebView shell for https://xp404.onrender.com/.
 
 It is NOT the production Xparty APK, does NOT embed ExoPlayer, and does NOT
 implement a foreground media service. In particular, background playback,
@@ -17,3 +17,5 @@ It supports:
 Build: gradle :app:assembleDebug
 Output: app/build/outputs/apk/debug/app-debug.apk
 GitHub Actions: Xparty Android test APK → workflow runs → downloadable artifact.
+
+Note: Requested xp4040.onrender.com returned HTTP 404 on 2026-10-27. The live Xparty service verified with HTTP 200 is xp404.onrender.com.

@@ -6,6 +6,8 @@ on:
       - 'android-test/**'
       - '.github/workflows/xparty-test-apk.yml'
   workflow_dispatch:
+  pull_request:
+    branches: [main]
 jobs:
   android-debug-apk:
     runs-on: ubuntu-latest
@@ -26,6 +28,14 @@ jobs:
       - name: Build installable debug APK
         working-directory: android-test
         run: gradle --no-daemon :app:assembleDebug
+      - name: Check public Render URL
+        shell: bash
+        continue-on-error: true
+        run: |
+          code=$(curl -L --connect-timeout 15 --max-time 65 -sS -o /tmp/xparty-response -w '%{http_code}' https://xp404.onrender.com/health) || code="000"
+          echo "XPARTY_RENDER_HTTP_STATUS=$code"
+          if test -f /tmp/xparty-response; then head -c 800 /tmp/xparty-response; fi
+          echo
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

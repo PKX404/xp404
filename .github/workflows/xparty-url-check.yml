@@ -1,0 +1,23 @@
+name: Check Render URLs
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Render hostname diagnostics
+        shell: bash
+        run: |
+          for host in xp4040.onrender.com xp404.onrender.com; do
+            echo "PROBING https://$host/"
+            code=$(curl -LsS --connect-timeout 10 --max-time 50 -o /tmp/render-body -w '%{http_code}' "https://$host/health") || code="000"
+            echo "PROBE_STATUS $host $code"
+            head -c 180 /tmp/render-body || true
+            echo
+          done
+          echo "PROBING_DEPLOYED_JS xp404.onrender.com"
+          js_code=$(curl -LsS --connect-timeout 10 --max-time 55 -o /tmp/xparty-appjs -w '%{http_code}' "https://xp404.onrender.com/xparty/app.js?verify=20261027") || js_code="000"
+          echo "DEPLOYED_JS_HTTP $js_code"
+          if grep -Fq "chat-updated" /tmp/xparty-appjs; then echo "XPARTY_LATEST_CHAT_CODE=YES"; else echo "XPARTY_LATEST_CHAT_CODE=NO"; fi
