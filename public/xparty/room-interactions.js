@@ -3,7 +3,7 @@ const button=(text,fn,cls='')=>{const b=node('button',cls,text);b.type='button';
 export function initRoomInteractions({getContext,send,notify,base,profiles,friendAction,refreshAudio,conversation,icon}){
  const $=id=>document.getElementById(id);let roomCode=null,selected=null,muted=new Set(),blocked=new Set(),requested=null,controller=null,ballotKey='';
  const header=node('header','mobile-room-header');header.setAttribute('aria-label','Watch room');
- for(const [id,label,glyph]of [['nav-home','Home','close'],['nav-settings','Settings','settings'],['brand','Xparty',null],['browse','Quick search and sources','search'],['people-button','Participants','people']]){
+ for(const [id,label,glyph]of [['room-exit','Exit room','close'],['nav-settings','Settings','settings'],['brand','Xparty',null],['browse','Quick search and sources','search'],['people-button','Participants','people']]){
    if(id==='brand'){header.append(node('strong','mobile-room-brand','xparty'));continue;}
    const b=id==='people-button'?$(id):button(label,()=>$(id)?.click());icon(b,glyph,label);header.append(b);
  }$('room').prepend(header);
