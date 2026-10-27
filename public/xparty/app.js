@@ -43,14 +43,19 @@ let nativeYouTube=null,vimeo=null,providerLoad=null,roomDesign,providerUI,fullsc
 let sourceId=null, pendingFile=null, ownedFile=null, ownedFileId=null, objectUrl=null, activePlayback;
 let suppressUntil=0, lastCorrected=0, appliedRevision=-1, clockOffset=0, bestRTT=Infinity, lastAnchor=0, lastSeek=0;
 let audioContext, movieGain, movieAudio, callVolume=1, movieVolume=.7, busyMedia=false;
-let bufferTimer,bufferReported=false,autoDriftSince=0,lastPlayAttempt=0;let cameraFacing='user';let speakerOn=true,viewMode='default',joinLookup=0,lookupTimer;const observedMessages=new Set();
+let bufferTimer,bufferReported=false,autoDriftSince=0,lastPlayAttempt=0,nativeBufferTimer=null,nativeBuffering=false,lastNativePlayAttempt=0;let cameraFacing='user';let speakerOn=true,viewMode='default',joinLookup=0,lookupTimer;const observedMessages=new Set();
 let recipient=null,unread=0,typingTimer,lastTyping=0;const typingPeople=new Map();let vcVisible=false,chatVisible=true,buffering=false,settleUntil=0;
 let fileJob=null,loadedFileId=null,downloadId=null,readySent=null;
 const SESSION='xparty-session-v2';
 const filePlayer=$('file-player');
 const memberProfiles=initMemberProfiles({getContext:()=>({room,me,send}),notify:toast});
 const skipVoting=initSkipVoting({getContext:()=>({room,me,send})});
-const nativeVideo=initNativeVideo({onAvailable:()=>{if(room?.source&&nativeVideo.handles(room.source))applySource(room.source);},onReady:()=>{readySent=sourceId;send('ready',{sourceId,ready:true,status:'Native video ready'});applyPlayback(true);if(iptv?.consumeAutoplay(room?.source))command(true,0);},onState:event=>{if(event.type==='buffering')reportBuffer(true);if(event.type==='buffered')reportBuffer(false);ambient.update();},onEnded:()=>playbackEnded(),onError:message=>{status('Native video unavailable');send('ready',{sourceId,ready:false,status:'Native video unavailable'});toast(message);}});
+const nativeVideo=initNativeVideo({onAvailable:()=>{if(room?.source&&nativeVideo.handles(room.source))applySource(room.source);},onReady:()=>{readySent=sourceId;send('ready',{sourceId,ready:true,status:'Native video ready'});applyPlayback(true);if(iptv?.consumeAutoplay(room?.source))command(true,0);},onState:event=>{
+  // Short IME-induced rebuffering must not pause everyone in the room.
+  if(event.type==='buffering'){nativeBuffering=true;clearTimeout(nativeBufferTimer);const expected=sourceId;nativeBufferTimer=setTimeout(()=>{if(nativeBuffering&&sourceId===expected&&nativePlayback())reportBuffer(true);},1800);}
+  if(event.type==='buffered'||event.type==='ready'){nativeBuffering=false;clearTimeout(nativeBufferTimer);nativeBufferTimer=null;reportBuffer(false);}
+  ambient.update();
+ },onEnded:()=>playbackEnded(),onError:message=>{status('Native video unavailable');send('ready',{sourceId,ready:false,status:'Native video unavailable'});toast(message);}});
 function usesEmbed(source){return isEmbedded(source)&&!nativeVideo.handles(source);}
 function nativePlayback(){return nativeVideo.handles(room?.source);}
 function playLocalVideo(){if(room?.source?.type==='iptv'&&!nativePlayback())iptvPlayer?.goLive();if(nativePlayback()){nativeVideo.play();return Promise.resolve();}return filePlayer.play();}
@@ -289,7 +294,7 @@ async function ensureFile(){
  try{transfer('Receiving '+source.title,0);const res=await fetch(base+'/api/file/'+id,{headers:{Authorization:'Bearer '+token},signal:controller.signal});if(!res.ok)throw new Error((await res.json()).error);const reader=res.body.getReader(),parts=[];let size=0;while(true){const {done,value}=await reader.read();if(done)break;parts.push(value);size+=value.length;transfer('Receiving video · '+Math.round(size*100/source.size)+'%',size*100/source.size);}if(id!==sourceId)return;if(size!==source.size)throw new Error('Incomplete download. Tap Resync to retry.');loadedFileId=id;setFileBlob(new Blob(parts,{type:source.mime}));transfer('Received. Loading video…',100);}catch(e){if(e.name!=='AbortError'){transfer('Could not receive video. Tap Resync to retry.',0);toast(e.message);}}finally{if(downloadId===id)downloadId=null;}
 }
 function setFileBlob(blob) {if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=URL.createObjectURL(blob);filePlayer.src=objectUrl;filePlayer.load();}
-async function applySource(source) {showControls();nativeVideo.stop();
+async function applySource(source) {showControls();clearTimeout(nativeBufferTimer);nativeBufferTimer=null;nativeBuffering=false;lastNativePlayAttempt=0;nativeVideo.stop();
   document.body.classList.toggle('room-has-source',!!source);document.body.classList.remove('browsing');$('search-status').textContent='';
   localReplay=false;localPaused=false;clearTimeout(bufferTimer);bufferReported=false;buffering=false;settleUntil=0;autoDriftSince=0;fileJob?.abort();downloadId=null;loadedFileId=null;readySent=null;sourceId=source?.id||null;appliedRevision=-1;suppressUntil=Date.now()+1400;lastCorrected=0;
   providerLoad?.abort();iptvPlayer?.destroy();iptvPlayer=null;providerLoad=new AbortController();companion.disconnect();vimeo?.destroy();vimeo=null;yt=nativeYouTube;ytReady=!!nativeYouTube;const vimeoHost=$('vimeo-player');if(vimeoHost)vimeoHost.replaceChildren();$('vimeo-wrap').hidden=!['vimeo','twitch','soundcloud'].includes(source?.type);providerUI?.update();
@@ -361,13 +366,23 @@ function applyPlayback(force=false) {
   if(usesEmbed(room.source)&&p.playing&&!commandChanged&&!force&&(yt.getPlayerState()===3||Date.now()<settleUntil))return;
   const mode=correction(diff,commandChanged || force,Date.now()-lastCorrected);
   if(Math.abs(diff)>.65){autoDriftSince||=Date.now();}else autoDriftSince=0;
-  const shouldSeek=!isLiveSource(room.source)&&mode==='seek'&&(commandChanged||force||isVideoElement(room.source)||(Date.now()-autoDriftSince>=750&&Date.now()-lastCorrected>2500));
+  // Avoid repeated native decoder seeks while the chat keyboard changes layout.
+   // Explicit room commands still seek immediately.
+   const nativeSource=nativePlayback(),composingChat=document.activeElement===$('message-input');
+   const shouldSeek=!isLiveSource(room.source)&&mode==='seek'&&(
+    nativeSource
+     ? ((commandChanged||force)?Math.abs(diff)>.5:!nativeBuffering&&!composingChat&&Math.abs(diff)>3&&Date.now()-lastCorrected>5000)
+     : (commandChanged||force||isVideoElement(room.source)||(Date.now()-autoDriftSince>=750&&Date.now()-lastCorrected>2500))
+   );
   if(shouldSeek){ suppressUntil=Date.now()+1000;if(usesEmbed(room.source))yt.seekTo(target,true);else if(nativePlayback())nativeVideo.seek(target);else filePlayer.currentTime=target;lastCorrected=Date.now();}
   if(isVideoElement(room.source)&&!nativePlayback()&&!isLiveSource(room.source))filePlayer.playbackRate=p.playing&&mode==='rate'?Math.max(.95,Math.min(1.05,1+diff*.025)):1;
   if(p.playing && !isPlaying()){
     // A buffering YouTube player must finish buffering without repeated play/seek commands.
     if(usesEmbed(room.source)){if(yt.getPlayerState()!==3&&Date.now()-lastPlayAttempt>1500){lastPlayAttempt=Date.now();suppressUntil=Date.now()+700;yt.playVideo();}}
-    else{suppressUntil=Date.now()+1000;playLocalVideo().catch(()=>toast('Tap Play or Enable sound to allow playback.'));}
+    else if(!nativePlayback()||(!nativeBuffering&&Date.now()-lastNativePlayAttempt>1800)){
+     if(nativePlayback())lastNativePlayAttempt=Date.now();
+     suppressUntil=Date.now()+1000;playLocalVideo().catch(()=>toast('Tap Play or Enable sound to allow playback.'));
+    }
   }else if(!p.playing && isPlaying()){suppressUntil=Date.now()+1000;if(usesEmbed(room.source))yt.pauseVideo();else pauseLocalVideo();}
   setPlayIcon(p.playing);status(isLiveSource(room.source)?(p.playing?'Live · device timing may differ':'Live paused on room devices'):p.playing?(Math.abs(diff)<.75?'Playing together':'Aligning playback'):'Paused together');
 }
