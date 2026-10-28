@@ -47,6 +47,6 @@ jobs:
             socket?.close();
            }
           }
-          (async()=>{let failure;for(let i=1;i<=8;i++){try{await smoke();return;}catch(error){failure=error;console.log('Live-check attempt '+i+': '+error.message);if(i<8)await delay(20000);}}throw failure;})().catch(e=>{console.error('Live verification failed: '+e.message);process.exitCode=1;});
+          (async()=>{let failure;for(let i=1;i<=1;i++){try{await smoke();return;}catch(error){failure=error;console.log('Live-check attempt '+i+': '+error.message);if(i<1)await delay(20000);}}throw failure;})().catch(e=>{console.error('Live verification failed: '+e.message);process.exitCode=1;});
           
           NODE
