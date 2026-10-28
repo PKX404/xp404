@@ -53,7 +53,7 @@ export function createXparty(options={}) {
  const videoInvitations=createVideoInvitations({online,send,state,rate});
  const attachments=createAttachmentStore({online:p=>online(p)&&clients.get(p.token)===p&&rooms.has(p.code)});
  function broadcast(r,obj){for(const p of r.people.values())send(p.ws,obj);}
- function snapshot(r){return {code:r.code,...interactions.view(r),...directorySettings(r),skipVoting:skipState(r,online),hostId:r.hostId,ownerId:r.ownerId||r.hostId,...partyState(r),hostReconnecting:!online(r.people.get(r.hostId)||{}),bufferTogether:r.bufferTogether!==false,pttEnabled:!!r.pttEnabled,theme:r.theme||null,guestThemes:!!r.guestThemes,autoplay:queueOrder(r)==='fifo',queueOrder:queueOrder(r),autoAdvance:r.autoAdvance!==false,capacity:r.capacity,locked:r.locked,source:r.source,sourceLikes:r.sourceLikes||[],playback:r.playback,queue:r.queue||[],people:[...r.people.values()].map(p=>({id:p.id,name:p.name,profile:profileData(p.profile),session:p.session||0,online:online(p),presence:online(p)?'ACTIVE':p.left?'LEFT':'DISCONNECTED',reservedUntil:p.reservedUntil||null,inCall:!!p.inCall,mic:p.mic,camera:p.camera,ready:p.ready,loadStatus:p.loadStatus||'',chatBlocked:!!p.chatBlocked,micBlocked:p.micBlocked,cameraAllowed:p.cameraAllowed,cameraRequested:p.cameraRequested,pttApproved:!!p.pttApproved,pttRequested:!!p.pttRequested,seatRequested:!!p.seatRequested})),serverTime:Date.now()};}
+ function snapshot(r){return {code:r.code,features:{messageControls:true},...interactions.view(r),...directorySettings(r),skipVoting:skipState(r,online),hostId:r.hostId,ownerId:r.ownerId||r.hostId,...partyState(r),hostReconnecting:!online(r.people.get(r.hostId)||{}),bufferTogether:r.bufferTogether!==false,pttEnabled:!!r.pttEnabled,theme:r.theme||null,guestThemes:!!r.guestThemes,autoplay:queueOrder(r)==='fifo',queueOrder:queueOrder(r),autoAdvance:r.autoAdvance!==false,capacity:r.capacity,locked:r.locked,source:r.source,sourceLikes:r.sourceLikes||[],playback:r.playback,queue:r.queue||[],people:[...r.people.values()].map(p=>({id:p.id,name:p.name,profile:profileData(p.profile),session:p.session||0,online:online(p),presence:online(p)?'ACTIVE':p.left?'LEFT':'DISCONNECTED',reservedUntil:p.reservedUntil||null,inCall:!!p.inCall,mic:p.mic,camera:p.camera,ready:p.ready,loadStatus:p.loadStatus||'',chatBlocked:!!p.chatBlocked,micBlocked:p.micBlocked,cameraAllowed:p.cameraAllowed,cameraRequested:p.cameraRequested,pttApproved:!!p.pttApproved,pttRequested:!!p.pttRequested,seatRequested:!!p.seatRequested})),serverTime:Date.now()};}
  function state(r){startSelectedPlayback(r,online);if(skipState(r,online).ready){const item=nextQueued(r),host=r.people.get(r.hostId);if(item&&host&&online(host)){const previous=r.source&&r.source.type!=='file'?{provider:r.source.type,videoId:r.source.videoId,url:r.source.url,title:r.source.title}:null;r.queue=r.queue.filter(q=>q.id!==item.id);resetSkipVotes(r);control.cancel(r,'The room voted to skip.');choose(r,host,{type:item.provider||'youtube',videoId:item.videoId,url:item.url,title:item.title});r.previousSource=previous;return;}}syncBuffering(r);broadcast(r,{type:'state',room:snapshot(r)});persist();}
  function ice(id){const out=[{urls:'stun:stun.l.google.com:19302'}];if(process.env.TURN_URLS&&process.env.TURN_SECRET){const username=`${Math.floor(Date.now()/1000)+86400}:${id}`;out.push({urls:process.env.TURN_URLS.split(','),username,credential:createHmac('sha1',process.env.TURN_SECRET).update(username).digest('base64')});}if(process.env.ICE_SERVERS_JSON)out.push(...JSON.parse(process.env.ICE_SERVERS_JSON));return out;}
  function welcome(p,r){const iceServers=ice(p.id);send(p.ws,{type:'welcome',id:p.id,token:p.token,room:snapshot(r),friendRequests:social.view(r,p),history:(r.history||[]).filter(m=>!m.to||m.from===p.id||m.to===p.id),iceServers,hasRelay:iceServers.some(s=>[s.urls].flat().some(u=>/^turns?:/.test(u))),searchEnabled:true});}
@@ -158,7 +158,47 @@ export function createXparty(options={}) {
    }
    if(m.type==='reaction'){if(['❤️','👏','😂','🎉'].includes(m.emoji)&&rate('reaction:'+p.id,3,3000))broadcast(r,{type:'reaction',name:p.name,emoji:m.emoji});return;}
    if(m.type==='queue-vote'){const item=r.queue.find(q=>q.id===m.id);if(item&&rate('vote:'+p.id,10,5000)){item.votes??=[];item.votes=item.votes.includes(p.id)?item.votes.filter(id=>id!==p.id):[...item.votes,p.id];state(r);}return;}
-   if(m.type==='chat'){if(p.chatBlocked)return send(ws,{type:'error',message:'Chat is paused by the host.'});const text=clean(m.text,1500),target=m.to?r.people.get(m.to):null;if(m.to&&!target)return send(ws,{type:'error',message:'This participant is no longer in the room.'});const attachment=m.attachmentId?attachments.publish(m.attachmentId,p,target?.id):null;if(m.attachmentId&&!attachment)return send(ws,{type:'error',message:'This attachment cannot be shared with this recipient.'});if(text||attachment){const clientId=typeof m.clientId==='string'&&/^[a-f0-9-]{36}$/.test(m.clientId)?m.clientId:null;const existing=clientId&&r.history.find(x=>x.clientId===clientId&&x.from===p.id);if(existing){send(p.ws,existing);return;}const message={type:'chat',id:randomUUID(),...(clientId?{clientId}:{}),from:p.id,name:p.name,to:target?.id||null,toName:target?.name||null,text,at:Date.now(),...(attachment?{attachment}: {})};r.history.push(message);if(r.history.length>100){const old=r.history.shift();if(old.attachment)attachments.remove(old.attachment.id);}if(target){send(p.ws,message);if(target!==p)send(target.ws,message);}else broadcast(r,message);persist();}return;}
+   if(m.type==='chat'){
+    const clientId=typeof m.clientId==='string'&&/^[a-f0-9-]{36}$/.test(m.clientId)?m.clientId:null;
+    const fail=message=>send(ws,clientId?{type:'chat-error',clientId,message}:{type:'error',message});
+    // Check idempotency before publishing an attachment, which is one-shot.
+    const existing=clientId&&r.history.find(x=>x.clientId===clientId&&x.from===p.id);
+    if(existing){send(p.ws,existing);return;}
+    if(p.chatBlocked)return fail('Chat is paused by the host.');
+    const text=clean(m.text,1500),target=m.to?r.people.get(m.to):null;
+    if(m.to&&!target)return fail('This participant is no longer in the room.');
+    const attachment=m.attachmentId?attachments.publish(m.attachmentId,p,target?.id):null;
+    if(m.attachmentId&&!attachment)return fail('This attachment cannot be shared with this recipient.');
+    if(!text&&!attachment)return fail('Write a message or attach a file.');
+    let reply;
+    if(typeof m.replyTo==='string'){
+     const previous=r.history.find(x=>x.id===m.replyTo&&!x.deleted);
+     const canSee=previous&&(!previous.to||previous.from===p.id||previous.to===p.id);
+     const safeTarget=!previous?.to||(target&&[previous.from,previous.to].includes(target.id));
+     if(canSee&&safeTarget)reply={id:previous.id,name:previous.name,text:(previous.text||previous.attachment?.name||'Media').slice(0,180)};
+    }
+    const message={type:'chat',id:randomUUID(),...(clientId?{clientId}:{}),from:p.id,name:p.name,to:target?.id||null,toName:target?.name||null,text,at:Date.now(),...(attachment?{attachment}:{}),...(reply?{reply}:{})};
+    r.history.push(message);if(r.history.length>100){const old=r.history.shift();if(old.attachment)attachments.remove(old.attachment.id);}
+    if(target){send(p.ws,message);if(target!==p)send(target.ws,message);}else broadcast(r,message);persist();return;
+   }
+   if(m.type==='message-reaction'){
+    const item=r.history.find(x=>x.id===m.id&&!x.deleted);
+    if(p.chatBlocked||!item||(item.to&&item.from!==p.id&&item.to!==p.id)||!['❤️','😂','👏','🔥','😮','👍'].includes(m.emoji)||!rate('msg-reaction:'+p.id,30,10000))return;
+    item.reactions??={};const people=new Set(item.reactions[m.emoji]||[]);
+    if(m.active===true)people.add(p.id);else people.delete(p.id);
+    if(people.size)item.reactions[m.emoji]=[...people];else delete item.reactions[m.emoji];
+    const event={type:'message-update',message:item};
+    if(item.to){send(r.people.get(item.from)?.ws,event);if(item.to!==item.from)send(r.people.get(item.to)?.ws,event);}else broadcast(r,event);
+    persist();return;
+   }
+   if(m.type==='message-delete'){
+    const item=r.history.find(x=>x.id===m.id&&!x.deleted);
+    if(!item||!(item.from===p.id||(!item.to&&r.hostId===p.id)))return;
+    item.text='';item.deleted=true;item.reactions={};if(item.attachment){attachments.remove(item.attachment.id);delete item.attachment;}
+    const event={type:'message-update',message:item},legacy={type:'chat-updated',id:item.id,text:'',deleted:true};
+    if(item.to){for(const id of new Set([item.from,item.to])){send(r.people.get(id)?.ws,event);send(r.people.get(id)?.ws,legacy);}}
+    else{broadcast(r,event);broadcast(r,legacy);}persist();return;
+   }
    if(m.type==='chat-edit'){const item=r.history.find(x=>x.id===m.id&&x.from===p.id);if(!item||item.attachment||item.poll||item.deleted||Date.now()-item.at>15*60*1000)return send(ws,{type:'error',message:'Message editing unavailable.'});const changed=clean(m.text,1500);if(!changed)return;item.text=changed;item.edited=true;const event={type:'chat-updated',id:item.id,text:changed,edited:true};if(item.to){send(p.ws,event);send(r.people.get(item.to)?.ws,event);}else broadcast(r,event);persist();return;}
     if(m.type==='chat-delete'){const item=r.history.find(x=>x.id===m.id&&x.from===p.id);if(!item)return;item.text='';item.deleted=true;if(item.attachment){attachments.remove(item.attachment.id);delete item.attachment;}const event={type:'chat-updated',id:item.id,text:'',deleted:true};if(item.to){send(p.ws,event);send(r.people.get(item.to)?.ws,event);}else broadcast(r,event);persist();return;}
     if(m.type==='theme-access'&&host){r.guestThemes=!!m.enabled;state(r);return;}
