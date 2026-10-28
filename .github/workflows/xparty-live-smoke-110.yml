@@ -1,0 +1,52 @@
+name: Verify live Xparty room service
+on:
+  push:
+    branches: [codex/room-chat-reliability-1-1-0]
+    paths: [.github/workflows/xparty-live-smoke-110.yml]
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - name: Verify live reactions and retry deduplication
+        shell: bash
+        run: |
+          node <<'NODE'
+          const WebSocket=require('ws');
+          const {randomUUID}=require('node:crypto');
+          const base=process.env.XPARTY_SMOKE_BASE||'https://xp404.onrender.com';
+          const delay=ms=>new Promise(r=>setTimeout(r,ms));
+          async function smoke(){
+           let socket,welcomed=false;
+           try{
+            const res=await fetch(base+'/health',{signal:AbortSignal.timeout(40000)});
+            if(!res.ok)throw Error('Health endpoint not ready: '+res.status);
+            const queue=[];
+            socket=new WebSocket(base.replace(/^http/,'ws')+'/ws',{origin:base,handshakeTimeout:30000});
+            socket.on('message',d=>{try{queue.push(JSON.parse(d.toString()));}catch{}});
+            await new Promise((resolve,reject)=>{socket.once('open',resolve);socket.once('error',reject);});
+            const send=(type,fields={})=>socket.send(JSON.stringify({type,...fields}));
+            const next=async(type,condition=()=>true)=>{for(let i=0;i<400;i++){const j=queue.findIndex(x=>x.type===type&&condition(x));if(j>=0)return queue.splice(j,1)[0];if(socket.readyState!==WebSocket.OPEN)throw Error('Room connection closed');await delay(25);}throw Error('Timed out waiting for '+type);};
+            send('create',{name:'Temporary release check'});const welcome=await next('welcome');welcomed=true;
+            send('room-directory',{visibility:'private',title:'Temporary release check',language:''});await next('state',m=>m.room.visibility==='private');
+            if(welcome.room.features?.messageControls!==true)throw Error('Previous server version is still responding');
+            const clientId=randomUUID();send('chat',{text:'Temporary release check',clientId});const message=await next('chat',m=>m.clientId===clientId);
+            send('message-reaction',{id:message.id,emoji:'👍',active:true});await next('message-update',m=>m.message?.id===message.id&&m.message.reactions?.['👍']?.includes(welcome.id));
+            send('chat',{text:'Temporary release check',clientId});const retry=await next('chat',m=>m.clientId===clientId);if(retry.id!==message.id)throw Error('Chat retry was duplicated');
+            console.log('PASS: live room server supports reactions and idempotent message retries.');
+            send('end-room');await next('ended');welcomed=false;
+           }finally{
+            if(welcomed&&socket?.readyState===WebSocket.OPEN){socket.send(JSON.stringify({type:'end-room'}));await delay(200);}
+            socket?.close();
+           }
+          }
+          (async()=>{let failure;for(let i=1;i<=8;i++){try{await smoke();return;}catch(error){failure=error;console.log('Live-check attempt '+i+': '+error.message);if(i<8)await delay(20000);}}throw failure;})().catch(e=>{console.error('Live verification failed: '+e.message);process.exitCode=1;});
+          
+          NODE
