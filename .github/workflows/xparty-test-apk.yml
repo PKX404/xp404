@@ -10,7 +10,7 @@ jobs:
   android-debug-apk:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout Xparty
         uses: actions/checkout@v4
@@ -43,3 +43,12 @@ jobs:
           path: android-test/app/build/outputs/apk/debug/Xparty-Beta-1.1.2-beta.1.apk
           retention-days: 30
           if-no-files-found: error
+      - name: Publish side-version prerelease with direct APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="xparty-beta-1.1.2-beta.1"
+          FILE="android-test/app/build/outputs/apk/debug/Xparty-Beta-1.1.2-beta.1.apk"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --prerelease --title "Xparty Beta 1.1.2-beta.1" --notes "Side-installed Android beta, isolated from main and production deployment. Loads current https://xp404.onrender.com. APK build passed; device playback, microphone and search need live validation."
+          gh release upload "$TAG" "$FILE" --clobber
