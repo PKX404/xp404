@@ -41,8 +41,11 @@ public final class MainActivity extends Activity {
     private static final int MEDIA_PERMISSIONS = 2001;
     private static final int NOTIFY_PERMISSION = 2002;
     private static final int SELECT_FILE = 2003;
-    private static final String CHANNEL = "xparty-test";
+    private static final String CHANNEL = "xparty-beta";
     private WebView web;
+    private FrameLayout root;
+    private View fullscreenVideo;
+    private WebChromeClient.CustomViewCallback fullscreenCallback;
     private TextView splash;
     private PermissionRequest pendingMedia;
     private ValueCallback<Uri[]> fileCallback;
@@ -58,11 +61,13 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(9,9,18));
         getWindow().setNavigationBarColor(Color.rgb(9,9,18));
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        FrameLayout root = new FrameLayout(this);
+        root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         web = new WebView(this);
         web.setBackgroundColor(Color.rgb(8,9,17));
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        // Keep the video surface hardware-accelerated when the keyboard appears.
+        web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -73,6 +78,8 @@ public final class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                // Never redirect an embedded video/search result iframe into a browser.
+                if (!request.isForMainFrame()) return false;
                 if (allowed(request.getUrl())) return false;
                 try {
                     Intent open = new Intent(Intent.ACTION_VIEW, request.getUrl());
@@ -85,6 +92,22 @@ public final class MainActivity extends Activity {
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            @Override public void onShowCustomView(View view, CustomViewCallback callback) {
+                if (fullscreenVideo != null) { callback.onCustomViewHidden(); return; }
+                fullscreenVideo = view;
+                fullscreenCallback = callback;
+                root.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                web.setVisibility(View.INVISIBLE);
+                splash.setVisibility(View.GONE);
+            }
+            @Override public void onHideCustomView() {
+                hideFullscreen();
+            }
+            @Override public void onPermissionRequestCanceled(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    if (pendingMedia == request) pendingMedia = null;
+                });
+            }
             @Override public void onPermissionRequest(PermissionRequest request) {
                 runOnUiThread(() -> handleWebPermission(request));
             }
@@ -118,7 +141,7 @@ public final class MainActivity extends Activity {
         root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         web.loadUrl(HOME);
-        handler.postDelayed(() -> { if (splash != null) splash.setVisibility(View.GONE); }, 16000);
+        handler.postDelayed(() -> { if (splash != null) splash.setVisibility(View.GONE); }, 9000);
         requestNotificationPermission();
     }
 
@@ -157,14 +180,14 @@ public final class MainActivity extends Activity {
             return;
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(
-            new NotificationChannel(CHANNEL, "Xparty Test", NotificationManager.IMPORTANCE_LOW));
+            new NotificationChannel(CHANNEL, "Xparty Beta", NotificationManager.IMPORTANCE_LOW));
         Intent open = new Intent(this, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent intent = PendingIntent.getActivity(this, 1, open,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification note = new Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("Xparty Test")
+            .setContentTitle("Xparty Beta")
             .setContentText("Tap to return to your room")
             .setContentIntent(intent)
             .setOngoing(false)
@@ -195,12 +218,29 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void hideFullscreen() {
+        if (fullscreenVideo == null) return;
+        root.removeView(fullscreenVideo);
+        fullscreenVideo = null;
+        if (web != null) web.setVisibility(View.VISIBLE);
+        WebChromeClient.CustomViewCallback callback = fullscreenCallback;
+        fullscreenCallback = null;
+        if (callback != null) callback.onCustomViewHidden();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (web != null) web.onResume();
+    }
+
     @Override public void onBackPressed() {
-        if (web.canGoBack()) web.goBack();
+        if (fullscreenVideo != null) hideFullscreen();
+        else if (web != null && web.canGoBack()) web.goBack();
         else super.onBackPressed();
     }
 
     @Override protected void onDestroy() {
+        hideFullscreen();
         if (pendingMedia != null) { pendingMedia.deny(); pendingMedia = null; }
         if (fileCallback != null) { fileCallback.onReceiveValue(null); fileCallback = null; }
         handler.removeCallbacksAndMessages(null);
