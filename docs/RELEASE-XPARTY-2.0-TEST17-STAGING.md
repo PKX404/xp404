@@ -31,3 +31,15 @@ Owner request (31 October 2026): promote the **Test 17** Android build to the of
 
 ## Deployment limitations
 This branch currently contains **release staging documentation only**, based on main. It is NOT the exact Test 17 app yet and is NOT ready for promotion or deployment. Do not merge or deploy it as v2.0 until the actual Test 17 assets and corresponding Android code are integrated and validated.
+
+
+## Test 17 authentication audit (31 Oct 2026)
+The exact Test 17 packaged source ZIP has been inspected. `app-assets/xparty/accounts.js` already contains **`client.auth.signInWithOAuth({provider:'google',...})`** for initial Google sign-in. The separate `linkIdentity({provider:'google'})` function only connects existing users to optional YouTube/Drive permissions. Do not replace the first flow with `linkIdentity` or break the original login UI.
+
+**Remaining external account setup:** Google Cloud project `join-xparty` already has an Android OAuth Client ID supplied by the owner (`746110110895-sadt9aqksgubn5sdnu1afq6lra2ubhha.apps.googleusercontent.com`). An Android Client ID is **not** the Web Client ID/Secret required by the hosted Supabase browser OAuth flow. The ChatGPT GitHub/Supabase connector tools here cannot create Google Cloud OAuth clients or edit Supabase Auth provider secrets.
+
+**Required OAuth integration check:** The code deliberately opens Google OAuth in the external browser from Android WebView while storing the PKCE verifier in the WebView origin. With a redirect to the same HTTPS site in the *external* browser, the browser and WebView may not share PKCE storage. Confirm a working verified Android App Link / native callback and PKCE handoff before claiming Android users are signed in. Test on actual release APK.
+
+**Never store the Web Client Secret or APK signing private key in frontend JavaScript, Git, ZIP shared with other users, or screenshots.**
+
+**Confirmed**: neither the Google Cloud web OAuth client nor the full Supabase provider activation has been performed from this connected toolset; neither the official Render service nor its production frontend has been modified. Use the secure Google and Supabase dashboards for the unavailable administrative actions.
