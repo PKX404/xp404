@@ -16,6 +16,7 @@ import {initMemberProfiles} from './member-profiles.js';
 import {queueOrder,orderedQueue} from './queue-policy.js';
 import {initDiscovery,updateDiscovery} from './discovery.js';
 import {initAmbient} from './ambient.js';
+import {initMusicGlow} from './music-glow.js';
 import {initFluidBackground} from './fluid.js';
 import {initFullscreen} from './fullscreen.js';
 import {initNativeVideo} from './native-video.js';
@@ -48,6 +49,7 @@ let recipient=null,unread=0,typingTimer,lastTyping=0;const typingPeople=new Map(
 let fileJob=null,loadedFileId=null,downloadId=null,readySent=null;
 const SESSION='xparty-session-v2';
 const filePlayer=$('file-player');
+const musicGlow=initMusicGlow({video:filePlayer,stage:$('watch-stage'),getSource:()=>room?.source,isNative:()=>nativePlayback(),hasLocalOverride:()=>!!xpartyUI?.local,requestSound:()=>unlockAudio()});
 const memberProfiles=initMemberProfiles({getContext:()=>({room,me,send}),notify:toast});
 const skipVoting=initSkipVoting({getContext:()=>({room,me,send})});
 const nativeVideo=initNativeVideo({onAvailable:()=>{if(room?.source&&nativeVideo.handles(room.source))applySource(room.source);},onReady:()=>{readySent=sourceId;send('ready',{sourceId,ready:true,status:'Native video ready'});applyPlayback(true);if(iptv?.consumeAutoplay(room?.source))command(true,0);},onState:event=>{
@@ -246,7 +248,7 @@ async function unlockAudio() {
   try{
     audioContext??=new (window.AudioContext||window.webkitAudioContext)();await audioContext.resume();
     for(const p of peers.values())attachRemoteAudio(p);
-    if(!movieAudio&&!nativePlayback()){movieAudio=audioContext.createMediaElementSource(filePlayer);movieGain=audioContext.createGain();movieAudio.connect(movieGain).connect(audioContext.destination);}
+    if(!movieAudio&&!nativePlayback()){movieAudio=audioContext.createMediaElementSource(filePlayer);movieGain=audioContext.createGain();movieAudio.connect(movieGain).connect(audioContext.destination);musicGlow.connect(movieGain,audioContext);}
     if(movieGain)movieGain.gain.value=movieVolume;nativeVideo.setVolume(movieVolume);filePlayer.volume=1;filePlayer.muted=false;if(ytReady){yt.unMute?.();yt.setVolume(movieVolume*100);}for(const p of peers.values()){p.fallbackAudio?.play().catch(()=>{});}
     $('enable-audio').textContent=t('Sound enabled');$('enable-audio').setAttribute('aria-pressed','true');$('settings-enable-audio').textContent=t('Sound enabled');
   }catch{filePlayer.volume=movieVolume;toast('Use your device sound controls if the volume sliders are restricted.');}

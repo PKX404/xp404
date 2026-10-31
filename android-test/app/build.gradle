@@ -6,8 +6,8 @@ android {
         applicationId 'com.pkx404.xpartytest'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '0.1-test'
+        versionCode 2
+        versionName '2.0-beat-glow-test'
     }
     buildTypes {
         release { minifyEnabled false }

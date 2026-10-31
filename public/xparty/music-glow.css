@@ -1,0 +1,7 @@
+/* Subtle, capped audio-reactive color wash. No full-screen strobes. */
+#watch-stage .xparty-beat-wash{position:absolute!important;inset:0!important;z-index:6!important;pointer-events:none!important;opacity:0;mix-blend-mode:screen;background:radial-gradient(ellipse at 0% 55%,hsla(var(--xparty-beat-hue,232),95%,62%,.55),transparent 50%),radial-gradient(ellipse at 100% 40%,hsla(calc(var(--xparty-beat-hue,232) + 45),88%,53%,.4),transparent 55%);transition:opacity .2s ease-out}
+#watch-stage.xparty-beat-active .xparty-beat-wash{opacity:var(--xparty-beat-level,0)}
+#xparty-beat-button{flex:none!important;min-width:28px!important;width:30px!important;padding:4px!important;font-size:17px!important;font-weight:700!important;line-height:1!important;touch-action:manipulation}
+#xparty-beat-button[aria-pressed="true"]{color:#a9e9ff!important;border-color:#679dc4!important}
+#xparty-beat-info{font-size:11px;line-height:1.4;margin:4px 0 8px;color:#bac4cf}
+@media(prefers-reduced-motion:reduce){#watch-stage .xparty-beat-wash{opacity:0!important;transition:none!important}}
