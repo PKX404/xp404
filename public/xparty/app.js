@@ -49,7 +49,6 @@ let recipient=null,unread=0,typingTimer,lastTyping=0;const typingPeople=new Map(
 let fileJob=null,loadedFileId=null,downloadId=null,readySent=null;
 const SESSION='xparty-session-v2';
 const filePlayer=$('file-player');
-const musicGlow=initMusicGlow({video:filePlayer,stage:$('watch-stage'),getSource:()=>room?.source,isNative:()=>nativePlayback(),hasLocalOverride:()=>!!xpartyUI?.local,requestSound:()=>unlockAudio()});
 const memberProfiles=initMemberProfiles({getContext:()=>({room,me,send}),notify:toast});
 const skipVoting=initSkipVoting({getContext:()=>({room,me,send})});
 const nativeVideo=initNativeVideo({onAvailable:()=>{if(room?.source&&nativeVideo.handles(room.source))applySource(room.source);},onReady:()=>{readySent=sourceId;send('ready',{sourceId,ready:true,status:'Native video ready'});applyPlayback(true);if(iptv?.consumeAutoplay(room?.source))command(true,0);},onState:event=>{
@@ -58,6 +57,7 @@ const nativeVideo=initNativeVideo({onAvailable:()=>{if(room?.source&&nativeVideo
   if(event.type==='buffered'||event.type==='ready'){nativeBuffering=false;clearTimeout(nativeBufferTimer);nativeBufferTimer=null;reportBuffer(false);}
   ambient.update();
  },onEnded:()=>playbackEnded(),onError:message=>{status('Native video unavailable');send('ready',{sourceId,ready:false,status:'Native video unavailable'});toast(message);}});
+const musicGlow=initMusicGlow({video:filePlayer,stage:$('watch-stage'),getSource:()=>room?.source,isNative:()=>nativePlayback(),hasLocalOverride:()=>!!xpartyUI?.local,requestSound:()=>unlockAudio()});
 function usesEmbed(source){return isEmbedded(source)&&!nativeVideo.handles(source);}
 function nativePlayback(){return nativeVideo.handles(room?.source);}
 function playLocalVideo(){if(room?.source?.type==='iptv'&&!nativePlayback())iptvPlayer?.goLive();if(nativePlayback()){nativeVideo.play();return Promise.resolve();}return filePlayer.play();}
