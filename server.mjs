@@ -34,6 +34,7 @@ const secret=()=>randomBytes(32).toString('base64url');
 const randomName=()=>['Happy','Sunny','Lucky','Cosmic','Mint','Peach','Silver','Mellow'][randomBytes(1)[0]%8]+' '+['Panda','Fox','Otter','Owl','Koala','Tiger','Robin','Deer'][randomBytes(1)[0]%8];
 export function createXparty(options={}) {
  const graceMs=options.graceMs??120000;
+ const emptyRoomTimeoutMs=options.emptyRoomTimeoutMs??15*60*1000;
  const rooms=new Map(),clients=new Map(),buckets=new Map(),files=new Map(),searchCache=new Map();let storage=0;
  const publicAuthKey=(()=>{const key=process.env.SUPABASE_ANON_KEY||'';if(key.startsWith('sb_publishable_'))return key;try{if(JSON.parse(Buffer.from(key.split('.')[1],'base64url')).role==='anon')return key;}catch{}return null;})();
  const accountAuth=createAccountAuth({url:process.env.SUPABASE_URL,publicKey:publicAuthKey,fetcher:options.accountFetch});
@@ -259,7 +260,14 @@ export function createXparty(options={}) {
   ws.on('close',()=>{clearTimeout(timeout);const p=ws.person;if(p&&p.ws===ws&&clients.has(p.token)){p.ws=null;p.buffering=false;p.ready=false;p.disconnectedAt=Date.now();p.reservedUntil=Date.now()+graceMs;const r=rooms.get(p.code);if(r){if(r.controller?.id===p.id)r.controller=null;state(r);}}});
  });
  const recovery=setInterval(()=>{for(const r of rooms.values()){let expiredCall=false;for(const member of r.people.values()){if(!online(member)&&member.inCall&&member.reservedUntil&&member.reservedUntil<=Date.now()){member.inCall=false;member.mic=false;member.camera=false;expiredCall=true;}}if(expiredCall)state(r);tickTogether(r,online);syncBuffering(r);control.sweep(r);const host=r.people.get(r.hostId);if(host&&!online(host)&&host.reservedUntil&&host.reservedUntil<=Date.now()){const next=[...r.people.values()].filter(online).sort((a,b)=>a.joinedAt-b.joinedAt)[0];if(next){control.cancel(r,'Host reconnect window elapsed.');r.hostId=next.id;next.cameraAllowed=true;next.micBlocked=false;state(r);}}}},250);recovery.unref();
- const maintenance=setInterval(()=>{for(const ws of wss.clients){if(!ws.alive){ws.terminate();continue;}ws.alive=false;ws.ping();}for(const[key,b]of buckets)if(b.until<Date.now())buckets.delete(key);},30000);maintenance.unref();
+ const maintenance=setInterval(()=>{for(const ws of wss.clients){if(!ws.alive){ws.terminate();continue;}ws.alive=false;ws.ping();}for(const[key,b]of buckets)if(b.until<Date.now())buckets.delete(key);
+  // Watching quietly is still activity: only rooms with no connected people expire.
+  const now=Date.now();for(const r of rooms.values()){
+   if([...r.people.values()].some(online)){r.emptySince=null;continue;}
+   r.emptySince??=now;
+   if(now-r.emptySince>=emptyRoomTimeoutMs)endRoom(r,'Room closed after 15 minutes with no connected participants.');
+  }
+ },30000);maintenance.unref();
  return {server,rooms,close:async()=>{clearInterval(maintenance);clearInterval(recovery);attachments.close();clearTimeout(saveTimer);for(const ws of wss.clients)ws.terminate();await new Promise(r=>wss.close(r));await new Promise(r=>server.close(r));for(const id of files.keys())dropFile(id);}};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){const app=createXparty();app.server.listen(Number(process.env.PORT||8787),'0.0.0.0',()=>console.log('Xparty 0.10 listening on '+(process.env.PORT||8787)));const stop=()=>app.close().then(()=>process.exit(0));process.on('SIGTERM',stop);process.on('SIGINT',stop);}
