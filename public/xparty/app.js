@@ -43,12 +43,14 @@ let xpartyUI=null,wasLocalPaused=false,roomInteractions=null,callExperience=null
 let nativeYouTube=null,vimeo=null,providerLoad=null,roomDesign,providerUI,fullscreen,suggestions,iptv,iptvPlayer;
 let sourceId=null, pendingFile=null, ownedFile=null, ownedFileId=null, objectUrl=null, activePlayback;
 let suppressUntil=0, lastCorrected=0, appliedRevision=-1, clockOffset=0, bestRTT=Infinity, lastAnchor=0, lastSeek=0;
+const pingProbes=new Map(),pingWindow=[];let lastPingAt=0;
 let audioContext, movieGain, movieAudio, callVolume=1, movieVolume=.7, busyMedia=false;
 let bufferTimer,bufferReported=false,autoDriftSince=0,lastPlayAttempt=0,nativeBufferTimer=null,nativeBuffering=false,lastNativePlayAttempt=0;let cameraFacing='user';let speakerOn=true,viewMode='default',joinLookup=0,lookupTimer;const observedMessages=new Set();
 let recipient=null,unread=0,typingTimer,lastTyping=0;const typingPeople=new Map();let vcVisible=false,chatVisible=true,buffering=false,settleUntil=0;
 let fileJob=null,loadedFileId=null,downloadId=null,readySent=null;
 const SESSION='xparty-session-v2';
 const filePlayer=$('file-player');
+const pingIndicator=document.createElement('span');pingIndicator.id='ping-status';pingIndicator.textContent='Ping —';pingIndicator.title='WebSocket round-trip time to the room server; not video buffering latency';$('time').after(pingIndicator);
 const memberProfiles=initMemberProfiles({getContext:()=>({room,me,send}),notify:toast});
 const skipVoting=initSkipVoting({getContext:()=>({room,me,send})});
 const nativeVideo=initNativeVideo({onAvailable:()=>{if(room?.source&&nativeVideo.handles(room.source))applySource(room.source);},onReady:()=>{readySent=sourceId;send('ready',{sourceId,ready:true,status:'Native video ready'});applyPlayback(true);if(iptv?.consumeAutoplay(room?.source))command(true,0);},onState:event=>{
@@ -69,7 +71,7 @@ function toast(text) { $('toast').textContent=t(text);$('toast').hidden=false;cl
 function status(text) {const el=$('sync-status');el.setAttribute('data-localize-dynamic','');el.lastChild.textContent=' '+t(text);}
 function notice(text) {$('connection-notice').textContent=text||'Connected. Share the room code privately.';}
 function send(type, fields={}) {if(['playback','source','next','previous','party-mode'].includes(type))fields.eventId??=crypto.randomUUID();if(type==='playback'&&!fields.intent)fields.intent=Math.abs((fields.position||0)-currentTime())>1?'seek':fields.playing?'play':'pause';if(preview) {toast('This is a design preview. Create a room to connect.');return false;}if(socket?.readyState!==WebSocket.OPEN){toast('Room connection is offline. Reconnecting…');return false;}socket.send(JSON.stringify({type,...fields}));return true;}
-function ping() {if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'ping',sent:Date.now()}));}
+function ping(){if(socket?.readyState!==WebSocket.OPEN)return;const sent=Date.now();pingProbes.set(sent,performance.now());while(pingProbes.size>10)pingProbes.delete(pingProbes.keys().next().value);socket.send(JSON.stringify({type:'ping',sent}));}
 let serviceWarmup, preparingConnection=false;
 const serviceStatus=document.createElement('p');serviceStatus.className='small';serviceStatus.setAttribute('role','status');serviceStatus.hidden=true;$('create').parentElement.append(serviceStatus);
 function warmService(){
@@ -92,7 +94,7 @@ async function connect(action) {
   if(!switchingRoom&&socket?.readyState<2)socket.close();
   const ws=new WebSocket(url);let welcomed=false;connectionStatus(action.type==='resume'?'reconnecting':'connecting');if(!switchingRoom)socket=ws;
   const handshakeTimer=setTimeout(()=>{if(!welcomed&&ws.readyState<2){ws.close(4001,'Room handshake timeout');if(!token)toast('The room service did not respond. Try again.');}},15000);connectTimer=handshakeTimer;
-  ws.onopen=()=>{if(ws!==socket&&!switchingRoom){ws.close();return;}heartbeat.heard();bestRTT=Infinity;ws.send(JSON.stringify(action));if(ws===socket)ping();};
+  ws.onopen=()=>{if(ws!==socket&&!switchingRoom){ws.close();return;}heartbeat.heard();bestRTT=Infinity;pingProbes.clear();pingWindow.length=0;lastPingAt=0;pingIndicator.textContent='Ping —';ws.send(JSON.stringify(action));if(ws===socket)ping();};
   ws.onmessage=e=>{if(ws!==socket&&!switchingRoom)return;if(ws===socket){heartbeat.heard();if(welcomed&&connectionState==='checking')connectionStatus('connected');}try{const message=JSON.parse(e.data);if(message.type==='welcome'){welcomed=true;clearTimeout(handshakeTimer);reconnectAttempts=0;connectionStatus('connected');}
     if(switchingRoom&&ws!==socket){
       if(message.type==='welcome'){socket=oldSocket;leave(true);socket=ws;intentionalClose=false;switching=false;}
@@ -111,7 +113,7 @@ async function connect(action) {
 function handle(m) {
   if(m.type==='request-status'){toast(m.request.status==='HOST_REVIEW'?'Request sent to the host.':m.request.status+': '+m.request.reason);return;}
   if(m.type==='error'){toast(m.message);$('create').disabled=false;$('join-form').querySelector('button').disabled=false;return;}
-  if(m.type==='pong') {const rtt=Date.now()-m.sent;if(rtt<bestRTT+20){bestRTT=Math.min(bestRTT,rtt);clockOffset=m.serverTime-(m.sent+rtt/2);}return;}
+  if(m.type==='pong'){const started=pingProbes.get(m.sent);pingProbes.delete(m.sent);if(started===undefined||!Number.isFinite(m.serverTime))return;const rtt=Math.round(performance.now()-started);if(rtt<0||rtt>20000)return;pingWindow.push(rtt);if(pingWindow.length>5)pingWindow.shift();const sorted=[...pingWindow].sort((a,b)=>a-b);pingIndicator.textContent='Ping '+sorted[Math.floor(sorted.length/2)]+' ms';lastPingAt=Date.now();if(rtt<bestRTT+20){bestRTT=Math.min(bestRTT,rtt);clockOffset=m.serverTime-(m.sent+rtt/2);}return;}
   if(m.type==='typing'){if(m.active)typingPeople.set(m.from,{name:m.name,until:Date.now()+4500});else typingPeople.delete(m.from);renderTyping();return;}
   if(m.type==='resume-failed' || m.type==='ended' || m.type==='kicked'){sessionStorage.removeItem('xparty-owner-return');document.documentElement.removeAttribute('data-restoring');const msg=m.message||'This room expired. Create or join a room again.';leave(false);toast(msg);return;}
   if(m.type==='ptt-status'){toast(m.approved?t('Push to talk approved'):t('Push to talk declined'));return;}
@@ -510,7 +512,7 @@ filePlayer.onerror=()=>{if(isVideoElement(room?.source) && filePlayer.getAttribu
 function playbackEnded(){reportBuffer(false);if(!room||isLiveSource(room.source))return;if(me===room.hostId){command(false,currentTime());send('playback-ended',{sourceId});}}
 filePlayer.onended=()=>{if(room?.source?.type==='iptv'){status('Live broadcast ended');return;}if(isVideoElement(room?.source))playbackEnded();};
 $('preview').onclick=()=>{preview=true;me='preview-host';$('lobby').hidden=true;$('room').hidden=false;$('demo-banner').hidden=false;notice('');updateRoom({code:'PREVIEW',hostId:me,capacity:null,locked:false,source:null,playback:{position:0,playing:false,updatedAt:Date.now(),revision:0},people:[{id:me,name:'You',online:true,mic:false,camera:false},{id:'preview-guest',name:'Your friend',online:true,mic:false,camera:false}]});};
-setInterval(tick,200);setInterval(ping,3000);
+setInterval(tick,200);setInterval(ping,3000);setInterval(()=>{if(lastPingAt&&Date.now()-lastPingAt>12000)pingIndicator.textContent='Ping —';},3000);
 window.addEventListener('pagehide',()=>{suspended=true;clearTimeout(reconnectTimer);if(socket?.readyState===WebSocket.OPEN)socket.close();localStream.getTracks().forEach(t=>t.stop());});
 window.addEventListener('pageshow',e=>{suspended=false;if(e.persisted){localStream=new MediaStream();const saved=readSession();if(saved?.base===base)connect({type:'resume',token:saved.token});}});
 if(location.hostname.endsWith('github.io')&&!window.XPARTY_CONFIG?.backendUrl)$('setup-notice').hidden=false;
