@@ -23,6 +23,7 @@ import {tmpdir} from 'node:os';
 import {randomBytes,randomUUID,createHmac} from 'node:crypto';
 import {WebSocketServer,WebSocket} from 'ws';
 import {createPartyControl,partyState} from './party-control.mjs';
+import {emptyRoomExpired} from './room-idle.mjs';
 import {searchYouTube} from './youtube-search.mjs';
 import {createAttachmentStore} from './attachments.mjs';
 const ROOT=fileURLToPath(new URL('./public',import.meta.url));
@@ -263,9 +264,7 @@ export function createXparty(options={}) {
  const maintenance=setInterval(()=>{for(const ws of wss.clients){if(!ws.alive){ws.terminate();continue;}ws.alive=false;ws.ping();}for(const[key,b]of buckets)if(b.until<Date.now())buckets.delete(key);
   // Watching quietly is still activity: only rooms with no connected people expire.
   const now=Date.now();for(const r of rooms.values()){
-   if([...r.people.values()].some(online)){r.emptySince=null;continue;}
-   r.emptySince??=now;
-   if(now-r.emptySince>=emptyRoomTimeoutMs)endRoom(r,'Room closed after 15 minutes with no connected participants.');
+   if(emptyRoomExpired(r,online,now,emptyRoomTimeoutMs))endRoom(r,'Room closed after 15 minutes with no connected participants.');
   }
  },30000);maintenance.unref();
  return {server,rooms,close:async()=>{clearInterval(maintenance);clearInterval(recovery);attachments.close();clearTimeout(saveTimer);for(const ws of wss.clients)ws.terminate();await new Promise(r=>wss.close(r));await new Promise(r=>server.close(r));for(const id of files.keys())dropFile(id);}};
