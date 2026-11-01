@@ -159,7 +159,7 @@ function updateRoom(next) {
   if(room.source?.type==='file' && room.source.uploaded && room.people.filter(p=>p.online).every(p=>p.ready)){$('transfer-label').textContent='Everyone has the file. Ready to play together.';status('Ready together');}
 }
 function renderPeople() {
-  const people=(room?.people||[]).filter(p=>p.inCall||p.id===me);const container=$('participants');
+  const people=(room?.people||[]).filter(p=>p.id===me||(p.online&&p.inCall));const container=$('participants');
   for(const child of [...container.children])if(!people.some(p=>child.dataset.id===p.id))child.remove();
   for(const person of people) {
     let tile=[...container.children].find(el=>el.dataset.id===person.id);
@@ -305,7 +305,7 @@ async function applySource(source) {showControls();clearTimeout(nativeBufferTime
 
   if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}
   if(!['direct','iptv'].includes(source?.type))filePlayer.removeAttribute('crossorigin');
-  $('transfer').hidden=true;$('empty-player').hidden=!!source;$('youtube-wrap').hidden=source?.type!=='youtube';filePlayer.hidden=!isVideoElement(source);
+  $('transfer').hidden=true;$('empty-player').hidden=!!source;$('youtube-wrap').hidden=source?.type!=='youtube'||nativeVideo.handles(source);filePlayer.hidden=!isVideoElement(source)||nativeVideo.handles(source);
   $('stage-title').hidden=!source;$('stage-title').textContent=source?.title||'';if(!source){$('video-title').textContent='';status('Waiting for a video');return;}
   $('video-title').textContent=source.title;for(const card of document.querySelectorAll('.provider-card'))card.setAttribute('aria-pressed',String(card.dataset.provider===source.type));
   if(isCompanion(source)){status('Connect your service tab');companion.update();providerUI?.update();
@@ -314,14 +314,14 @@ async function applySource(source) {showControls();clearTimeout(nativeBufferTime
     const create={vimeo:createVimeoPlayer,twitch:createTwitchPlayer,soundcloud:createSoundCloudPlayer}[source.type];
     try{const player=await create($('vimeo-player'),source.videoId,e=>{if(sourceId===expected)youtubeEvent(e);},()=>{if(sourceId===expected){reportBuffer(false);$('unlock-playback').hidden=false;status(name+' playback needs attention');toast(name+' could not play. Choose content that allows embedding.');}},{signal:providerLoad.signal});if(sourceId!==expected){player.destroy();return;}vimeo=player;yt=player;ytReady=true;applyPlaybackSound();send('ready',{sourceId,ready:true});applyPlayback(true);}catch(e){if(sourceId===expected){status(name+' unavailable');toast(e.message);}}
   }else if(source.type==='iptv'){
-    const expected=source.id;status('Connecting to live IPTV');if(nativeVideo.handles(source))nativeVideo.load(source,{base,token});else try{iptvPlayer=await createIPTVPlayer(filePlayer,source.url,{audioOnly:source.radio===true,signal:providerLoad.signal,onError:message=>{if(sourceId!==expected)return;status('Channel unavailable');readySent=null;send('ready',{sourceId,ready:false,status:'Channel unavailable'});toast(message);}});}catch(error){if(sourceId===expected){status('IPTV unavailable');toast(error.message);}}
+    const expected=source.id;status('Connecting to live IPTV');if(nativeVideo.handles(source))nativeVideo.load(source,{base,token});else try{const player=await createIPTVPlayer(filePlayer,source.url,{audioOnly:source.radio===true,signal:providerLoad.signal,onError:message=>{if(sourceId!==expected)return;status('Channel unavailable');readySent=null;send('ready',{sourceId,ready:false,status:'Channel unavailable'});toast(message);}});if(sourceId!==expected){player?.destroy();return;}iptvPlayer=player;}catch(error){if(sourceId===expected){status('IPTV unavailable');toast(error.message);}}
   }else if(source.type==='direct'){
     status('Loading video link');if(nativeVideo.handles(source))nativeVideo.load(source,{base,token});else{filePlayer.crossOrigin='anonymous';filePlayer.src=source.url;filePlayer.load();}
   }else if(source.type==='youtube'&&nativeVideo.handles(source)){
     status('Opening native YouTube');nativeVideo.load(source,{base,token});
   }else if(source.type==='youtube') {
     ownedFile=null;ownedFileId=null;pendingFile=null;status('Loading YouTube');
-    try{await loadYouTube();if(sourceId!==source.id)return;yt=nativeYouTube;ytReady=true;yt.cueVideoById(source.videoId);applyCaptions();applyPlaybackSound();send('ready',{sourceId,ready:true});applyPlayback(true);}catch{toast('YouTube could not load. Check your connection or content blocker.');status('YouTube unavailable');}
+    try{await loadYouTube();if(sourceId!==source.id)return;yt=nativeYouTube;ytReady=true;if(activePlayback?.playing&&typeof yt.loadVideoById==='function')yt.loadVideoById(source.videoId);else yt.cueVideoById(source.videoId);applyCaptions();applyPlaybackSound();send('ready',{sourceId,ready:true});applyPlayback(true);}catch{toast('YouTube could not load. Check your connection or content blocker.');status('YouTube unavailable');}
   }else {
     status('Preparing shared file');
     if(me===source.owner && pendingFile){const file=pendingFile;pendingFile=null;if(nativeVideo.handles(source)){nativeVideo.load(source,{base,token});}else{loadedFileId=source.id;setFileBlob(file);}uploadFile(file,source.id);}else if(source.uploaded)ensureFile();else transfer('Waiting for the host to finish uploading…',0);
@@ -461,7 +461,7 @@ $('create-toggle').onclick=()=>$('create').click();
 
 $('stop').onclick=()=>{if(room?.hostId===me)send('playback',{sourceId,playing:false,position:0,intent:'stop'});};
 $('resync').onclick=()=>{localPaused=false;lastPlayAttempt=0;settleUntil=0;autoDriftSince=0;ping();if(usesEmbed(room?.source)&&ytReady&&yt.getPlayerState()===1)reportBuffer(false);send('resync');if(room?.source?.type==='file'){if(filePlayer.readyState>=1){readySent=null;fileReady();}else ensureFile();}toast(t('Aligning playback'));};
-$('browse').onclick=()=>{document.body.classList.add('browsing');$('source-panel').scrollIntoView({behavior:'smooth',block:'start'});$('youtube-input').focus({preventScroll:true});};
+$('browse').onclick=()=>{document.body.classList.add('browsing');providerUI?.update();$('source-panel').scrollIntoView({behavior:'smooth',block:'start'});const selected=document.querySelector('.provider-card[aria-pressed="true"]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});if(!room?.source||selected?.dataset.provider==='youtube')$('youtube-input').focus({preventScroll:true});};
 $('back-video').onclick=()=>{document.body.classList.remove('browsing');$('watch-stage').scrollIntoView({behavior:'smooth'});};
 $('next-video').onclick=()=>send('next');
 $('create').onclick=async()=>{if(!await roomAgreement('create'))return;const name=await nicknameChoice($('name').value);if(name===null)return;setEntryNickname(name);connect({type:'create',name,capacity:null});};
