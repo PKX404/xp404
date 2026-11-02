@@ -29,7 +29,7 @@ export function createAttachmentStore({online}){
    busy.add(p.id);reserved+=length;reservations.set(r.code,(reservations.get(r.code)||0)+length);let dir;
    try{let size=0;const chunks=[];for await(const chunk of req){size+=chunk.length;if(size>LIMIT||size>length){json(413,{error:'Attachment is too large.'});return true;}chunks.push(chunk);}if(size!==length){json(400,{error:'Upload was incomplete.'});return true;}
     if(!online(p)||p.code!==r.code||p.chatBlocked){json(403,{error:'Room connection changed during upload.'});return true;}
-    let raw;try{raw=decodeURIComponent(String(req.headers['x-attachment-name']||'file'));}catch{raw='file';}const name=raw.replace(/[\u0000-\u001f\\/]/g,'').trim().slice(0,120)||'file';
+    let raw;try{raw=decodeURIComponent(String(req.headers['x-attachment-name']||'file'));}catch{raw='file';}const name=raw.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069\\/]/g,'').trim().slice(0,120)||'file';
     const bytes=Buffer.concat(chunks),id=randomUUID();dir=await mkdtemp(join(tmpdir(),'xparty-chat-'));const path=join(dir,'attachment');await writeFile(path,bytes,{mode:0o600});
     const a={id,code:r.code,owner:p.id,to,name,size,mime:mediaType(bytes),dir,path,published:false,at:Date.now()};items.set(id,a);used+=size;dir=null;json(201,{attachment:{id,name,size,mime:a.mime}});
    }catch{if(!res.headersSent)json(500,{error:'Attachment upload interrupted. Please retry.'});}
