@@ -29,12 +29,22 @@ export function initRoomInteractions({getContext,send,notify,base,profiles,frien
  const connection=node('div','room-connection-status');connection.setAttribute('role','status');connection.hidden=true;header.after(connection);document.addEventListener('xparty:connection-status',e=>{connection.textContent=e.detail.text;connection.hidden=['connected','idle'].includes(e.detail.state);});
  const lighting=node('p','room-lighting-status');lighting.hidden=true;lighting.setAttribute('role','status');$('watch-stage').after(lighting);
  const frameLayer=document.querySelector('.room-ambient-layer');if(frameLayer)new MutationObserver(()=>{const source=getContext().room?.source;lighting.hidden=source?.type!=='youtube'||['native','video'].includes(frameLayer.dataset.mode);}).observe(frameLayer,{attributes:true,attributeFilter:['data-mode']});
- const callVolume=$('call-volume'),speaker=$('speaker');speaker.classList.add('room-speaker');const speakerLabel=callVolume.closest('label');speakerLabel.prepend(speaker);
- const moreDialog=node('dialog','room-report');moreDialog.setAttribute('aria-label','Call and playback options');moreDialog.append(node('h2','','Room controls'),button('Close',()=>moreDialog.close()));moreDialog.addEventListener('click',e=>{if(e.target.closest('button'))moreDialog.close();});document.body.append(moreDialog);
- const callRow=document.querySelector('.call-seat-row'),more=button('More',()=>moreDialog.showModal(),'room-more-call');icon(more,'more','More call options');callRow.append(more);
- const compact=matchMedia('(min-width:0px)'),moved=[];
- function compactControls(){if(compact.matches){const extras=['captions-toggle','load-subtitles','previous-video','resync','back10','forward10','room-menu'].map($).filter(Boolean);for(const control of [...callRow.children,...extras]){if(['call-seats','call-seat','speaker','expand-call'].includes(control.id)||control===more||control.parentElement===moreDialog)continue;const marker=document.createComment('call control');control.before(marker);moved.push([control,marker]);moreDialog.append(control);}more.hidden=false;}else{for(const [control,marker]of moved.splice(0)){marker.replaceWith(control);}more.hidden=true;moreDialog.close();}}
- compact.addEventListener('change',compactControls);compactControls();
+ const speaker=$('speaker');speaker.classList.add('room-speaker');
+ // Primary room actions remain visible together below Call/Chat, not inside a modal.
+ const moreDialog=node('dialog','room-report');moreDialog.setAttribute('aria-label','Additional room options');
+ moreDialog.append(node('h2','','More options'),button('Close',()=>moreDialog.close()));
+ moreDialog.addEventListener('click',e=>{if(e.target.closest('button'))moreDialog.close();});document.body.append(moreDialog);
+ const callRow=document.querySelector('.call-seat-row'),more=button('More',()=>moreDialog.showModal(),'room-more-call');
+ icon(more,'more','More room options');callRow.append(more);
+ const primaryControls=['call-seat','mic','camera','speaker','expand-call','resync','browse'];
+ const secondaryControls=['rename','retry-call','previous-video','back10','forward10'];
+ function compactControls(){
+  // Re-attach the same controls on reconnect/leave: never clone event handlers.
+  for(const id of primaryControls){const item=$(id);if(item&&item.parentElement!==callRow)callRow.append(item);}
+  for(const id of secondaryControls){const item=$(id);if(item&&item.parentElement!==moreDialog)moreDialog.append(item);}
+  callRow.append(more);more.hidden=false;
+ }
+ compactControls();
  const pin=node('aside','chat-pinned');pin.setAttribute('aria-label','Pinned message');pin.hidden=true;
  const pinCopy=node('div'),pinLabel=node('small','','PINNED'),pinText=node('blockquote'),unpin=button('×',()=>send('pin-message',{id:null}));unpin.setAttribute('aria-label','Unpin message');pinCopy.append(pinLabel,pinText);pin.append(pinCopy,unpin);$('messages').before(pin);
  const mini=node('dialog','room-mini-profile');mini.setAttribute('aria-label','Participant profile');document.body.append(mini);
@@ -100,7 +110,7 @@ export function initRoomInteractions({getContext,send,notify,base,profiles,frien
  function update(){
    const {room,me}=getContext();if(room?.code!==roomCode){clearMessageEffects();roomCode=room?.code||null;muted=new Set();blocked=new Set();try{const cache=JSON.parse(sessionStorage.getItem('xparty.room-controls.'+roomCode)||'{}');muted=new Set(cache.muted||[]);blocked=new Set(cache.blocked||[]);}catch{}requested=null;controller?.abort();mini.close();if(room)conversation('chat');}
    const nextHeaderKey=[room?.source?.id,room?.playback?.playing,document.body.classList.contains('browsing'),document.body.classList.contains('room-people-open')].join(':');if(nextHeaderKey!==headerKey){headerKey=nextHeaderKey;revealHeader();}if(!room?.source)clearTicker();
-   if(!room){mini.close();ending.hidden=true;connection.hidden=true;document.body.classList.remove('room-video-pinned','room-empty-video');return;}const activeSource=getContext().source||room.source;document.body.classList.toggle('room-video-pinned',!!activeSource);document.body.classList.toggle('room-empty-video',!activeSource);const frameMode=document.querySelector('.room-ambient-layer')?.dataset.mode;lighting.hidden=room.source?.type!=='youtube'||['native','video'].includes(frameMode);lighting.textContent='YouTube ambient colours · live frame lighting requires the Android app.';clockOffset=(room.serverTime||Date.now())-Date.now();
+   if(!room){mini.close();ending.hidden=true;connection.hidden=true;document.body.classList.remove('room-video-pinned','room-empty-video');return;}compactControls();const activeSource=getContext().source||room.source;document.body.classList.toggle('room-video-pinned',!!activeSource);document.body.classList.toggle('room-empty-video',!activeSource);const frameMode=document.querySelector('.room-ambient-layer')?.dataset.mode;lighting.hidden=room.source?.type!=='youtube'||['native','video'].includes(frameMode);lighting.textContent='YouTube ambient colours · live frame lighting requires the Android app.';clockOffset=(room.serverTime||Date.now())-Date.now();
    const peopleCount=room.people.filter(p=>p.online).length;countBadge.textContent=peopleCount>99?'99+':String(peopleCount);$('people-button').setAttribute('aria-label','Participants · '+peopleCount);const heading=document.querySelector('.room-participants-label');if(heading)heading.dataset.count=peopleCount+' here';
    const quote=room.pinnedQuote;pin.hidden=!quote||blocked.has(quote.from);if(quote){pinText.textContent=quote.name+': '+quote.text;unpin.hidden=room.hostId!==me;}
    for(const b of $('messages').querySelectorAll('.message-pin'))b.hidden=room.hostId!==me;

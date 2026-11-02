@@ -43,12 +43,14 @@ let xpartyUI=null,wasLocalPaused=false,roomInteractions=null,callExperience=null
 let nativeYouTube=null,vimeo=null,providerLoad=null,roomDesign,providerUI,fullscreen,suggestions,iptv,iptvPlayer;
 let sourceId=null, pendingFile=null, ownedFile=null, ownedFileId=null, objectUrl=null, activePlayback;
 let suppressUntil=0, lastCorrected=0, appliedRevision=-1, clockOffset=0, bestRTT=Infinity, lastAnchor=0, lastSeek=0;
+const pingProbes=new Map(),pingWindow=[];let lastPingAt=0;
 let audioContext, movieGain, movieAudio, callVolume=1, movieVolume=.7, busyMedia=false;
 let bufferTimer,bufferReported=false,autoDriftSince=0,lastPlayAttempt=0,nativeBufferTimer=null,nativeBuffering=false,lastNativePlayAttempt=0;let cameraFacing='user';let speakerOn=true,viewMode='default',joinLookup=0,lookupTimer;const observedMessages=new Set();
 let recipient=null,unread=0,typingTimer,lastTyping=0;const typingPeople=new Map();let vcVisible=false,chatVisible=true,buffering=false,settleUntil=0;
 let fileJob=null,loadedFileId=null,downloadId=null,readySent=null;
 const SESSION='xparty-session-v2';
 const filePlayer=$('file-player');
+const pingIndicator=document.createElement('span');pingIndicator.id='ping-status';pingIndicator.textContent='Ping —';pingIndicator.title='WebSocket round-trip time to the room server; not video buffering latency';$('time').after(pingIndicator);
 const memberProfiles=initMemberProfiles({getContext:()=>({room,me,send}),notify:toast});
 const skipVoting=initSkipVoting({getContext:()=>({room,me,send})});
 const nativeVideo=initNativeVideo({onAvailable:()=>{if(room?.source&&nativeVideo.handles(room.source))applySource(room.source);},onReady:()=>{readySent=sourceId;send('ready',{sourceId,ready:true,status:'Native video ready'});applyPlayback(true);if(iptv?.consumeAutoplay(room?.source))command(true,0);},onState:event=>{
@@ -69,7 +71,7 @@ function toast(text) { $('toast').textContent=t(text);$('toast').hidden=false;cl
 function status(text) {const el=$('sync-status');el.setAttribute('data-localize-dynamic','');el.lastChild.textContent=' '+t(text);}
 function notice(text) {$('connection-notice').textContent=text||'Connected. Share the room code privately.';}
 function send(type, fields={}) {if(['playback','source','next','previous','party-mode'].includes(type))fields.eventId??=crypto.randomUUID();if(type==='playback'&&!fields.intent)fields.intent=Math.abs((fields.position||0)-currentTime())>1?'seek':fields.playing?'play':'pause';if(preview) {toast('This is a design preview. Create a room to connect.');return false;}if(socket?.readyState!==WebSocket.OPEN){toast('Room connection is offline. Reconnecting…');return false;}socket.send(JSON.stringify({type,...fields}));return true;}
-function ping() {if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:'ping',sent:Date.now()}));}
+function ping(){if(socket?.readyState!==WebSocket.OPEN)return;const sent=Date.now();pingProbes.set(sent,performance.now());while(pingProbes.size>10)pingProbes.delete(pingProbes.keys().next().value);socket.send(JSON.stringify({type:'ping',sent}));}
 let serviceWarmup, preparingConnection=false;
 const serviceStatus=document.createElement('p');serviceStatus.className='small';serviceStatus.setAttribute('role','status');serviceStatus.hidden=true;$('create').parentElement.append(serviceStatus);
 function warmService(){
@@ -92,7 +94,7 @@ async function connect(action) {
   if(!switchingRoom&&socket?.readyState<2)socket.close();
   const ws=new WebSocket(url);let welcomed=false;connectionStatus(action.type==='resume'?'reconnecting':'connecting');if(!switchingRoom)socket=ws;
   const handshakeTimer=setTimeout(()=>{if(!welcomed&&ws.readyState<2){ws.close(4001,'Room handshake timeout');if(!token)toast('The room service did not respond. Try again.');}},15000);connectTimer=handshakeTimer;
-  ws.onopen=()=>{if(ws!==socket&&!switchingRoom){ws.close();return;}heartbeat.heard();bestRTT=Infinity;ws.send(JSON.stringify(action));if(ws===socket)ping();};
+  ws.onopen=()=>{if(ws!==socket&&!switchingRoom){ws.close();return;}heartbeat.heard();bestRTT=Infinity;pingProbes.clear();pingWindow.length=0;lastPingAt=0;pingIndicator.textContent='Ping —';ws.send(JSON.stringify(action));if(ws===socket)ping();};
   ws.onmessage=e=>{if(ws!==socket&&!switchingRoom)return;if(ws===socket){heartbeat.heard();if(welcomed&&connectionState==='checking')connectionStatus('connected');}try{const message=JSON.parse(e.data);if(message.type==='welcome'){welcomed=true;clearTimeout(handshakeTimer);reconnectAttempts=0;connectionStatus('connected');}
     if(switchingRoom&&ws!==socket){
       if(message.type==='welcome'){socket=oldSocket;leave(true);socket=ws;intentionalClose=false;switching=false;}
@@ -111,7 +113,7 @@ async function connect(action) {
 function handle(m) {
   if(m.type==='request-status'){toast(m.request.status==='HOST_REVIEW'?'Request sent to the host.':m.request.status+': '+m.request.reason);return;}
   if(m.type==='error'){toast(m.message);$('create').disabled=false;$('join-form').querySelector('button').disabled=false;return;}
-  if(m.type==='pong') {const rtt=Date.now()-m.sent;if(rtt<bestRTT+20){bestRTT=Math.min(bestRTT,rtt);clockOffset=m.serverTime-(m.sent+rtt/2);}return;}
+  if(m.type==='pong'){const started=pingProbes.get(m.sent);pingProbes.delete(m.sent);if(started===undefined||!Number.isFinite(m.serverTime))return;const rtt=Math.round(performance.now()-started);if(rtt<0||rtt>20000)return;pingWindow.push(rtt);if(pingWindow.length>5)pingWindow.shift();const sorted=[...pingWindow].sort((a,b)=>a-b);pingIndicator.textContent='Ping '+sorted[Math.floor(sorted.length/2)]+' ms';lastPingAt=Date.now();if(rtt<bestRTT+20){bestRTT=Math.min(bestRTT,rtt);clockOffset=m.serverTime-(m.sent+rtt/2);}return;}
   if(m.type==='typing'){if(m.active)typingPeople.set(m.from,{name:m.name,until:Date.now()+4500});else typingPeople.delete(m.from);renderTyping();return;}
   if(m.type==='resume-failed' || m.type==='ended' || m.type==='kicked'){sessionStorage.removeItem('xparty-owner-return');document.documentElement.removeAttribute('data-restoring');const msg=m.message||'This room expired. Create or join a room again.';leave(false);toast(msg);return;}
   if(m.type==='ptt-status'){toast(m.approved?t('Push to talk approved'):t('Push to talk declined'));return;}
@@ -154,12 +156,12 @@ function updateRoom(next) {
   renderPeople();updateChatMic();renderMembers();$('call-seat').setAttribute('aria-pressed',String(!!self?.inCall));$('call-seat').textContent=t(self?.inCall?'Leave call':'Join call');icon($('call-seat'),self?.inCall?'hangup':'phone',self?.inCall?'Drop call seat':self?.seatRequested?'Cancel seat request':'Take call seat');$('call-seats').textContent=room.people.filter(p=>p.inCall&&p.online).length+'/'+MAX_CALL_SEATS;$('mic').disabled=!self?.inCall;$('camera').disabled=!self?.inCall;if(recipient&&!room.people.some(p=>p.id===recipient.id))setRecipient(null);
   if((room.source?.id||null)!==sourceId) applySource(room.source);
   else if(room.source) applyPlayback(false);
-  ambient.update();xpartyUI?.update();companion.update();providerUI?.update();roomDesign?.update();fullscreen?.update();suggestions?.update();iptv?.update();roomInteractions?.update();callExperience?.update();playbackData?.update();
+  ambient.update();xpartyUI?.update();companion.update();providerUI?.update();roomDesign?.update();fullscreen?.update();suggestions?.update();iptv?.update();roomInteractions?.update();callExperience?.update();playbackData?.update();document.dispatchEvent(new CustomEvent('krezi:room',{detail:{source:room.source,code:room.code,playing:!!room.playback?.playing}}));
   if(room.source?.type==='file')ensureFile();
   if(room.source?.type==='file' && room.source.uploaded && room.people.filter(p=>p.online).every(p=>p.ready)){$('transfer-label').textContent='Everyone has the file. Ready to play together.';status('Ready together');}
 }
 function renderPeople() {
-  const people=(room?.people||[]).filter(p=>p.inCall||p.id===me);const container=$('participants');
+  const people=(room?.people||[]).filter(p=>p.id===me||(p.online&&p.inCall));const container=$('participants');
   for(const child of [...container.children])if(!people.some(p=>child.dataset.id===p.id))child.remove();
   for(const person of people) {
     let tile=[...container.children].find(el=>el.dataset.id===person.id);
@@ -305,7 +307,7 @@ async function applySource(source) {showControls();clearTimeout(nativeBufferTime
 
   if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}
   if(!['direct','iptv'].includes(source?.type))filePlayer.removeAttribute('crossorigin');
-  $('transfer').hidden=true;$('empty-player').hidden=!!source;$('youtube-wrap').hidden=source?.type!=='youtube';filePlayer.hidden=!isVideoElement(source);
+  $('transfer').hidden=true;$('empty-player').hidden=!!source;$('youtube-wrap').hidden=source?.type!=='youtube'||nativeVideo.handles(source);filePlayer.hidden=!isVideoElement(source)||nativeVideo.handles(source);
   $('stage-title').hidden=!source;$('stage-title').textContent=source?.title||'';if(!source){$('video-title').textContent='';status('Waiting for a video');return;}
   $('video-title').textContent=source.title;for(const card of document.querySelectorAll('.provider-card'))card.setAttribute('aria-pressed',String(card.dataset.provider===source.type));
   if(isCompanion(source)){status('Connect your service tab');companion.update();providerUI?.update();
@@ -314,14 +316,14 @@ async function applySource(source) {showControls();clearTimeout(nativeBufferTime
     const create={vimeo:createVimeoPlayer,twitch:createTwitchPlayer,soundcloud:createSoundCloudPlayer}[source.type];
     try{const player=await create($('vimeo-player'),source.videoId,e=>{if(sourceId===expected)youtubeEvent(e);},()=>{if(sourceId===expected){reportBuffer(false);$('unlock-playback').hidden=false;status(name+' playback needs attention');toast(name+' could not play. Choose content that allows embedding.');}},{signal:providerLoad.signal});if(sourceId!==expected){player.destroy();return;}vimeo=player;yt=player;ytReady=true;applyPlaybackSound();send('ready',{sourceId,ready:true});applyPlayback(true);}catch(e){if(sourceId===expected){status(name+' unavailable');toast(e.message);}}
   }else if(source.type==='iptv'){
-    const expected=source.id;status('Connecting to live IPTV');if(nativeVideo.handles(source))nativeVideo.load(source,{base,token});else try{iptvPlayer=await createIPTVPlayer(filePlayer,source.url,{audioOnly:source.radio===true,signal:providerLoad.signal,onError:message=>{if(sourceId!==expected)return;status('Channel unavailable');readySent=null;send('ready',{sourceId,ready:false,status:'Channel unavailable'});toast(message);}});}catch(error){if(sourceId===expected){status('IPTV unavailable');toast(error.message);}}
+    const expected=source.id;status('Connecting to live IPTV');if(nativeVideo.handles(source))nativeVideo.load(source,{base,token});else try{const player=await createIPTVPlayer(filePlayer,source.url,{audioOnly:source.radio===true,signal:providerLoad.signal,onError:message=>{if(sourceId!==expected)return;status('Channel unavailable');readySent=null;send('ready',{sourceId,ready:false,status:'Channel unavailable'});toast(message);}});if(sourceId!==expected){player?.destroy();return;}iptvPlayer=player;}catch(error){if(sourceId===expected){status('IPTV unavailable');toast(error.message);}}
   }else if(source.type==='direct'){
     status('Loading video link');if(nativeVideo.handles(source))nativeVideo.load(source,{base,token});else{filePlayer.crossOrigin='anonymous';filePlayer.src=source.url;filePlayer.load();}
   }else if(source.type==='youtube'&&nativeVideo.handles(source)){
     status('Opening native YouTube');nativeVideo.load(source,{base,token});
   }else if(source.type==='youtube') {
     ownedFile=null;ownedFileId=null;pendingFile=null;status('Loading YouTube');
-    try{await loadYouTube();if(sourceId!==source.id)return;yt=nativeYouTube;ytReady=true;yt.cueVideoById(source.videoId);applyCaptions();applyPlaybackSound();send('ready',{sourceId,ready:true});applyPlayback(true);}catch{toast('YouTube could not load. Check your connection or content blocker.');status('YouTube unavailable');}
+    try{await loadYouTube();if(sourceId!==source.id)return;yt=nativeYouTube;ytReady=true;if(activePlayback?.playing&&typeof yt.loadVideoById==='function')yt.loadVideoById(source.videoId);else yt.cueVideoById(source.videoId);applyCaptions();applyPlaybackSound();send('ready',{sourceId,ready:true});applyPlayback(true);}catch{toast('YouTube could not load. Check your connection or content blocker.');status('YouTube unavailable');}
   }else {
     status('Preparing shared file');
     if(me===source.owner && pendingFile){const file=pendingFile;pendingFile=null;if(nativeVideo.handles(source)){nativeVideo.load(source,{base,token});}else{loadedFileId=source.id;setFileBlob(file);}uploadFile(file,source.id);}else if(source.uploaded)ensureFile();else transfer('Waiting for the host to finish uploading…',0);
@@ -461,7 +463,7 @@ $('create-toggle').onclick=()=>$('create').click();
 
 $('stop').onclick=()=>{if(room?.hostId===me)send('playback',{sourceId,playing:false,position:0,intent:'stop'});};
 $('resync').onclick=()=>{localPaused=false;lastPlayAttempt=0;settleUntil=0;autoDriftSince=0;ping();if(usesEmbed(room?.source)&&ytReady&&yt.getPlayerState()===1)reportBuffer(false);send('resync');if(room?.source?.type==='file'){if(filePlayer.readyState>=1){readySent=null;fileReady();}else ensureFile();}toast(t('Aligning playback'));};
-$('browse').onclick=()=>{document.body.classList.add('browsing');$('source-panel').scrollIntoView({behavior:'smooth',block:'start'});$('youtube-input').focus({preventScroll:true});};
+$('browse').onclick=()=>{document.body.classList.add('browsing');providerUI?.update();$('source-panel').scrollIntoView({behavior:'smooth',block:'start'});const selected=document.querySelector('.provider-card[aria-pressed="true"]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});if(!room?.source||selected?.dataset.provider==='youtube')$('youtube-input').focus({preventScroll:true});};
 $('back-video').onclick=()=>{document.body.classList.remove('browsing');$('watch-stage').scrollIntoView({behavior:'smooth'});};
 $('next-video').onclick=()=>send('next');
 $('create').onclick=async()=>{if(!await roomAgreement('create'))return;const name=await nicknameChoice($('name').value);if(name===null)return;setEntryNickname(name);connect({type:'create',name,capacity:null});};
@@ -510,7 +512,7 @@ filePlayer.onerror=()=>{if(isVideoElement(room?.source) && filePlayer.getAttribu
 function playbackEnded(){reportBuffer(false);if(!room||isLiveSource(room.source))return;if(me===room.hostId){command(false,currentTime());send('playback-ended',{sourceId});}}
 filePlayer.onended=()=>{if(room?.source?.type==='iptv'){status('Live broadcast ended');return;}if(isVideoElement(room?.source))playbackEnded();};
 $('preview').onclick=()=>{preview=true;me='preview-host';$('lobby').hidden=true;$('room').hidden=false;$('demo-banner').hidden=false;notice('');updateRoom({code:'PREVIEW',hostId:me,capacity:null,locked:false,source:null,playback:{position:0,playing:false,updatedAt:Date.now(),revision:0},people:[{id:me,name:'You',online:true,mic:false,camera:false},{id:'preview-guest',name:'Your friend',online:true,mic:false,camera:false}]});};
-setInterval(tick,200);setInterval(ping,3000);
+setInterval(tick,200);setInterval(ping,3000);setInterval(()=>{if(lastPingAt&&Date.now()-lastPingAt>12000)pingIndicator.textContent='Ping —';},3000);
 window.addEventListener('pagehide',()=>{suspended=true;clearTimeout(reconnectTimer);if(socket?.readyState===WebSocket.OPEN)socket.close();localStream.getTracks().forEach(t=>t.stop());});
 window.addEventListener('pageshow',e=>{suspended=false;if(e.persisted){localStream=new MediaStream();const saved=readSession();if(saved?.base===base)connect({type:'resume',token:saved.token});}});
 if(location.hostname.endsWith('github.io')&&!window.XPARTY_CONFIG?.backendUrl)$('setup-notice').hidden=false;
@@ -632,8 +634,8 @@ addEventListener('resize',()=>{if(document.body.classList.contains('cinema')&&vi
 for(const [id,shape,label]of [['load-video','search','Search YouTube'],['next-video','next','Play next'],['back-video','back','Back to video'],['participant-settings-button','settings','Participant review settings'],['close-participants','close','Close participants'],['controls-toggle','more','Show playback controls'],['attach-chat','attach','Share photo, GIF, video or file']])icon($(id),shape,label);
 for(const id of ['noise-setting','echo-setting','auto-sync','auto-pause','guest-themes'])$(id).setAttribute('role','switch');
 const shell=$('player-shell');let controlsTimer;
-function showControls(){shell.classList.remove('controls-hidden');$('controls-toggle').setAttribute('aria-expanded','true');clearTimeout(controlsTimer);controlsTimer=setTimeout(()=>{if(!shell.querySelector('.player-bar :focus-visible')&&!shell.matches(':active')){shell.classList.add('controls-hidden');$('controls-toggle').setAttribute('aria-expanded','false');}},2800);}
-shell.addEventListener('pointermove',e=>{if(!e.target.closest('#controls-toggle'))showControls();},{passive:true});shell.addEventListener('pointerdown',e=>{if(!e.target.closest('#controls-toggle'))showControls();},{passive:true});shell.addEventListener('keydown',e=>{if(!e.target.closest('#controls-toggle'))showControls();});shell.addEventListener('focusin',e=>{if(!e.target.closest('#controls-toggle'))showControls();});
+function showControls(){shell.classList.remove('controls-hidden');$('controls-toggle').setAttribute('aria-expanded','true');clearTimeout(controlsTimer);controlsTimer=setTimeout(()=>{if(!shell.querySelector('.player-bar :focus-visible')&&!shell.matches(':active')){shell.classList.add('controls-hidden');$('controls-toggle').setAttribute('aria-expanded','false');}},3600);}
+shell.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'&&!e.target.closest('#controls-toggle'))showControls();},{passive:true});shell.addEventListener('pointerdown',e=>{if(!e.target.closest('#controls-toggle'))showControls();},{passive:true});shell.addEventListener('keydown',e=>{if(!e.target.closest('#controls-toggle'))showControls();});shell.addEventListener('focusin',e=>{if(!e.target.closest('#controls-toggle'))showControls();});
 $('controls-toggle').onclick=()=>{if(shell.classList.contains('controls-hidden'))showControls();else{clearTimeout(controlsTimer);shell.classList.add('controls-hidden');$('controls-toggle').setAttribute('aria-expanded','false');}};showControls();
 const sections=[...$('settings-dialog').querySelectorAll('.settings-section')];let settingsTimer;
 function settingsActivity(){clearTimeout(settingsTimer);if($('settings-dialog').open)settingsTimer=setTimeout(()=>{if(!$('settings-dialog').querySelector('input:focus,select:focus'))for(const d of sections)d.open=false;else settingsActivity();},18000);}

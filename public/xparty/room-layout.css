@@ -108,3 +108,14 @@ body.in-room #people-button{position:relative;overflow:visible}
 body.in-room #people-button .participant-count-badge{position:absolute;right:2px;top:2px;display:grid;place-items:center;min-width:15px;height:15px;padding:0 3px;box-sizing:border-box;border-radius:8px;background:#e8e0ef;color:#211b2b;font:700 9px/1 system-ui!important;border:1px solid #17121f;pointer-events:none}
 
 /* Native video must be clipped by the Android view itself, not hidden by an added chat tint. */
+
+/* v24: a persistent, horizontally scrollable control rail for small Android screens. */
+body.in-room #room .participant-strip .call-seat-row{display:flex!important;align-items:center!important;justify-content:flex-start!important;flex:1 1 auto!important;min-width:0!important;overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-inline:contain;scrollbar-width:none;gap:4px!important;touch-action:pan-x}
+body.in-room #room .participant-strip .call-seat-row::-webkit-scrollbar{display:none}
+body.in-room #room .participant-strip .call-seat-row>button{display:inline-grid!important;place-items:center;flex:0 0 36px!important;font-size:0!important;white-space:nowrap}
+body.in-room #room .participant-strip .call-seat-row>button[hidden]{display:none!important}
+body.in-room:not(.watch-fullscreen) #room .participant-strip{opacity:1!important;visibility:visible!important}
+/* No captions, white stop square, or floating PiP grab/resize handles in the controls. */
+body.in-room #room :is(#captions-toggle,#load-subtitles,#stop,#pip-handle,#pip-resize,.tile-pip){display:none!important}
+/* The native Android decoder is a separate surface: hide the empty HTML layers. */
+body.in-room #room :is(#file-player[hidden],#youtube-wrap[hidden]){display:none!important}
