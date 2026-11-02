@@ -8,7 +8,7 @@ export function createOwnerControl({rooms,online,originOK,rate,send,state,remove
  return {countRequest(){requests++;},observeMessage(bytes){messages++;signalBytesIn+=bytes;},observeOutput(bytes){signalBytesOut+=bytes;},admissionsOpen:()=>admissions,roomLimit:()=>maxRooms,async handle(req,res,url,json,clientIp){
   if(!url.pathname.startsWith('/api/owner/'))return false;
   if(req.method!=='GET'&&!originOK(req)){json(403,{error:'Origin not allowed'});return true;}
-  const cookie=value=>res.setHeader('Set-Cookie',`xparty_owner=${value}; Path=/api/owner; HttpOnly; SameSite=Strict; ${process.env.RENDER?'Secure; ':''}Max-Age=${value?28800:0}`);
+  const cookie=value=>res.setHeader('Set-Cookie',`xparty_owner=${value}; Path=/api/owner; HttpOnly; SameSite=Strict; ${process.env.RENDER||process.env.RENDER_EXTERNAL_URL||process.env.NODE_ENV==='production'||req.socket.encrypted?'Secure; ':''}Max-Age=${value?28800:0}`);
   try{
    if(url.pathname==='/api/owner/login'&&req.method==='POST'){
     if(!rate('owner-login:'+clientIp,5,15*60000)){json(429,{error:'Wait 15 minutes before trying again.'});return true;}
