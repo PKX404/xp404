@@ -17,9 +17,9 @@ export function initIPTV({getContext,send,notify,retry,goLive}){
   b.onclick=()=>{const reload=(category==='Radio')!==(label==='Radio');category=label;limit=24;for(const chip of chips.children)chip.setAttribute('aria-pressed',String(chip===b));if(reload)load();else render();};chips.append(b);
  }$('iptv-filter').before(chips);
  const observer=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting&&!panel.hidden){const url=e.target.dataset.url;observer.unobserve(e.target);checkChannel(url);}}, {root:$('iptv-channels'),rootMargin:'24px'});
- function play(channel){const {room}=getContext();if(!room){pendingChannel=channel;document.querySelector('[data-service=iptv]')?.click();return;}autoPlayUrl=channel.url;send('source',{source:{type:'iptv',url:channel.url,title:channel.title,...(channel.radio?{radio:true}:{})}});}
+ function play(channel){const {room}=getContext();if(!room){pendingChannel=channel;document.querySelector('[data-service=iptv]')?.click();return;}autoPlayUrl=channel.url;const logo=/^https:\/\//i.test(channel.logo||'')?{logo:channel.logo}:{};send('source',{source:{type:'iptv',url:channel.url,title:channel.title,...logo,...(channel.radio?{radio:true}:{})}});}
  window.addEventListener('xparty:pick-channel',e=>{const c=e.detail;if(!c||!(c.radio?publicRadioURL(c.url):publicStreamURL(c.url)))return;if(getContext().room)$('return-room').click();play(c);});
- function source(c){return {type:'iptv',url:c.url,title:c.title,...(c.radio?{radio:true}:{})};}
+ function source(c){return {type:'iptv',url:c.url,title:c.title,...(/^https:\/\//i.test(c.logo||'')?{logo:c.logo}:{}),...(c.radio?{radio:true}:{})};}
  function render(){
   const box=$('iptv-channels'),scroll=box.scrollTop,{room,me}=getContext();observer.disconnect();
   const available=category==='Saved'?savedVideos().list().filter(c=>c.type==='iptv').map(c=>({...c,group:'Saved'})):channels;
