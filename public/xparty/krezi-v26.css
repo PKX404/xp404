@@ -1,0 +1,32 @@
+/* Krezi v26 — compact player, one persistent fullscreen and one measured ping. */
+body.in-room #room #player-shell{position:relative!important}
+body.in-room #room #player-shell .krezi-player-topline{position:absolute!important;left:7px!important;top:7px!important;right:auto!important;z-index:30!important;display:flex!important;align-items:center!important;gap:6px!important;max-width:calc(100% - 14px)!important;pointer-events:none!important}
+body.in-room #room #player-shell .krezi-fullscreen{display:grid!important;place-items:center!important;flex:0 0 34px!important;width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important;margin:0!important;padding:6px!important;background:rgba(10,12,20,.48)!important;border:0!important;border-radius:6px!important;box-shadow:none!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;color:#fff!important}
+body.in-room #room #player-shell .krezi-fullscreen svg{width:20px!important;height:20px!important;display:block!important}
+body.in-room #room #player-shell .krezi-playing-status{position:static!important;display:inline-flex!important;max-width:min(74vw,275px)!important;min-width:0!important;flex:0 1 auto!important;padding:5px 7px!important;margin:0!important;border:0!important;border-radius:7px!important;background:rgba(10,12,20,.46)!important;pointer-events:none!important;opacity:1!important;visibility:visible!important;font-size:10px!important}
+body.in-room #room #player-shell .krezi-playing-status[disabled]{opacity:1!important}
+body.in-room #room #player-shell .player-bar{z-index:24!important;transition:opacity .18s ease!important}
+body.in-room #room #player-shell.controls-hidden .player-bar{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+body.in-room #room #player-shell:not(.controls-hidden) .player-bar{opacity:1!important;visibility:visible!important;pointer-events:auto!important}
+body.in-room #room #player-shell .player-bar button{border-radius:7px!important;box-shadow:none!important;outline-offset:2px}
+body.in-room #room #player-shell #seek{width:100%!important;min-height:18px!important;height:18px!important;margin:0!important;touch-action:pan-x}
+body.in-room #room #player-shell .krezi-timeline{min-width:0!important;flex:1 1 100%!important;width:100%!important;display:flex!important;flex-direction:column!important;gap:0!important}
+body.in-room #room #player-shell .krezi-timeline-meta{display:flex!important;align-items:center!important;gap:10px!important;min-height:17px!important;padding:0 2px!important;white-space:nowrap!important}
+body.in-room #room #player-shell .krezi-timeline-meta #time,body.in-room #room #player-shell .krezi-timeline-meta #ping-status{position:static!important;display:inline-block!important;min-width:0!important;font:600 10px/1.4 system-ui!important;white-space:nowrap!important;opacity:1!important}
+body.in-room #room #player-shell #ping-status[data-quality=excellent]{color:#7cf3b1!important}
+body.in-room #room #player-shell #ping-status[data-quality=good]{color:#b0ecd5!important}
+body.in-room #room #player-shell #ping-status[data-quality=fair]{color:#ffd183!important}
+body.in-room #room #player-shell #ping-status[data-quality=poor]{color:#ffa0a6!important}
+body.in-room #room #player-shell #ping-status[data-quality=offline]{color:#b9becb!important}
+body.in-room #room #player-shell #xparty-net-ping{display:none!important}
+/* Compact only in portrait. The actual fullscreen layout is unchanged. */
+@media(max-width:900px) and (orientation:portrait){body.in-room:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{aspect-ratio:16/8!important;max-height:30dvh!important;min-height:0!important}body.in-room:not(.watch-fullscreen):not(.focus-call) #room #player-shell{max-height:38dvh!important}}
+/* Playback card in chat: logo is the real IPTV artwork when the playlist supplies one. */
+body.in-room #room #krezi-watch-card{display:flex;align-items:center;gap:9px;max-width:100%;min-width:0;padding:7px 10px;margin:6px 0;background:rgba(8,11,18,.20);border:0;border-radius:12px}
+body.in-room #room #krezi-watch-card[hidden]{display:none!important}
+body.in-room #room #krezi-watch-card .krezi-watch-art{display:block;flex:0 0 44px;width:44px;height:44px;border-radius:10px;object-fit:contain;background:#ffffff1e}
+body.in-room #room #krezi-watch-card .krezi-watch-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+body.in-room #room #krezi-watch-card .krezi-watch-info small{opacity:.75;font-size:11px}
+body.in-room #room #krezi-watch-card .krezi-watch-info strong{font-size:13px;overflow-wrap:anywhere}
+body.in-room #room #krezi-watch-card .krezi-watch-like{flex:0 0 36px;width:36px;height:36px;background:transparent;border:0;color:#fff;font-size:27px}
+@media(prefers-reduced-motion:reduce){body.in-room #room #player-shell .player-bar{transition:none!important}}
