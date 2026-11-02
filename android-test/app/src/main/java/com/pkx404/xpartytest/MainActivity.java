@@ -68,16 +68,23 @@ public final class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        if (Build.VERSION.SDK_INT >= 26) settings.setSafeBrowsingEnabled(true);
         settings.setAllowContentAccess(true);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (allowed(request.getUrl())) return false;
-                try {
-                    Intent open = new Intent(Intent.ACTION_VIEW, request.getUrl());
-                    startActivity(open);
-                } catch (Exception ignored) {}
+                // Never dispatch javascript:, file:, content: or intent: links to other applications.
+                Uri target = request.getUrl();
+                if (target != null && "https".equalsIgnoreCase(target.getScheme())) {
+                    try {
+                        Intent open = new Intent(Intent.ACTION_VIEW, target);
+                        startActivity(open);
+                    } catch (Exception ignored) {}
+                }
                 return true;
             }
             @Override public void onPageFinished(WebView view, String url) {
