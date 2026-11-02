@@ -36,7 +36,7 @@ export function initRoomInteractions({getContext,send,notify,base,profiles,frien
  moreDialog.addEventListener('click',e=>{if(e.target.closest('button'))moreDialog.close();});document.body.append(moreDialog);
  const callRow=document.querySelector('.call-seat-row'),more=button('More',()=>moreDialog.showModal(),'room-more-call');
  icon(more,'more','More room options');callRow.append(more);
- const primaryControls=['call-seat','mic','camera','speaker','expand-call','play','resync','browse'];
+ const primaryControls=['call-seat','mic','camera','speaker','expand-call','resync','browse'];
  const secondaryControls=['rename','retry-call','previous-video','back10','forward10'];
  function compactControls(){
   // Re-attach the same controls on reconnect/leave: never clone event handlers.
