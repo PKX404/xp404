@@ -2,7 +2,7 @@ name: XParty native Android emulator installation smoke test
 on:
   workflow_dispatch:
   push:
-    branches: ['feature/xparty-fully-native-android-20261103']
+    branches: ['feature/xparty-fully-native-android-20261103', 'feature/xparty-native-original-ui-v34-20261103']
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-native-smoke.yml'
