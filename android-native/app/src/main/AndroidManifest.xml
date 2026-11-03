@@ -10,7 +10,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
     <application android:theme="@style/NativeTheme"
         android:label="XParty"
-        android:icon="@android:drawable/ic_media_play"
+        android:icon="@drawable/xparty_mark"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">
