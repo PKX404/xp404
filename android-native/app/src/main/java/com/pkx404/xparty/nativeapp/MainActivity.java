@@ -125,72 +125,115 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         });
     }
     private void buildHome(){
-        home.setPadding(px(18),px(16),px(18),px(12));
-        LinearLayout bar=NativeUi.horizontal(this);
-        homeTitle=NativeUi.text(this,"XPARTY",32,true);homeTitle.setTextColor(Color.WHITE);
-        bar.addView(homeTitle,new LinearLayout.LayoutParams(0,px(62),1));
-        TextView badge=NativeUi.label(this,"NATIVE • ANDROID",10);bar.addView(badge);
-        home.addView(bar);
+        home.setBackground(NativeUi.homeBackground());
+        home.setPadding(px(14),px(8),px(14),px(8));
+        FrameLayout brandArea=new FrameLayout(this);
+        ImageView originalLogo=new ImageView(this);
+        originalLogo.setImageResource(R.drawable.xparty_wordmark);
+        originalLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        originalLogo.setContentDescription("XParty original wordmark");
+        FrameLayout.LayoutParams logoParams=new FrameLayout.LayoutParams(px(164),px(64),Gravity.CENTER);
+        brandArea.addView(originalLogo,logoParams);
+        home.addView(brandArea,NativeUi.lp(this,-1,70));
         LinearLayout tabs=NativeUi.horizontal(this);
-        exploreTab=NativeUi.text(this,"Explore",19,true);
-        inviteTab=NativeUi.text(this,"Join Invite",19,true);
-        exploreTab.setGravity(Gravity.CENTER);inviteTab.setGravity(Gravity.CENTER);
+        exploreTab=NativeUi.text(this,"Explore",13,true);
+        TextView friends=NativeUi.text(this,"Friends",13,true);
+        TextView messages=NativeUi.text(this,"Messages",13,true);
+        TextView profile=NativeUi.text(this,"Profile",13,true);
+        for(TextView t:new TextView[]{exploreTab,friends,messages,profile}){
+            t.setGravity(Gravity.CENTER);
+            tabs.addView(t,new LinearLayout.LayoutParams(0,px(42),1));
+        }
         exploreTab.setOnClickListener(v->openHomeTab("explore"));
-        inviteTab.setOnClickListener(v->openHomeTab("invite"));
-        tabs.addView(exploreTab,weight());tabs.addView(inviteTab,weight());
-        home.addView(tabs,NativeUi.lp(this,-1,56));
-        FrameLayout content=new FrameLayout(this);content.setId(View.generateViewId());
+        friends.setOnClickListener(v->openHomeTab("friends"));
+        messages.setOnClickListener(v->openHomeTab("messages"));
+        profile.setOnClickListener(v->openHomeTab("profile"));
+        friends.setTag("friendsTab");messages.setTag("messagesTab");profile.setTag("profileTab");
+        home.addView(tabs,NativeUi.lp(this,-1,44));
+        FrameLayout content=new FrameLayout(this);
+        content.setTag("homeContent");
         home.addView(content,new LinearLayout.LayoutParams(-1,0,1f));
         exploreScroll=new ScrollView(this);
         exploreScroll.setFillViewport(true);
         content.addView(exploreScroll,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout exploreRows=NativeUi.vertical(this);exploreScroll.addView(exploreRows);
-        exploreRows.setTag("exploreRows");
+        LinearLayout exploreRows=NativeUi.vertical(this);
+        exploreRows.setTag("exploreRows");exploreScroll.addView(exploreRows);
         LinearLayout invite=NativeUi.vertical(this);invite.setTag("invite");
-        invite.setPadding(px(4),px(28),px(4),0);
+        invite.setPadding(px(4),px(26),px(4),0);
         content.addView(invite,new FrameLayout.LayoutParams(-1,-1));invite.setVisibility(View.GONE);
-        TextView welcome=NativeUi.text(this,"Join your people.",27,true);
-        invite.addView(welcome);NativeUi.space(this,invite,10);
-        invite.addView(NativeUi.label(this,"Enter the 7-character room invite code.",14));
-        NativeUi.space(this,invite,20);
-        nickname=NativeUi.edit(this,"Display name (optional)");nickname.setText(getPreferences(0).getString("nickname",""));
-        invite.addView(nickname,NativeUi.lp(this,-1,52));NativeUi.space(this,invite,10);
-        inviteCode=NativeUi.edit(this,"Room code");inviteCode.setAllCaps(true);
-        invite.addView(inviteCode,NativeUi.lp(this,-1,52));
+        TextView back=NativeUi.label(this,"‹  Explore",15);
+        back.setOnClickListener(v->openHomeTab("explore"));
+        invite.addView(back,NativeUi.lp(this,-1,40));
+        TextView welcome=NativeUi.text(this,"Join a room",25,true);
+        invite.addView(welcome);NativeUi.space(this,invite,8);
+        invite.addView(NativeUi.label(this,"Enter the invite code from your friends.",13));
         NativeUi.space(this,invite,14);
-        invite.addView(NativeUi.button(this,"Join room",()->joinRoom(inviteCode.getText().toString())),NativeUi.lp(this,-1,52));
-        NativeUi.space(this,invite,22);
-        invite.addView(NativeUi.label(this,"Guest rooms are temporary. Share invitation codes only with people you trust.",13));
-        connection=NativeUi.label(this,"Not connected to a room",11);
+        nickname=NativeUi.edit(this,"Name");
+        nickname.setText(getPreferences(0).getString("nickname",""));
+        invite.addView(nickname,NativeUi.lp(this,-1,50));NativeUi.space(this,invite,10);
+        inviteCode=NativeUi.edit(this,"Room code (7 characters)");inviteCode.setAllCaps(true);
+        invite.addView(inviteCode,NativeUi.lp(this,-1,50));
+        NativeUi.space(this,invite,14);
+        invite.addView(NativeUi.button(this,"Join room",()->joinRoom(inviteCode.getText().toString())),NativeUi.lp(this,-1,48));
+        LinearLayout extra=NativeUi.vertical(this);extra.setTag("homeExtra");
+        extra.setPadding(px(8),px(28),px(8),0);
+        extra.setVisibility(View.GONE);
+        content.addView(extra,new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout actions=NativeUi.horizontal(this);
+        android.widget.Button create=NativeUi.button(this,"＋ Create",this::createRoom);
+        create.setBackground(NativeUi.shape(0xFF51345D,12,this));
+        android.widget.Button join=NativeUi.button(this,"↗ Join",()->openHomeTab("invite"));
+        LinearLayout.LayoutParams first=new LinearLayout.LayoutParams(0,px(50),1);first.rightMargin=px(7);
+        LinearLayout.LayoutParams second=new LinearLayout.LayoutParams(0,px(50),1);second.leftMargin=px(7);
+        actions.addView(create,first);actions.addView(join,second);
+        home.addView(actions,NativeUi.lp(this,-1,54));
+        connection=NativeUi.label(this,"Room connection ready",10);connection.setGravity(Gravity.CENTER);
         home.addView(connection,NativeUi.lp(this,-1,20));
-        TextView made4love=NativeUi.text(this,"Made4Love ♥\nINSPIRED BY AANCHAL",12,true);
-        made4love.setTextColor(0xFFC7B2D0);made4love.setGravity(Gravity.CENTER);
-        home.addView(made4love,NativeUi.lp(this,-1,42));
+        TextView made4love=NativeUi.text(this,"Made4Love ♥\\nINSPIRED BY AANCHAL",12,true);
+        made4love.setTextColor(0xFFCDB2C7);
+        made4love.setGravity(Gravity.CENTER);made4love.setLineSpacing(px(2),1f);
+        home.addView(made4love,NativeUi.lp(this,-1,46));
         openHomeTab("explore");
     }
+
     private void openHomeTab(String page){
         currentPage=page;
-        LinearLayout explore=(LinearLayout)exploreScroll.getChildAt(0);
         FrameLayout parent=(FrameLayout)exploreScroll.getParent();
         LinearLayout invite=(LinearLayout)parent.findViewWithTag("invite");
+        LinearLayout extra=(LinearLayout)parent.findViewWithTag("homeExtra");
         exploreScroll.setVisibility(page.equals("explore")?View.VISIBLE:View.GONE);
         invite.setVisibility(page.equals("invite")?View.VISIBLE:View.GONE);
-        exploreTab.setTextColor(page.equals("explore")?NativeUi.WHITE:NativeUi.FAINT);
-        inviteTab.setTextColor(page.equals("invite")?NativeUi.WHITE:NativeUi.FAINT);
+        boolean auxiliary=!page.equals("explore")&&!page.equals("invite");
+        extra.setVisibility(auxiliary?View.VISIBLE:View.GONE);
+        LinearLayout tabs=(LinearLayout)exploreTab.getParent();
+        for(int i=0;i<tabs.getChildCount();i++){
+            TextView t=(TextView)tabs.getChildAt(i);
+            String target=i==0?"explore":i==1?"friends":i==2?"messages":"profile";
+            t.setTextColor(target.equals(page)?NativeUi.WHITE:NativeUi.FAINT);
+        }
+        if(auxiliary){
+            extra.removeAllViews();
+            String title=page.equals("friends")?"Friends":page.equals("messages")?"Messages":"Profile";
+            extra.addView(NativeUi.text(this,title,26,true));
+            NativeUi.space(this,extra,10);
+            extra.addView(NativeUi.label(this,"Account features are not yet migrated in this native preview.",14));
+            NativeUi.space(this,extra,16);
+            extra.addView(NativeUi.button(this,"Explore watch rooms",()->openHomeTab("explore")),NativeUi.lp(this,-1,48));
+        }
         if(page.equals("explore")){
+            LinearLayout explore=(LinearLayout)exploreScroll.getChildAt(0);
             explore.removeAllViews();
             TextView heading=NativeUi.text(this,"Watch together.",29,true);
-            NativeUi.margin(this,heading,explore,22,5);
-            explore.addView(NativeUi.label(this,"Live rooms, videos and people to discover.",14));
-            NativeUi.space(this,explore,18);
-            explore.addView(NativeUi.button(this,"＋  Create a watch room",()->createRoom()),NativeUi.lp(this,-1,52));
-            NativeUi.space(this,explore,25);
-            explore.addView(NativeUi.text(this,"Public rooms",19,true));
+            NativeUi.margin(this,heading,explore,20,4);
+            explore.addView(NativeUi.label(this,"Your next watch party starts here.",14));
+            NativeUi.space(this,explore,23);
+            explore.addView(NativeUi.text(this,"Public rooms",18,true));
             NativeUi.space(this,explore,12);
-            TextView loading=NativeUi.label(this,"Loading live rooms…",14);explore.addView(loading);
+            TextView loading=NativeUi.label(this,"Loading rooms…",14);explore.addView(loading);
             loadExploreRooms(explore,loading);
         }
     }
+
     private void loadExploreRooms(LinearLayout parent,TextView placeholder){
         io.execute(()->{
             try{
