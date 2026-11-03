@@ -222,7 +222,7 @@ public final class MainActivity extends Activity {
                 || uri.getUserInfo() != null) return false;
         String host = uri.getHost();
         if (host == null || host.length() > 253) return false;
-        host = host.toLowerCase(java.util.Locale.ROOT);
+        host = host.toLowerCase(java.util.Locale.ROOT).replaceAll("\\.$", "");
         if (!host.contains(".") || host.matches("[0-9.]+")
                 || host.contains(":") || host.endsWith(".local")
                 || host.endsWith(".internal") || host.endsWith(".test")
