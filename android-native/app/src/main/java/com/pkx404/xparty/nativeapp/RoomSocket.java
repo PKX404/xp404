@@ -31,7 +31,7 @@ public final class RoomSocket {
     private boolean closed=false;
     private final Runnable heartbeat = new Runnable() {
         @Override public void run() {
-            if (ws != null && !closed) send("ping", new JSONObject());
+            if (ws != null && !closed) send("ping", with("sent",System.currentTimeMillis()));
             if (!closed) ui.postDelayed(this, 7000);
         }
     };
