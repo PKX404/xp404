@@ -635,7 +635,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
             case "request-status":toast("Request sent to host");break;
         }
     }
-    @Override public void onStatus(String message){if(connection!=null)connection.setText(message);}
+    @Override public void onStatus(String message){if(inRoom&&playbackStatus!=null&&video!=null&&video.hasSource())playbackStatus.setText(message);else if(connection!=null)connection.setText(message);}
     @Override public void onReady(String id){
         if(!id.equals(sourceKey)||currentRoom==null)return;
         JSONObject ready=RoomSocket.with("sourceId",id);RoomSocket.put(ready,"ready",true);RoomSocket.put(ready,"status","Native playback ready");
