@@ -196,8 +196,10 @@ public final class NativeCall {
             refreshTracks();
         }
         void refreshTracks(){
-            if(audioTrack!=null&&!hasAudio){pc.addTrack(audioTrack,Collections.singletonList("xparty"));hasAudio=true;}
-            if(videoTrack!=null&&!hasVideo){pc.addTrack(videoTrack,Collections.singletonList("xparty"));hasVideo=true;offer();}
+            boolean changed=false;
+            if(audioTrack!=null&&!hasAudio){pc.addTrack(audioTrack,Collections.singletonList("xparty"));hasAudio=true;changed=true;}
+            if(videoTrack!=null&&!hasVideo){pc.addTrack(videoTrack,Collections.singletonList("xparty"));hasVideo=true;changed=true;}
+            if(changed&&me.compareTo(id)<0)offer();
         }
         void attachRemote(VideoTrack track){
             ui.post(()->{
