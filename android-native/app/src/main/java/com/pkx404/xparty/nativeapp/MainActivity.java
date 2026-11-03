@@ -189,7 +189,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         home.addView(actions,NativeUi.lp(this,-1,54));
         connection=NativeUi.label(this,"Room connection ready",10);connection.setGravity(Gravity.CENTER);
         home.addView(connection,NativeUi.lp(this,-1,20));
-        TextView made4love=NativeUi.text(this,"Made4Love ♥\\nINSPIRED BY AANCHAL",12,true);
+        TextView made4love=NativeUi.text(this,"Made4Love ♥\nINSPIRED BY AANCHAL",12,true);
         made4love.setTextColor(0xFFCDB2C7);
         made4love.setGravity(Gravity.CENTER);made4love.setLineSpacing(px(2),1f);
         home.addView(made4love,NativeUi.lp(this,-1,46));
