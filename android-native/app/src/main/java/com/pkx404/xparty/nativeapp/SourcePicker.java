@@ -33,15 +33,101 @@ public final class SourcePicker {
     SourcePicker(Activity activity,RoomSocket socket,Result result){
         this.activity=activity;this.socket=socket;this.result=result;
     }
+    private TextView sheetChip(String title,Runnable action){
+        TextView item=NativeUi.text(activity,title,14,true);
+        item.setGravity(Gravity.CENTER);
+        item.setPadding(NativeUi.dp(activity,12),0,NativeUi.dp(activity,12),0);
+        item.setBackground(NativeUi.shape(0xFF292236,16,activity));
+        item.setOnClickListener(v->action.run());
+        return item;
+    }
     public void show(){
-        String[] choices={"▶ YouTube","📺 Live TV channels","▣ Video URL","▤ Video from device"};
-        new AlertDialog.Builder(activity).setTitle("Find something to watch")
-            .setItems(choices,(d,index)->{
-                if(index==0)youtubeMenu();
-                if(index==1)countryMenu();
-                if(index==2)videoLink();
-                if(index==3)result.localFile();
-            }).setNegativeButton("Close",null).show();
+        // Restore the original XParty dark bottom-sheet arrangement using native Views.
+        android.app.Dialog dialog=new android.app.Dialog(activity);
+        LinearLayout panel=NativeUi.vertical(activity);
+        panel.setBackground(NativeUi.shape(0xFF161322,25,activity));
+        panel.setPadding(NativeUi.dp(activity,18),NativeUi.dp(activity,12),
+            NativeUi.dp(activity,18),NativeUi.dp(activity,12));
+        TextView handle=NativeUi.text(activity,"━━━━",20,true);
+        handle.setTextColor(0xFF686073);handle.setGravity(Gravity.CENTER);
+        panel.addView(handle,NativeUi.lp(activity,-1,20));
+        LinearLayout heading=NativeUi.horizontal(activity);
+        TextView title=NativeUi.text(activity,"Find something to watch",21,true);
+        heading.addView(title,new LinearLayout.LayoutParams(0,NativeUi.dp(activity,52),1));
+        TextView close=NativeUi.icon(activity,"×",dialog::dismiss);
+        heading.addView(close,NativeUi.lp(activity,40,44));
+        panel.addView(heading);
+        LinearLayout toolbar=NativeUi.horizontal(activity);
+        TextView sources=sheetChip("All sources",()->{
+            dialog.dismiss();
+            String[] menu={"YouTube","Live TV","Direct video","Local file"};
+            new AlertDialog.Builder(activity).setTitle("Choose source").setItems(menu,(d,i)->{
+                if(i==0)youtubeMenu();if(i==1)countryMenu();
+                if(i==2)videoLink();if(i==3)result.localFile();
+            }).show();
+        });
+        toolbar.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        toolbar.addView(sources,NativeUi.lp(activity,124,42));
+        panel.addView(toolbar,NativeUi.lp(activity,-1,49));
+        NativeUi.space(activity,panel,8);
+        LinearLayout top=NativeUi.horizontal(activity);
+        String[] names={"Video links","Local file"};
+        TextView links=sheetChip(names[0],()->{dialog.dismiss();youtubeMenu();});
+        TextView files=sheetChip(names[1],()->{dialog.dismiss();result.localFile();});
+        links.setBackground(NativeUi.shape(0xFF392848,16,activity));
+        LinearLayout.LayoutParams wide=new LinearLayout.LayoutParams(0,NativeUi.dp(activity,44),1);
+        wide.rightMargin=NativeUi.dp(activity,6);
+        LinearLayout.LayoutParams narrow=new LinearLayout.LayoutParams(0,NativeUi.dp(activity,44),1);
+        narrow.leftMargin=NativeUi.dp(activity,6);
+        top.addView(links,wide);top.addView(files,narrow);
+        panel.addView(top);
+        NativeUi.space(activity,panel,10);
+        LinearLayout searches=NativeUi.horizontal(activity);
+        TextView search=sheetChip("Search",()->{dialog.dismiss();ask("Search videos","Artist, video or music",this::searchYoutube);});
+        TextView suggestions=sheetChip("Suggestions",()->{dialog.dismiss();searchYoutube("music live performance");});
+        LinearLayout.LayoutParams half=new LinearLayout.LayoutParams(0,NativeUi.dp(activity,44),1);
+        half.rightMargin=NativeUi.dp(activity,6);searches.addView(search,half);
+        half=new LinearLayout.LayoutParams(0,NativeUi.dp(activity,44),1);half.leftMargin=NativeUi.dp(activity,6);
+        searches.addView(suggestions,half);
+        panel.addView(searches);
+        NativeUi.space(activity,panel,21);
+        TextView explainer=NativeUi.label(activity,"Find videos, live TV channels and music to watch together.",13);
+        panel.addView(explainer);
+        NativeUi.space(activity,panel,20);
+        LinearLayout topics=NativeUi.horizontal(activity);
+        for(String[] topic:new String[][]{{"For this room","trending music"},{"Music","live music"},{"Comedy","comedy clips"},{"Gaming","gaming highlights"}}){
+            TextView t=sheetChip(topic[0],()->{dialog.dismiss();searchYoutube(topic[1]);});
+            LinearLayout.LayoutParams cell=new LinearLayout.LayoutParams(0,NativeUi.dp(activity,43),1);
+            cell.rightMargin=NativeUi.dp(activity,4);topics.addView(t,cell);
+        }
+        panel.addView(topics);
+        NativeUi.space(activity,panel,20);
+        TextView upNext=NativeUi.text(activity,"Up next",16,true);
+        panel.addView(upNext);
+        NativeUi.space(activity,panel,6);
+        TextView queue=NativeUi.label(activity,"Choose a video, or let the host select from the room queue.",13);
+        panel.addView(queue);
+        NativeUi.space(activity,panel,14);
+        LinearLayout quick=NativeUi.horizontal(activity);
+        TextView tv=sheetChip("📺 Live TV",()->{dialog.dismiss();countryMenu();});
+        TextView direct=sheetChip("▶ Video URL",()->{dialog.dismiss();videoLink();});
+        LinearLayout.LayoutParams a=new LinearLayout.LayoutParams(0,NativeUi.dp(activity,46),1);
+        a.rightMargin=NativeUi.dp(activity,6);
+        LinearLayout.LayoutParams b=new LinearLayout.LayoutParams(0,NativeUi.dp(activity,46),1);
+        b.leftMargin=NativeUi.dp(activity,6);
+        quick.addView(tv,a);quick.addView(direct,b);panel.addView(quick);
+        dialog.setContentView(panel);
+        android.view.Window window=dialog.getWindow();
+        if(window!=null){
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            android.view.WindowManager.LayoutParams attrs=window.getAttributes();
+            attrs.gravity=Gravity.BOTTOM;attrs.dimAmount=0.68f;attrs.windowAnimations=0;
+            window.setAttributes(attrs);
+        }
+        dialog.show();
+        window=dialog.getWindow();
+        if(window!=null)window.setLayout(-1,-2);
     }
     private void ask(String title,String hint,java.util.function.Consumer<String> answer){
         EditText input=NativeUi.edit(activity,hint);
