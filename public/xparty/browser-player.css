@@ -1,0 +1,32 @@
+/* Optional browser; keep player, mic and chat styles untouched. */
+#xparty-browser-panel[hidden]{display:none!important}
+#xparty-browser-panel{color:#f6f7fc;background:rgba(14,17,27,.95);border:1px solid rgba(255,255,255,.12);border-radius:16px;margin:12px 0;padding:12px;overflow:hidden}
+#xparty-browser-panel .xp-browser-heading{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+#xparty-browser-panel .xp-browser-heading strong{font-size:18px;letter-spacing:-.02em}
+#xparty-browser-panel .xp-browser-heading span{font-size:12px;color:#b7c0d2;flex:1}
+#xparty-browser-panel button{touch-action:manipulation;cursor:pointer;min-height:36px}
+#xparty-browser-panel button:focus-visible,#xparty-browser-panel input:focus-visible{outline:2px solid #91b3ff;outline-offset:2px}
+#xparty-browser-panel .xp-browser-close{background:transparent;color:#fff;border:0;font-size:25px;line-height:1;padding:0 8px}
+#xparty-browser-panel .xp-browser-address{display:flex;gap:7px;margin-bottom:8px}
+#xparty-browser-panel .xp-browser-address input{min-width:0;flex:1;max-width:none;padding:9px 11px;background:#161c2a;color:#fff;border:1px solid #353e53;border-radius:9px;font-size:14px}
+#xparty-browser-panel .xp-browser-address button{white-space:nowrap}
+#xparty-browser-panel .xp-browser-actions{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+#xparty-browser-panel .xp-browser-actions button{background:#252e40;border:1px solid #384253;color:#fff;border-radius:8px;padding:5px 10px;font-size:13px}
+#xparty-browser-panel .xp-browser-actions .primary{background:#b6e59f;color:#09130b;border:0;margin-left:auto;font-weight:650}
+#xparty-browser-panel .xp-browser-actions button:disabled{opacity:.35}
+#xparty-browser-panel .xp-browser-status{font-size:12px;line-height:1.4;color:#c8d1e1;margin:9px 0}
+#xparty-browser-panel .xp-browser-viewport{position:relative;min-height:290px;height:clamp(290px,55dvh,640px);border-radius:11px;overflow:hidden;background:#070910;border:1px solid #293346}
+#xparty-browser-panel iframe{display:block;width:100%;height:100%;border:0}
+#xparty-browser-panel .xp-browser-placeholder{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:16px;color:#99a5bd;font-size:13px;pointer-events:none}
+#xparty-browser-panel .xp-browser-placeholder[hidden]{display:none}
+#xparty-browser-panel .xp-browser-tip{font-size:11px;color:#a6afc2;line-height:1.55;margin:10px 0 0}
+#source-panel.xp-browser-mode>.tabs,
+#source-panel.xp-browser-mode>#youtube-form,
+#source-panel.xp-browser-mode>#file-form,
+#source-panel.xp-browser-mode>#iptv-panel,
+#source-panel.xp-browser-mode>#search-status,
+#source-panel.xp-browser-mode>#search-results,
+#source-panel.xp-browser-mode>.queue-heading,
+#source-panel.xp-browser-mode>#queue,
+#source-panel.xp-browser-mode>#transfer{display:none!important}
+@media(max-width:520px){#xparty-browser-panel{margin:8px 0;padding:9px;border-radius:12px}#xparty-browser-panel .xp-browser-actions{gap:4px}#xparty-browser-panel .xp-browser-actions button{padding:5px 7px}#xparty-browser-panel .xp-browser-viewport{height:52dvh;min-height:260px}}
