@@ -44,7 +44,7 @@ export function initBrowserPlayer({getContext,send,notify}) {
     </p>
     <div class="xp-browser-viewport">
       <iframe id="xp-browser-frame" title="Website browser preview" loading="lazy"
-        sandbox="allow-scripts allow-forms allow-same-origin allow-presentation allow-popups"
+        sandbox="allow-scripts allow-forms allow-presentation allow-popups"
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         referrerpolicy="no-referrer" allowfullscreen></iframe>
       <p class="xp-browser-placeholder" id="xp-browser-placeholder">
