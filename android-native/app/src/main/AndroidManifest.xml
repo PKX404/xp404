@@ -15,7 +15,7 @@
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">
         <activity
-            android:name=".MainActivity"
+            android:name="com.pkx404.xparty.nativeapp.MainActivity"
             android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize"
             android:exported="true">
