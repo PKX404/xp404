@@ -129,7 +129,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         home.setPadding(px(14),px(8),px(14),px(8));
         FrameLayout brandArea=new FrameLayout(this);
         ImageView originalLogo=new ImageView(this);
-        originalLogo.setImageResource(R.drawable.xparty_wordmark);
+        originalLogo.setImageResource(R.drawable.xparty_wordmark_exact);
         originalLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         originalLogo.setContentDescription("XParty original wordmark");
         FrameLayout.LayoutParams logoParams=new FrameLayout.LayoutParams(px(164),px(64),Gravity.CENTER);
@@ -283,7 +283,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         TextView exit=NativeUi.icon(this,"×",()->confirmLeave());roomHeader.addView(exit,NativeUi.lp(this,40,48));
         TextView roomSettings=NativeUi.icon(this,"⚙",()->roomSettings());roomHeader.addView(roomSettings,NativeUi.lp(this,40,48));
         TextView controlKey=NativeUi.icon(this,"⚿",()->roomSettings());controlKey.setContentDescription("Room permissions");roomHeader.addView(controlKey,NativeUi.lp(this,36,48));
-        ImageView brand=new ImageView(this);brand.setImageResource(R.drawable.xparty_wordmark);brand.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        ImageView brand=new ImageView(this);brand.setImageResource(R.drawable.xparty_wordmark_exact);brand.setScaleType(ImageView.ScaleType.FIT_CENTER);
         brand.setAdjustViewBounds(true);brand.setContentDescription("XParty original logo");
         roomHeader.addView(brand,new LinearLayout.LayoutParams(0,px(52),1));
         TextView search=NativeUi.icon(this,"⌕",()->sourcePicker.show());search.setContentDescription("Search videos");roomHeader.addView(search,NativeUi.lp(this,36,48));
