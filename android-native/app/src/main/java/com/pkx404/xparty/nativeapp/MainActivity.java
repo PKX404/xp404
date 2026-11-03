@@ -58,6 +58,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     private ScrollView chatScroll,exploreScroll;
     private TextView connection,roomLabel,playbackStatus,emptyVideo,fullButton,playButton,titleLabel,peopleLabel,sendButton,heartButton,homeTitle;
     private TextView exploreTab,inviteTab,watchingSummary,roomFooter;
+    private ImageView watchingThumb;
+    private int pictureRequest=0;
     private EditText nickname,inviteCode,chatInput;
     private SeekBar seek;
     private RoomSocket socket;
@@ -307,11 +309,33 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         callSurface.setVisibility(View.GONE);
         roomBody.addView(callSurface,NativeUi.lp(this,-1,150));
         chatScroll=new ScrollView(this);chatScroll.setFillViewport(false);
-        chatScroll.setClipToPadding(false);chatScroll.setPadding(px(12),px(6),px(12),px(6));
+        chatScroll.setClipToPadding(false);chatScroll.setPadding(px(10),px(6),px(10),px(6));
         chatRows=NativeUi.vertical(this);chatScroll.addView(chatRows);
         roomBody.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1f));
+        // XParty's original room has a compact Now watching row inside the chat stream.
+        watchingPanel=NativeUi.horizontal(this);
+        watchingPanel.setGravity(Gravity.CENTER_VERTICAL);
+        watchingPanel.setPadding(px(6),px(14),px(6),px(12));
+        watchingThumb=new ImageView(this);
+        watchingThumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        watchingThumb.setBackground(NativeUi.shape(0xFF2C1B31,24,this));
+        watchingPanel.addView(watchingThumb,NativeUi.lp(this,44,44));
+        LinearLayout watchText=NativeUi.vertical(this);watchText.setPadding(px(10),0,px(4),0);
+        TextView watchCaption=NativeUi.label(this,"Now watching ·",12);watchText.addView(watchCaption);
+        watchingSummary=NativeUi.text(this,"",15,true);
+        watchingSummary.setMaxLines(3);watchText.addView(watchingSummary);
+        watchingPanel.addView(watchText,new LinearLayout.LayoutParams(0,-2,1f));
+        TextView watchHeart=NativeUi.icon(this,"♡",()->toggleLike());
+        watchHeart.setContentDescription("Like selected video");watchingPanel.addView(watchHeart,NativeUi.lp(this,38,44));
+        TextView watchNext=NativeUi.icon(this,"⏭",()->{
+            if(isHost)socket.send("next",new JSONObject());
+            else toast("Ask the host to skip");
+        });
+        watchNext.setContentDescription("Skip to next video");watchingPanel.addView(watchNext,NativeUi.lp(this,38,44));
+        watchingPanel.setVisibility(View.GONE);
+        chatRows.addView(watchingPanel);
         LinearLayout composer=NativeUi.horizontal(this);
-        composer.setPadding(px(7),px(4),px(7),px(4));composer.setBackground(NativeUi.shape(NativeUi.SURFACE,14,this));
+        composer.setPadding(px(4),px(3),px(4),px(3));composer.setBackground(NativeUi.shape(0xF31B1424,14,this));
         TextView mic=NativeUi.icon(this,"♩",()->toggleMic());
         mic.setContentDescription("Microphone");
         mic.setTextSize(24);composer.addView(mic);
@@ -320,7 +344,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         composer.addView(chatInput,new LinearLayout.LayoutParams(0,px(48),1));
         composerActions=NativeUi.horizontal(this);
         composer.addView(composerActions);
-        roomPage.addView(composer,NativeUi.lp(this,-1,58));
+        roomPage.addView(composer,NativeUi.lp(this,-1,54));
+        roomFooter=NativeUi.label(this,"A PKX404 PRODUCT",10);
+        roomFooter.setGravity(Gravity.CENTER);
+        roomFooter.setTextColor(0xFFA29AA8);
+        roomFooter.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+        roomPage.addView(roomFooter,NativeUi.lp(this,-1,20));
         sendButton=NativeUi.icon(this,"➤",()->sendChat());
         composerActions.addView(sendButton);
         chatInput.addTextChangedListener(new TextWatcher(){
@@ -360,7 +389,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     private void leaveRoom(){
         if(fullscreen)toggleFullscreen();
         socket.leave();inRoom=false;myId="";sourceKey="";currentRoom=null;currentSource=null;isHost=false;
-        seenMessages.clear();chatRows.removeAllViews();video.stop();call.reset();uploader.cancel();
+        seenMessages.clear();chatRows.removeAllViews();if(watchingPanel!=null)chatRows.addView(watchingPanel);video.stop();call.reset();uploader.cancel();
         fullButton.setVisibility(View.GONE);playbackStatus.setVisibility(View.GONE);
         playerControls.setVisibility(View.GONE);emptyVideo.setVisibility(View.VISIBLE);
         roomPage.setVisibility(View.GONE);home.setVisibility(View.VISIBLE);
@@ -571,7 +600,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         outer.setGravity(mine?Gravity.RIGHT:Gravity.LEFT);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-2);
         p.setMargins(0,px(3),0,px(3));outer.addView(bubble,p);
-        chatRows.addView(outer);
+        chatRows.addView(outer,watchingPanel!=null&&watchingPanel.getParent()==chatRows?Math.max(0,chatRows.getChildCount()-1):chatRows.getChildCount());
         scrollChatToBottom();
     }
     private void setNowWatching(JSONObject source){
@@ -585,6 +614,37 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         fullButton.setVisibility(View.VISIBLE);playbackStatus.setVisibility(View.VISIBLE);
         revealControls();
     }
+    private void updateWatchingInfo(JSONObject source){
+        if(watchingPanel==null)return;
+        watchingPanel.setVisibility(source==null?View.GONE:View.VISIBLE);
+        if(source==null){watchingSummary.setText("");watchingThumb.setImageDrawable(null);return;}
+        String title=source.optString("title","Shared video").trim();
+        if(title.length()>130)title=title.substring(0,127)+"…";
+        watchingSummary.setText(title);
+        watchingThumb.setImageDrawable(null);
+        String id=source.optString("videoId","");
+        String logo=source.optString("logo","");
+        String url=id.matches("[\\w-]{11}")?"https://i.ytimg.com/vi/"+id+"/mqdefault.jpg":
+            logo.startsWith("https://")?logo:null;
+        int request=++pictureRequest;
+        if(url==null)return;
+        io.execute(()->{
+            try{
+                Request image=new Request.Builder().url(url).build();
+                try(Response response=client.newCall(image).execute()){
+                    if(!response.isSuccessful()||response.body()==null)return;
+                    byte[] bytes=response.body().bytes();
+                    if(bytes.length>600000)return;
+                    android.graphics.Bitmap picture=android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length);
+                    runOnUiThread(()->{
+                        if(request==pictureRequest&&currentSource!=null&&currentSource.optString("id").equals(source.optString("id")))
+                            watchingThumb.setImageBitmap(picture);
+                    });
+                }
+            }catch(Exception ignored){}
+        });
+    }
+
     private void updateRoom(JSONObject updated){
         currentRoom=updated;
         isHost=myId.equals(updated.optString("hostId"));
@@ -592,9 +652,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         String key=next==null?"":next.optString("id");
         if(!key.equals(sourceKey)){
             sourceKey=key;currentSource=next;
-            if(next==null){video.stop();setNowWatching(null);}
+            if(next==null){video.stop();setNowWatching(null);updateWatchingInfo(null);}
             else{
-                setNowWatching(next);
+                setNowWatching(next);updateWatchingInfo(next);
                 if("file".equals(next.optString("type"))&&!next.optBoolean("uploaded"))beginUpload(next);
                 else video.load(next,socket.backend(),socket.token());
             }
@@ -613,7 +673,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     private void onWelcome(JSONObject m){
         myId=m.optString("id");
         JSONObject r=m.optJSONObject("room");if(r==null)return;
-        seenMessages.clear();chatRows.removeAllViews();
+        seenMessages.clear();chatRows.removeAllViews();if(watchingPanel!=null)chatRows.addView(watchingPanel);
         call.reset();call.setIdentity(myId,m.optJSONArray("iceServers"));
         enterRoom();sourceKey="";
         updateRoom(r);
