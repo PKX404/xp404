@@ -42,3 +42,12 @@ jobs:
             adb logcat -d -s AndroidRuntime:E > /tmp/xparty-native-errors.txt
             if grep -q 'FATAL EXCEPTION' /tmp/xparty-native-errors.txt; then cat /tmp/xparty-native-errors.txt; exit 1; fi
             echo 'Native XParty installed and launched without a fatal exception.'
+            adb shell screencap -p /sdcard/xparty-home.png
+            adb pull /sdcard/xparty-home.png xparty-home.png
+      - name: Upload native home-screen screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: XParty-Native-v34-Home-Screenshot
+          path: xparty-home.png
+          retention-days: 14
+          if-no-files-found: warn
