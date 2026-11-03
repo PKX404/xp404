@@ -1,0 +1,30 @@
+name: XParty UI/UX skill check
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'design-system/xparty/**'
+      - 'scripts/install-ui-ux-pro-max.sh'
+      - 'android-test/app/src/main/assets/xparty-pro-max.css'
+      - '.github/workflows/xparty-uiux-pro-max.yml'
+jobs:
+  pro-max-skill:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Download official UI UX Pro Max skill
+        run: bash scripts/install-ui-ux-pro-max.sh
+      - name: Check bundled Android CSS and rules
+        run: |
+          test -s android-test/app/src/main/assets/xparty-pro-max.css
+          grep -q 'prefers-reduced-motion' android-test/app/src/main/assets/xparty-pro-max.css
+          grep -q 'focus-visible' android-test/app/src/main/assets/xparty-pro-max.css
+          grep -q 'controls-hidden' android-test/app/src/main/assets/xparty-pro-max.css
