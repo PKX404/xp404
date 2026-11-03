@@ -642,7 +642,6 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         socket.send("ready",ready);
         if(currentRoom.optJSONObject("playback")!=null)video.applyPlayback(currentRoom.optJSONObject("playback"),true);
     }
-    @Override public void onStatus(String text,boolean unused){}
     @Override public void onEnded(){
         if(isHost&&currentSource!=null){
             socket.send("playback-ended",RoomSocket.with("sourceId",sourceKey));
