@@ -39,8 +39,6 @@ jobs:
             adb shell am start -W -n com.pkx404.xparty.nativeapp/.MainActivity
             sleep 12
             adb shell pidof com.pkx404.xparty.nativeapp
-            if adb logcat -d -s AndroidRuntime:E | grep -A 15 'FATAL EXCEPTION.*'; then
-              echo 'The native XParty app crashed during launch.'
-              exit 1
-            fi
+            adb logcat -d -s AndroidRuntime:E > /tmp/xparty-native-errors.txt
+            if grep -q 'FATAL EXCEPTION' /tmp/xparty-native-errors.txt; then cat /tmp/xparty-native-errors.txt; exit 1; fi
             echo 'Native XParty installed and launched without a fatal exception.'
