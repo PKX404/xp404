@@ -13,6 +13,8 @@ It supports:
 - Android 13+ notification permission with return-to-app notification.
 - Content document chooser for chat uploads.
 - Black startup overlay until the page loads.
+- A separate HTTPS-only in-app Chromium WebView browser opened from the Browser source card. It preserves the room WebView and can hand recognized media URLs back to room playback. Sites may restrict playback or DRM; arbitrary webpages are not synchronized.
+- Browser websites have no JavaScript bridge to XParty and cannot request XParty camera/microphone permissions.
 
 Build: gradle :app:assembleDebug
 Output: app/build/outputs/apk/debug/app-debug.apk
