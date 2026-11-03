@@ -44,10 +44,16 @@ jobs:
             echo 'Native XParty installed and launched without a fatal exception.'
             adb shell screencap -p /sdcard/xparty-home.png
             adb pull /sdcard/xparty-home.png xparty-home.png
+            adb shell input tap 80 554
+            sleep 12
+            adb shell screencap -p /sdcard/xparty-room.png
+            adb pull /sdcard/xparty-room.png xparty-room.png
       - name: Upload native home-screen screenshot
         uses: actions/upload-artifact@v4
         with:
           name: XParty-Native-v34-Home-Screenshot
-          path: xparty-home.png
+          path: |
+            xparty-home.png
+            xparty-room.png
           retention-days: 14
           if-no-files-found: warn
