@@ -10,12 +10,12 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
     <application android:theme="@style/NativeTheme"
         android:label="XParty"
-        android:icon="@drawable/xparty_mark"
+        android:icon="@drawable/xparty_icon_exact"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">
         <activity
-            android:name=".MainActivity"
+            android:name="com.pkx404.xparty.nativeapp.MainActivity"
             android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize"
             android:exported="true">

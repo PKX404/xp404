@@ -2,7 +2,7 @@ name: XParty native Android emulator installation smoke test
 on:
   workflow_dispatch:
   push:
-    branches: ['feature/xparty-fully-native-android-20261103']
+    branches: ['feature/xparty-fully-native-android-20261103', 'feature/xparty-native-original-ui-v34-20261103']
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-native-smoke.yml'
@@ -36,9 +36,24 @@ jobs:
           disable-animations: true
           script: |
             adb install -r android-native/app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -W -n com.pkx404.xparty.nativeapp/.MainActivity
+            adb shell am start -W -n com.pkx404.xparty.nativev34/com.pkx404.xparty.nativeapp.MainActivity
             sleep 12
-            adb shell pidof com.pkx404.xparty.nativeapp
+            adb shell pidof com.pkx404.xparty.nativev34
             adb logcat -d -s AndroidRuntime:E > /tmp/xparty-native-errors.txt
             if grep -q 'FATAL EXCEPTION' /tmp/xparty-native-errors.txt; then cat /tmp/xparty-native-errors.txt; exit 1; fi
             echo 'Native XParty installed and launched without a fatal exception.'
+            adb shell screencap -p /sdcard/xparty-home.png
+            adb pull /sdcard/xparty-home.png xparty-home.png
+            adb shell input tap 80 554
+            sleep 12
+            adb shell screencap -p /sdcard/xparty-room.png
+            adb pull /sdcard/xparty-room.png xparty-room.png
+      - name: Upload native home-screen screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: XParty-Native-v34-Home-Screenshot
+          path: |
+            xparty-home.png
+            xparty-room.png
+          retention-days: 14
+          if-no-files-found: warn

@@ -3,11 +3,11 @@ android {
     namespace 'com.pkx404.xparty.nativeapp'
     compileSdk 36
     defaultConfig {
-        applicationId 'com.pkx404.xparty.nativeapp'
+        applicationId 'com.pkx404.xparty.nativev34'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '33.0-native-alpha'
+        versionCode 34
+        versionName '34.0-original-ui-preview'
         buildConfigField 'String', 'DEFAULT_BACKEND', '"https://krezi.onrender.com"'
     }
     buildFeatures { buildConfig true }

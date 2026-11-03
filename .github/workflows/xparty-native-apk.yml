@@ -1,7 +1,7 @@
 name: XParty genuine native Android APK
 on:
   push:
-    branches: ['feature/xparty-fully-native-android-20261103']
+    branches: ['feature/xparty-fully-native-android-20261103', 'feature/xparty-native-original-ui-v34-20261103']
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-native-apk.yml'

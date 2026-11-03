@@ -54,10 +54,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     private final ExecutorService io=Executors.newFixedThreadPool(2);
     private final OkHttpClient client=new OkHttpClient();
     private FrameLayout root,videoBox,playerSurface,callSurface;
-    private LinearLayout app,home,roomPage,roomHeader,roomBody,chatRows,composerActions,playerControls,seekStrip;
+    private LinearLayout app,home,roomPage,roomHeader,roomBody,chatRows,composerActions,playerControls,seekStrip,watchingPanel,chatComposer;
     private ScrollView chatScroll,exploreScroll;
     private TextView connection,roomLabel,playbackStatus,emptyVideo,fullButton,playButton,titleLabel,peopleLabel,sendButton,heartButton,homeTitle;
-    private TextView exploreTab,inviteTab;
+    private TextView exploreTab,inviteTab,watchingSummary,roomFooter;
+    private ImageView watchingThumb;
+    private int pictureRequest=0;
     private EditText nickname,inviteCode,chatInput;
     private SeekBar seek;
     private RoomSocket socket;
@@ -113,77 +115,125 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
             if(shown!=keyboardOpen){
                 keyboardOpen=shown;
                 updateComposer();
-                if(shown)ui.postDelayed(this::scrollChatToBottom,140);
+                if(inRoom&&!fullscreen){
+                    roomHeader.setVisibility(shown?View.GONE:View.VISIBLE);
+                    if(roomFooter!=null)roomFooter.setVisibility(shown?View.GONE:View.VISIBLE);
+                    if(shown){ui.removeCallbacks(hideControls);playerControls.setVisibility(View.GONE);}
+                }
+                if(shown)ui.postDelayed(this::scrollChatToBottom,100);
             }
         });
     }
     private void buildHome(){
-        home.setPadding(px(18),px(16),px(18),px(12));
-        LinearLayout bar=NativeUi.horizontal(this);
-        homeTitle=NativeUi.text(this,"XPARTY",32,true);homeTitle.setTextColor(Color.WHITE);
-        bar.addView(homeTitle,new LinearLayout.LayoutParams(0,px(62),1));
-        TextView badge=NativeUi.label(this,"NATIVE • ANDROID",10);bar.addView(badge);
-        home.addView(bar);
+        home.setBackground(NativeUi.homeBackground());
+        home.setPadding(px(14),px(8),px(14),px(8));
+        FrameLayout brandArea=new FrameLayout(this);
+        ImageView originalLogo=new ImageView(this);
+        originalLogo.setImageResource(R.drawable.xparty_wordmark_exact);
+        originalLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        originalLogo.setContentDescription("XParty original wordmark");
+        FrameLayout.LayoutParams logoParams=new FrameLayout.LayoutParams(px(164),px(64),Gravity.CENTER);
+        brandArea.addView(originalLogo,logoParams);
+        home.addView(brandArea,NativeUi.lp(this,-1,70));
         LinearLayout tabs=NativeUi.horizontal(this);
-        exploreTab=NativeUi.text(this,"Explore",19,true);
-        inviteTab=NativeUi.text(this,"Join Invite",19,true);
-        exploreTab.setGravity(Gravity.CENTER);inviteTab.setGravity(Gravity.CENTER);
+        exploreTab=NativeUi.text(this,"Explore",13,true);
+        TextView friends=NativeUi.text(this,"Friends",13,true);
+        TextView messages=NativeUi.text(this,"Messages",13,true);
+        TextView profile=NativeUi.text(this,"Profile",13,true);
+        for(TextView t:new TextView[]{exploreTab,friends,messages,profile}){
+            t.setGravity(Gravity.CENTER);
+            tabs.addView(t,new LinearLayout.LayoutParams(0,px(42),1));
+        }
         exploreTab.setOnClickListener(v->openHomeTab("explore"));
-        inviteTab.setOnClickListener(v->openHomeTab("invite"));
-        tabs.addView(exploreTab,weight());tabs.addView(inviteTab,weight());
-        home.addView(tabs,NativeUi.lp(this,-1,56));
-        FrameLayout content=new FrameLayout(this);content.setId(View.generateViewId());
+        friends.setOnClickListener(v->openHomeTab("friends"));
+        messages.setOnClickListener(v->openHomeTab("messages"));
+        profile.setOnClickListener(v->openHomeTab("profile"));
+        friends.setTag("friendsTab");messages.setTag("messagesTab");profile.setTag("profileTab");
+        home.addView(tabs,NativeUi.lp(this,-1,44));
+        FrameLayout content=new FrameLayout(this);
+        content.setTag("homeContent");
         home.addView(content,new LinearLayout.LayoutParams(-1,0,1f));
         exploreScroll=new ScrollView(this);
         exploreScroll.setFillViewport(true);
         content.addView(exploreScroll,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout exploreRows=NativeUi.vertical(this);exploreScroll.addView(exploreRows);
-        exploreRows.setTag("exploreRows");
+        LinearLayout exploreRows=NativeUi.vertical(this);
+        exploreRows.setTag("exploreRows");exploreScroll.addView(exploreRows);
         LinearLayout invite=NativeUi.vertical(this);invite.setTag("invite");
-        invite.setPadding(px(4),px(28),px(4),0);
+        invite.setPadding(px(4),px(26),px(4),0);
         content.addView(invite,new FrameLayout.LayoutParams(-1,-1));invite.setVisibility(View.GONE);
-        TextView welcome=NativeUi.text(this,"Join your people.",27,true);
-        invite.addView(welcome);NativeUi.space(this,invite,10);
-        invite.addView(NativeUi.label(this,"Enter the 7-character room invite code.",14));
-        NativeUi.space(this,invite,20);
-        nickname=NativeUi.edit(this,"Display name (optional)");nickname.setText(getPreferences(0).getString("nickname",""));
-        invite.addView(nickname,NativeUi.lp(this,-1,52));NativeUi.space(this,invite,10);
-        inviteCode=NativeUi.edit(this,"Room code");inviteCode.setAllCaps(true);
-        invite.addView(inviteCode,NativeUi.lp(this,-1,52));
+        TextView back=NativeUi.label(this,"‹  Explore",15);
+        back.setOnClickListener(v->openHomeTab("explore"));
+        invite.addView(back,NativeUi.lp(this,-1,40));
+        TextView welcome=NativeUi.text(this,"Join a room",25,true);
+        invite.addView(welcome);NativeUi.space(this,invite,8);
+        invite.addView(NativeUi.label(this,"Enter the invite code from your friends.",13));
         NativeUi.space(this,invite,14);
-        invite.addView(NativeUi.button(this,"Join room",()->joinRoom(inviteCode.getText().toString())),NativeUi.lp(this,-1,52));
-        NativeUi.space(this,invite,22);
-        invite.addView(NativeUi.label(this,"Guest rooms are temporary. Share invitation codes only with people you trust.",13));
-        connection=NativeUi.label(this,"Not connected to a room",11);
+        nickname=NativeUi.edit(this,"Name");
+        nickname.setText(getPreferences(0).getString("nickname",""));
+        invite.addView(nickname,NativeUi.lp(this,-1,50));NativeUi.space(this,invite,10);
+        inviteCode=NativeUi.edit(this,"Room code (7 characters)");inviteCode.setAllCaps(true);
+        invite.addView(inviteCode,NativeUi.lp(this,-1,50));
+        NativeUi.space(this,invite,14);
+        invite.addView(NativeUi.button(this,"Join room",()->joinRoom(inviteCode.getText().toString())),NativeUi.lp(this,-1,48));
+        LinearLayout extra=NativeUi.vertical(this);extra.setTag("homeExtra");
+        extra.setPadding(px(8),px(28),px(8),0);
+        extra.setVisibility(View.GONE);
+        content.addView(extra,new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout actions=NativeUi.horizontal(this);
+        android.widget.Button create=NativeUi.button(this,"＋ Create",this::createRoom);
+        create.setBackground(NativeUi.shape(0xFF51345D,12,this));
+        android.widget.Button join=NativeUi.button(this,"↗ Join",()->openHomeTab("invite"));
+        LinearLayout.LayoutParams first=new LinearLayout.LayoutParams(0,px(50),1);first.rightMargin=px(7);
+        LinearLayout.LayoutParams second=new LinearLayout.LayoutParams(0,px(50),1);second.leftMargin=px(7);
+        actions.addView(create,first);actions.addView(join,second);
+        home.addView(actions,NativeUi.lp(this,-1,54));
+        connection=NativeUi.label(this,"Room connection ready",10);connection.setGravity(Gravity.CENTER);
         home.addView(connection,NativeUi.lp(this,-1,20));
         TextView made4love=NativeUi.text(this,"Made4Love ♥\nINSPIRED BY AANCHAL",12,true);
-        made4love.setTextColor(0xFFC7B2D0);made4love.setGravity(Gravity.CENTER);
-        home.addView(made4love,NativeUi.lp(this,-1,42));
+        made4love.setTextColor(0xFFCDB2C7);
+        made4love.setGravity(Gravity.CENTER);made4love.setLineSpacing(px(2),1f);
+        home.addView(made4love,NativeUi.lp(this,-1,46));
         openHomeTab("explore");
     }
+
     private void openHomeTab(String page){
         currentPage=page;
-        LinearLayout explore=(LinearLayout)exploreScroll.getChildAt(0);
         FrameLayout parent=(FrameLayout)exploreScroll.getParent();
         LinearLayout invite=(LinearLayout)parent.findViewWithTag("invite");
+        LinearLayout extra=(LinearLayout)parent.findViewWithTag("homeExtra");
         exploreScroll.setVisibility(page.equals("explore")?View.VISIBLE:View.GONE);
         invite.setVisibility(page.equals("invite")?View.VISIBLE:View.GONE);
-        exploreTab.setTextColor(page.equals("explore")?NativeUi.WHITE:NativeUi.FAINT);
-        inviteTab.setTextColor(page.equals("invite")?NativeUi.WHITE:NativeUi.FAINT);
+        boolean auxiliary=!page.equals("explore")&&!page.equals("invite");
+        extra.setVisibility(auxiliary?View.VISIBLE:View.GONE);
+        LinearLayout tabs=(LinearLayout)exploreTab.getParent();
+        for(int i=0;i<tabs.getChildCount();i++){
+            TextView t=(TextView)tabs.getChildAt(i);
+            String target=i==0?"explore":i==1?"friends":i==2?"messages":"profile";
+            t.setTextColor(target.equals(page)?NativeUi.WHITE:NativeUi.FAINT);
+        }
+        if(auxiliary){
+            extra.removeAllViews();
+            String title=page.equals("friends")?"Friends":page.equals("messages")?"Messages":"Profile";
+            extra.addView(NativeUi.text(this,title,26,true));
+            NativeUi.space(this,extra,10);
+            extra.addView(NativeUi.label(this,"Account features are not yet migrated in this native preview.",14));
+            NativeUi.space(this,extra,16);
+            extra.addView(NativeUi.button(this,"Explore watch rooms",()->openHomeTab("explore")),NativeUi.lp(this,-1,48));
+        }
         if(page.equals("explore")){
+            LinearLayout explore=(LinearLayout)exploreScroll.getChildAt(0);
             explore.removeAllViews();
             TextView heading=NativeUi.text(this,"Watch together.",29,true);
-            NativeUi.margin(this,heading,explore,22,5);
-            explore.addView(NativeUi.label(this,"Live rooms, videos and people to discover.",14));
-            NativeUi.space(this,explore,18);
-            explore.addView(NativeUi.button(this,"＋  Create a watch room",()->createRoom()),NativeUi.lp(this,-1,52));
-            NativeUi.space(this,explore,25);
-            explore.addView(NativeUi.text(this,"Public rooms",19,true));
+            NativeUi.margin(this,heading,explore,20,4);
+            explore.addView(NativeUi.label(this,"Your next watch party starts here.",14));
+            NativeUi.space(this,explore,23);
+            explore.addView(NativeUi.text(this,"Public rooms",18,true));
             NativeUi.space(this,explore,12);
-            TextView loading=NativeUi.label(this,"Loading live rooms…",14);explore.addView(loading);
+            TextView loading=NativeUi.label(this,"Loading rooms…",14);explore.addView(loading);
             loadExploreRooms(explore,loading);
         }
     }
+
     private void loadExploreRooms(LinearLayout parent,TextView placeholder){
         io.execute(()->{
             try{
@@ -227,14 +277,19 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     }
     private void buildRoom(){
         roomPage.setBackgroundColor(NativeUi.BG);
-        roomHeader=NativeUi.horizontal(this);roomHeader.setPadding(px(8),0,px(8),0);
-        TextView exit=NativeUi.icon(this,"×",()->confirmLeave());roomHeader.addView(exit);
-        TextView roomSettings=NativeUi.icon(this,"⚙",()->roomSettings());roomHeader.addView(roomSettings);
-        TextView brand=NativeUi.text(this,"XParty",24,true);brand.setGravity(Gravity.CENTER);roomHeader.addView(brand,new LinearLayout.LayoutParams(0,px(58),1));
-        TextView search=NativeUi.icon(this,"⌕",()->sourcePicker.show());roomHeader.addView(search);
-        TextView share=NativeUi.icon(this,"↗",()->shareRoom());roomHeader.addView(share);
-        TextView people=NativeUi.icon(this,"♧",()->showPeople());roomHeader.addView(people);
-        roomPage.addView(roomHeader,NativeUi.lp(this,-1,58));
+        roomHeader=NativeUi.horizontal(this);roomHeader.setPadding(px(3),0,px(3),0);
+        roomHeader.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{0xFF521923,0xFF1A1823,0xFF261529}));
+        TextView exit=NativeUi.icon(this,"×",()->confirmLeave());roomHeader.addView(exit,NativeUi.lp(this,40,48));
+        TextView roomSettings=NativeUi.icon(this,"⚙",()->roomSettings());roomHeader.addView(roomSettings,NativeUi.lp(this,40,48));
+        TextView controlKey=NativeUi.icon(this,"⚿",()->roomSettings());controlKey.setContentDescription("Room permissions");roomHeader.addView(controlKey,NativeUi.lp(this,36,48));
+        ImageView brand=new ImageView(this);brand.setImageResource(R.drawable.xparty_wordmark_exact);brand.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        brand.setAdjustViewBounds(true);brand.setContentDescription("XParty original logo");
+        roomHeader.addView(brand,new LinearLayout.LayoutParams(0,px(52),1));
+        TextView search=NativeUi.icon(this,"⌕",()->sourcePicker.show());search.setContentDescription("Search videos");roomHeader.addView(search,NativeUi.lp(this,36,48));
+        TextView share=NativeUi.icon(this,"↗",()->shareRoom());share.setContentDescription("Share room");roomHeader.addView(share,NativeUi.lp(this,36,48));
+        TextView people=NativeUi.icon(this,"♧",()->showPeople());people.setContentDescription("Participants");roomHeader.addView(people,NativeUi.lp(this,40,48));
+        roomPage.addView(roomHeader,NativeUi.lp(this,-1,52));
         videoBox=new FrameLayout(this);videoBox.setBackgroundColor(Color.BLACK);
         int widthPx=getResources().getDisplayMetrics().widthPixels;
         int videoHeightPx=Math.round(widthPx*9f/16f);
@@ -249,17 +304,21 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,px(40),Gravity.TOP|Gravity.LEFT);tp.setMargins(px(8),px(7),0,0);
         videoBox.addView(top,tp);
         fullButton=NativeUi.icon(this,"⛶",()->toggleFullscreen());
-        fullButton.setTextSize(23);fullButton.setBackground(NativeUi.shape(0x99150F1E,7,this));
-        top.addView(fullButton,NativeUi.lp(this,40,40));
-        playbackStatus=NativeUi.text(this,"Waiting for a video",12,true);
-        playbackStatus.setPadding(px(9),0,px(9),0);playbackStatus.setBackground(NativeUi.shape(0x99150F1E,7,this));
-        LinearLayout.LayoutParams sp=NativeUi.lp(this,-2,30);sp.leftMargin=px(6);top.addView(playbackStatus,sp);
+        fullButton.setTextSize(22);fullButton.setBackground(NativeUi.shape(0x77160E20,6,this));
+        top.addView(fullButton,NativeUi.lp(this,34,34));
+        playbackStatus=NativeUi.text(this,"Waiting for a video",11,true);
+        playbackStatus.setPadding(px(8),0,px(8),0);playbackStatus.setBackground(NativeUi.shape(0xAA21162C,8,this));
+        LinearLayout.LayoutParams sp=NativeUi.lp(this,-2,26);sp.leftMargin=px(6);top.addView(playbackStatus,sp);
         LinearLayout controlBase=NativeUi.vertical(this);playerControls=controlBase;
         FrameLayout.LayoutParams cb=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);
-        cb.setMargins(px(6),0,px(6),px(4));videoBox.addView(controlBase,cb);
+        cb.setMargins(px(4),0,px(4),px(3));
+        // The controls overlay the video without reserving a tall opaque black area.
+        controlBase.setBackground(new android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x050D0B12,0xA90D0B12}));
+        videoBox.addView(controlBase,cb);
         seekStrip=NativeUi.horizontal(this);
         playButton=NativeUi.icon(this,"▶",()->playPause());
-        seekStrip.addView(playButton,NativeUi.lp(this,44,36));
+        seekStrip.addView(playButton,NativeUi.lp(this,38,32));
         seek=new SeekBar(this);seek.setMax(1000);seek.setProgressTintList(android.content.res.ColorStateList.valueOf(NativeUi.PURPLE));
         seek.setThumbTintList(android.content.res.ColorStateList.valueOf(NativeUi.WHITE));
         seek.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x88FFFFFF));
@@ -273,20 +332,20 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
                 revealControls();
             }
         });
-        seekStrip.addView(seek,new LinearLayout.LayoutParams(0,px(35),1));
+        seekStrip.addView(seek,new LinearLayout.LayoutParams(0,px(30),1));
         titleLabel=NativeUi.label(this,"0:00 / 0:00",10);titleLabel.setGravity(Gravity.CENTER);
-        seekStrip.addView(titleLabel,NativeUi.lp(this,86,36));
-        controlBase.addView(seekStrip,NativeUi.lp(this,-1,40));
+        seekStrip.addView(titleLabel,NativeUi.lp(this,76,30));
+        controlBase.addView(seekStrip,NativeUi.lp(this,-1,34));
         LinearLayout four=NativeUi.horizontal(this);
-        heartButton=option("♡",()->toggleLike());four.addView(heartButton,new LinearLayout.LayoutParams(0,px(42),1));
-        four.addView(option("⛶",()->cycleScale()),new LinearLayout.LayoutParams(0,px(42),1));
-        four.addView(option("⚙",()->playbackSettings()),new LinearLayout.LayoutParams(0,px(42),1));
-        four.addView(option("◖))",()->volumeControl()),new LinearLayout.LayoutParams(0,px(42),1));
-        controlBase.addView(four,NativeUi.lp(this,-1,42));
+        heartButton=option("♡",()->toggleLike());four.addView(heartButton,new LinearLayout.LayoutParams(0,px(36),1));
+        four.addView(option("⤢",()->cycleScale()),new LinearLayout.LayoutParams(0,px(36),1));
+        four.addView(option("⚙",()->playbackSettings()),new LinearLayout.LayoutParams(0,px(36),1));
+        four.addView(option("◖))",()->volumeControl()),new LinearLayout.LayoutParams(0,px(36),1));
+        controlBase.addView(four,NativeUi.lp(this,-1,36));
         videoBox.setOnClickListener(v->revealControls());
         videoBox.setOnTouchListener((v,event)->{if(event.getAction()==android.view.MotionEvent.ACTION_DOWN)revealControls();return false;});
         fullButton.setVisibility(View.GONE);playbackStatus.setVisibility(View.GONE);playerControls.setVisibility(View.GONE);
-        roomBody=NativeUi.vertical(this);
+        roomBody=NativeUi.vertical(this);roomBody.setBackground(NativeUi.roomBackground());
         roomPage.addView(roomBody,new LinearLayout.LayoutParams(-1,0,1f));
         LinearLayout labels=NativeUi.horizontal(this);
         TextView callTab=NativeUi.text(this,"Video call",17,true),chatTab=NativeUi.text(this,"Chat",17,true);
@@ -298,11 +357,33 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         callSurface.setVisibility(View.GONE);
         roomBody.addView(callSurface,NativeUi.lp(this,-1,150));
         chatScroll=new ScrollView(this);chatScroll.setFillViewport(false);
-        chatScroll.setClipToPadding(false);chatScroll.setPadding(px(12),px(6),px(12),px(6));
+        chatScroll.setClipToPadding(false);chatScroll.setPadding(px(10),px(6),px(10),px(6));
         chatRows=NativeUi.vertical(this);chatScroll.addView(chatRows);
         roomBody.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1f));
-        LinearLayout composer=NativeUi.horizontal(this);
-        composer.setPadding(px(7),px(4),px(7),px(4));composer.setBackground(NativeUi.shape(NativeUi.SURFACE,14,this));
+        // XParty's original room has a compact Now watching row inside the chat stream.
+        watchingPanel=NativeUi.horizontal(this);
+        watchingPanel.setGravity(Gravity.CENTER_VERTICAL);
+        watchingPanel.setPadding(px(6),px(14),px(6),px(12));
+        watchingThumb=new ImageView(this);
+        watchingThumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        watchingThumb.setBackground(NativeUi.shape(0xFF2C1B31,24,this));
+        watchingPanel.addView(watchingThumb,NativeUi.lp(this,44,44));
+        LinearLayout watchText=NativeUi.vertical(this);watchText.setPadding(px(10),0,px(4),0);
+        TextView watchCaption=NativeUi.label(this,"Now watching ·",12);watchText.addView(watchCaption);
+        watchingSummary=NativeUi.text(this,"",15,true);
+        watchingSummary.setMaxLines(3);watchText.addView(watchingSummary);
+        watchingPanel.addView(watchText,new LinearLayout.LayoutParams(0,-2,1f));
+        TextView watchHeart=NativeUi.icon(this,"♡",()->toggleLike());
+        watchHeart.setContentDescription("Like selected video");watchingPanel.addView(watchHeart,NativeUi.lp(this,38,44));
+        TextView watchNext=NativeUi.icon(this,"⏭",()->{
+            if(isHost)socket.send("next",new JSONObject());
+            else toast("Ask the host to skip");
+        });
+        watchNext.setContentDescription("Skip to next video");watchingPanel.addView(watchNext,NativeUi.lp(this,38,44));
+        watchingPanel.setVisibility(View.GONE);
+        chatRows.addView(watchingPanel);
+        LinearLayout composer=NativeUi.horizontal(this);chatComposer=composer;
+        composer.setPadding(px(4),px(3),px(4),px(3));composer.setBackground(NativeUi.shape(0xF31B1424,14,this));
         TextView mic=NativeUi.icon(this,"♩",()->toggleMic());
         mic.setContentDescription("Microphone");
         mic.setTextSize(24);composer.addView(mic);
@@ -311,7 +392,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         composer.addView(chatInput,new LinearLayout.LayoutParams(0,px(48),1));
         composerActions=NativeUi.horizontal(this);
         composer.addView(composerActions);
-        roomPage.addView(composer,NativeUi.lp(this,-1,58));
+        roomPage.addView(composer,NativeUi.lp(this,-1,54));
+        roomFooter=NativeUi.label(this,"A PKX404 PRODUCT",10);
+        roomFooter.setGravity(Gravity.CENTER);
+        roomFooter.setTextColor(0xFFA29AA8);
+        roomFooter.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+        roomPage.addView(roomFooter,NativeUi.lp(this,-1,20));
         sendButton=NativeUi.icon(this,"➤",()->sendChat());
         composerActions.addView(sendButton);
         chatInput.addTextChangedListener(new TextWatcher(){
@@ -351,7 +437,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     private void leaveRoom(){
         if(fullscreen)toggleFullscreen();
         socket.leave();inRoom=false;myId="";sourceKey="";currentRoom=null;currentSource=null;isHost=false;
-        seenMessages.clear();chatRows.removeAllViews();video.stop();call.reset();uploader.cancel();
+        seenMessages.clear();chatRows.removeAllViews();if(watchingPanel!=null)chatRows.addView(watchingPanel);video.stop();call.reset();uploader.cancel();
         fullButton.setVisibility(View.GONE);playbackStatus.setVisibility(View.GONE);
         playerControls.setVisibility(View.GONE);emptyVideo.setVisibility(View.VISIBLE);
         roomPage.setVisibility(View.GONE);home.setVisibility(View.VISIBLE);
@@ -454,8 +540,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         fullscreen=!fullscreen;
         roomHeader.setVisibility(fullscreen?View.GONE:View.VISIBLE);
         roomBody.setVisibility(fullscreen?View.GONE:View.VISIBLE);
-        android.view.View composer=roomPage.getChildAt(roomPage.getChildCount()-1);
-        composer.setVisibility(fullscreen?View.GONE:View.VISIBLE);
+        if(chatComposer!=null)chatComposer.setVisibility(fullscreen?View.GONE:View.VISIBLE);
+        if(roomFooter!=null)roomFooter.setVisibility(fullscreen?View.GONE:View.VISIBLE);
         roomPage.setPadding(0,0,0,0);
         ViewGroup.LayoutParams p=videoBox.getLayoutParams();
         p.height=fullscreen?ViewGroup.LayoutParams.MATCH_PARENT:Math.round(getResources().getDisplayMetrics().widthPixels*9f/16f);
@@ -562,7 +648,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         outer.setGravity(mine?Gravity.RIGHT:Gravity.LEFT);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-2);
         p.setMargins(0,px(3),0,px(3));outer.addView(bubble,p);
-        chatRows.addView(outer);
+        chatRows.addView(outer,watchingPanel!=null&&watchingPanel.getParent()==chatRows?Math.max(0,chatRows.getChildCount()-1):chatRows.getChildCount());
         scrollChatToBottom();
     }
     private void setNowWatching(JSONObject source){
@@ -576,6 +662,37 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         fullButton.setVisibility(View.VISIBLE);playbackStatus.setVisibility(View.VISIBLE);
         revealControls();
     }
+    private void updateWatchingInfo(JSONObject source){
+        if(watchingPanel==null)return;
+        watchingPanel.setVisibility(source==null?View.GONE:View.VISIBLE);
+        if(source==null){watchingSummary.setText("");watchingThumb.setImageDrawable(null);return;}
+        String title=source.optString("title","Shared video").trim();
+        if(title.length()>130)title=title.substring(0,127)+"…";
+        watchingSummary.setText(title);
+        watchingThumb.setImageDrawable(null);
+        String id=source.optString("videoId","");
+        String logo=source.optString("logo","");
+        String url=id.matches("[\\w-]{11}")?"https://i.ytimg.com/vi/"+id+"/mqdefault.jpg":
+            logo.startsWith("https://")?logo:null;
+        int request=++pictureRequest;
+        if(url==null)return;
+        io.execute(()->{
+            try{
+                Request image=new Request.Builder().url(url).build();
+                try(Response response=client.newCall(image).execute()){
+                    if(!response.isSuccessful()||response.body()==null)return;
+                    byte[] bytes=response.body().bytes();
+                    if(bytes.length>600000)return;
+                    android.graphics.Bitmap picture=android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length);
+                    runOnUiThread(()->{
+                        if(request==pictureRequest&&currentSource!=null&&currentSource.optString("id").equals(source.optString("id")))
+                            watchingThumb.setImageBitmap(picture);
+                    });
+                }
+            }catch(Exception ignored){}
+        });
+    }
+
     private void updateRoom(JSONObject updated){
         currentRoom=updated;
         isHost=myId.equals(updated.optString("hostId"));
@@ -583,9 +700,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         String key=next==null?"":next.optString("id");
         if(!key.equals(sourceKey)){
             sourceKey=key;currentSource=next;
-            if(next==null){video.stop();setNowWatching(null);}
+            if(next==null){video.stop();setNowWatching(null);updateWatchingInfo(null);}
             else{
-                setNowWatching(next);
+                setNowWatching(next);updateWatchingInfo(next);
                 if("file".equals(next.optString("type"))&&!next.optBoolean("uploaded"))beginUpload(next);
                 else video.load(next,socket.backend(),socket.token());
             }
@@ -604,7 +721,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     private void onWelcome(JSONObject m){
         myId=m.optString("id");
         JSONObject r=m.optJSONObject("room");if(r==null)return;
-        seenMessages.clear();chatRows.removeAllViews();
+        seenMessages.clear();chatRows.removeAllViews();if(watchingPanel!=null)chatRows.addView(watchingPanel);
         call.reset();call.setIdentity(myId,m.optJSONArray("iceServers"));
         enterRoom();sourceKey="";
         updateRoom(r);
