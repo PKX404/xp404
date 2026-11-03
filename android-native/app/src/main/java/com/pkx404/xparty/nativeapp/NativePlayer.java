@@ -50,6 +50,7 @@ public final class NativePlayer {
     private int scaleMode=0;
     private boolean localPause=false;
     private Runnable ytRefresh;
+    private boolean youtubeReadySent=false;
     public NativePlayer(Context context,FrameLayout container,Callbacks callback){
         this.context=context;this.container=container;this.callback=callback;
         playerView=new PlayerView(context);
@@ -145,7 +146,7 @@ public final class NativePlayer {
             @Override public void run(){
                 if(youtube==null)return;
                 youtube.evaluateJavascript("state()",v->{
-                    if(!"{}".equals(v)&&v!=null&&v.contains("ready"))callback.onReady(sourceId);
+                    if(!youtubeReadySent&&!"{}".equals(v)&&v!=null&&v.contains("ready")){youtubeReadySent=true;callback.onReady(sourceId);}
                 });
                 ui.postDelayed(this,3500);
             }
@@ -181,7 +182,7 @@ public final class NativePlayer {
         if(ytRefresh!=null)ui.removeCallbacks(ytRefresh);ytRefresh=null;
         if(youtube!=null){youtube.stopLoading();youtube.loadUrl("about:blank");container.removeView(youtube);youtube.destroy();youtube=null;}
         if(player!=null){player.stop();player.clearMediaItems();player.release();player=null;playerView.setPlayer(null);}
-        sourceId="";type="";source=null;token="";live=false;localPause=false;lastCorrection=0;
+        sourceId="";type="";source=null;token="";live=false;localPause=false;lastCorrection=0;youtubeReadySent=false;
     }
     public void destroy(){stop();}
 }
