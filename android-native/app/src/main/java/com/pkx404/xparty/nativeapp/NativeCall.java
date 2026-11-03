@@ -199,7 +199,7 @@ public final class NativeCall {
             boolean changed=false;
             if(audioTrack!=null&&!hasAudio){pc.addTrack(audioTrack,Collections.singletonList("xparty"));hasAudio=true;changed=true;}
             if(videoTrack!=null&&!hasVideo){pc.addTrack(videoTrack,Collections.singletonList("xparty"));hasVideo=true;changed=true;}
-            if(changed&&me.compareTo(id)<0)offer();
+            if(changed&&peers.containsKey(id))ui.postDelayed(()->{if(pc.signalingState()==PeerConnection.SignalingState.STABLE)offer();},220);
         }
         void attachRemote(VideoTrack track){
             ui.post(()->{
