@@ -54,7 +54,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     private final ExecutorService io=Executors.newFixedThreadPool(2);
     private final OkHttpClient client=new OkHttpClient();
     private FrameLayout root,videoBox,playerSurface,callSurface;
-    private LinearLayout app,home,roomPage,roomHeader,roomBody,chatRows,composerActions,playerControls,seekStrip,watchingPanel;
+    private LinearLayout app,home,roomPage,roomHeader,roomBody,chatRows,composerActions,playerControls,seekStrip,watchingPanel,chatComposer;
     private ScrollView chatScroll,exploreScroll;
     private TextView connection,roomLabel,playbackStatus,emptyVideo,fullButton,playButton,titleLabel,peopleLabel,sendButton,heartButton,homeTitle;
     private TextView exploreTab,inviteTab,watchingSummary,roomFooter;
@@ -115,7 +115,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
             if(shown!=keyboardOpen){
                 keyboardOpen=shown;
                 updateComposer();
-                if(shown)ui.postDelayed(this::scrollChatToBottom,140);
+                if(inRoom&&!fullscreen){
+                    roomHeader.setVisibility(shown?View.GONE:View.VISIBLE);
+                    if(roomFooter!=null)roomFooter.setVisibility(shown?View.GONE:View.VISIBLE);
+                    if(shown){ui.removeCallbacks(hideControls);playerControls.setVisibility(View.GONE);}
+                }
+                if(shown)ui.postDelayed(this::scrollChatToBottom,100);
             }
         });
     }
@@ -334,7 +339,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         watchNext.setContentDescription("Skip to next video");watchingPanel.addView(watchNext,NativeUi.lp(this,38,44));
         watchingPanel.setVisibility(View.GONE);
         chatRows.addView(watchingPanel);
-        LinearLayout composer=NativeUi.horizontal(this);
+        LinearLayout composer=NativeUi.horizontal(this);chatComposer=composer;
         composer.setPadding(px(4),px(3),px(4),px(3));composer.setBackground(NativeUi.shape(0xF31B1424,14,this));
         TextView mic=NativeUi.icon(this,"♩",()->toggleMic());
         mic.setContentDescription("Microphone");
@@ -492,8 +497,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         fullscreen=!fullscreen;
         roomHeader.setVisibility(fullscreen?View.GONE:View.VISIBLE);
         roomBody.setVisibility(fullscreen?View.GONE:View.VISIBLE);
-        android.view.View composer=roomPage.getChildAt(roomPage.getChildCount()-1);
-        composer.setVisibility(fullscreen?View.GONE:View.VISIBLE);
+        if(chatComposer!=null)chatComposer.setVisibility(fullscreen?View.GONE:View.VISIBLE);
+        if(roomFooter!=null)roomFooter.setVisibility(fullscreen?View.GONE:View.VISIBLE);
         roomPage.setPadding(0,0,0,0);
         ViewGroup.LayoutParams p=videoBox.getLayoutParams();
         p.height=fullscreen?ViewGroup.LayoutParams.MATCH_PARENT:Math.round(getResources().getDisplayMetrics().widthPixels*9f/16f);
