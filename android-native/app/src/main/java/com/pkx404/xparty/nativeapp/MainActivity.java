@@ -54,10 +54,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     private final ExecutorService io=Executors.newFixedThreadPool(2);
     private final OkHttpClient client=new OkHttpClient();
     private FrameLayout root,videoBox,playerSurface,callSurface;
-    private LinearLayout app,home,roomPage,roomHeader,roomBody,chatRows,composerActions,playerControls,seekStrip;
+    private LinearLayout app,home,roomPage,roomHeader,roomBody,chatRows,composerActions,playerControls,seekStrip,watchingPanel;
     private ScrollView chatScroll,exploreScroll;
     private TextView connection,roomLabel,playbackStatus,emptyVideo,fullButton,playButton,titleLabel,peopleLabel,sendButton,heartButton,homeTitle;
-    private TextView exploreTab,inviteTab;
+    private TextView exploreTab,inviteTab,watchingSummary,roomFooter;
     private EditText nickname,inviteCode,chatInput;
     private SeekBar seek;
     private RoomSocket socket;
@@ -227,14 +227,19 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
     }
     private void buildRoom(){
         roomPage.setBackgroundColor(NativeUi.BG);
-        roomHeader=NativeUi.horizontal(this);roomHeader.setPadding(px(8),0,px(8),0);
-        TextView exit=NativeUi.icon(this,"×",()->confirmLeave());roomHeader.addView(exit);
-        TextView roomSettings=NativeUi.icon(this,"⚙",()->roomSettings());roomHeader.addView(roomSettings);
-        TextView brand=NativeUi.text(this,"XParty",24,true);brand.setGravity(Gravity.CENTER);roomHeader.addView(brand,new LinearLayout.LayoutParams(0,px(58),1));
-        TextView search=NativeUi.icon(this,"⌕",()->sourcePicker.show());roomHeader.addView(search);
-        TextView share=NativeUi.icon(this,"↗",()->shareRoom());roomHeader.addView(share);
-        TextView people=NativeUi.icon(this,"♧",()->showPeople());roomHeader.addView(people);
-        roomPage.addView(roomHeader,NativeUi.lp(this,-1,58));
+        roomHeader=NativeUi.horizontal(this);roomHeader.setPadding(px(3),0,px(3),0);
+        roomHeader.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{0xFF521923,0xFF1A1823,0xFF261529}));
+        TextView exit=NativeUi.icon(this,"×",()->confirmLeave());roomHeader.addView(exit,NativeUi.lp(this,40,48));
+        TextView roomSettings=NativeUi.icon(this,"⚙",()->roomSettings());roomHeader.addView(roomSettings,NativeUi.lp(this,40,48));
+        TextView controlKey=NativeUi.icon(this,"⚿",()->roomSettings());controlKey.setContentDescription("Room permissions");roomHeader.addView(controlKey,NativeUi.lp(this,36,48));
+        ImageView brand=new ImageView(this);brand.setImageResource(R.drawable.xparty_wordmark);brand.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        brand.setAdjustViewBounds(true);brand.setContentDescription("XParty original logo");
+        roomHeader.addView(brand,new LinearLayout.LayoutParams(0,px(52),1));
+        TextView search=NativeUi.icon(this,"⌕",()->sourcePicker.show());search.setContentDescription("Search videos");roomHeader.addView(search,NativeUi.lp(this,36,48));
+        TextView share=NativeUi.icon(this,"↗",()->shareRoom());share.setContentDescription("Share room");roomHeader.addView(share,NativeUi.lp(this,36,48));
+        TextView people=NativeUi.icon(this,"♧",()->showPeople());people.setContentDescription("Participants");roomHeader.addView(people,NativeUi.lp(this,40,48));
+        roomPage.addView(roomHeader,NativeUi.lp(this,-1,52));
         videoBox=new FrameLayout(this);videoBox.setBackgroundColor(Color.BLACK);
         int widthPx=getResources().getDisplayMetrics().widthPixels;
         int videoHeightPx=Math.round(widthPx*9f/16f);
@@ -249,17 +254,21 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
         FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,px(40),Gravity.TOP|Gravity.LEFT);tp.setMargins(px(8),px(7),0,0);
         videoBox.addView(top,tp);
         fullButton=NativeUi.icon(this,"⛶",()->toggleFullscreen());
-        fullButton.setTextSize(23);fullButton.setBackground(NativeUi.shape(0x99150F1E,7,this));
-        top.addView(fullButton,NativeUi.lp(this,40,40));
-        playbackStatus=NativeUi.text(this,"Waiting for a video",12,true);
-        playbackStatus.setPadding(px(9),0,px(9),0);playbackStatus.setBackground(NativeUi.shape(0x99150F1E,7,this));
-        LinearLayout.LayoutParams sp=NativeUi.lp(this,-2,30);sp.leftMargin=px(6);top.addView(playbackStatus,sp);
+        fullButton.setTextSize(22);fullButton.setBackground(NativeUi.shape(0x77160E20,6,this));
+        top.addView(fullButton,NativeUi.lp(this,34,34));
+        playbackStatus=NativeUi.text(this,"Waiting for a video",11,true);
+        playbackStatus.setPadding(px(8),0,px(8),0);playbackStatus.setBackground(NativeUi.shape(0xAA21162C,8,this));
+        LinearLayout.LayoutParams sp=NativeUi.lp(this,-2,26);sp.leftMargin=px(6);top.addView(playbackStatus,sp);
         LinearLayout controlBase=NativeUi.vertical(this);playerControls=controlBase;
         FrameLayout.LayoutParams cb=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);
-        cb.setMargins(px(6),0,px(6),px(4));videoBox.addView(controlBase,cb);
+        cb.setMargins(px(4),0,px(4),px(3));
+        // The controls overlay the video without reserving a tall opaque black area.
+        controlBase.setBackground(new android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x050D0B12,0xA90D0B12}));
+        videoBox.addView(controlBase,cb);
         seekStrip=NativeUi.horizontal(this);
         playButton=NativeUi.icon(this,"▶",()->playPause());
-        seekStrip.addView(playButton,NativeUi.lp(this,44,36));
+        seekStrip.addView(playButton,NativeUi.lp(this,38,32));
         seek=new SeekBar(this);seek.setMax(1000);seek.setProgressTintList(android.content.res.ColorStateList.valueOf(NativeUi.PURPLE));
         seek.setThumbTintList(android.content.res.ColorStateList.valueOf(NativeUi.WHITE));
         seek.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x88FFFFFF));
@@ -273,20 +282,20 @@ public final class MainActivity extends Activity implements RoomSocket.Events,Na
                 revealControls();
             }
         });
-        seekStrip.addView(seek,new LinearLayout.LayoutParams(0,px(35),1));
+        seekStrip.addView(seek,new LinearLayout.LayoutParams(0,px(30),1));
         titleLabel=NativeUi.label(this,"0:00 / 0:00",10);titleLabel.setGravity(Gravity.CENTER);
-        seekStrip.addView(titleLabel,NativeUi.lp(this,86,36));
-        controlBase.addView(seekStrip,NativeUi.lp(this,-1,40));
+        seekStrip.addView(titleLabel,NativeUi.lp(this,76,30));
+        controlBase.addView(seekStrip,NativeUi.lp(this,-1,34));
         LinearLayout four=NativeUi.horizontal(this);
-        heartButton=option("♡",()->toggleLike());four.addView(heartButton,new LinearLayout.LayoutParams(0,px(42),1));
-        four.addView(option("⛶",()->cycleScale()),new LinearLayout.LayoutParams(0,px(42),1));
-        four.addView(option("⚙",()->playbackSettings()),new LinearLayout.LayoutParams(0,px(42),1));
-        four.addView(option("◖))",()->volumeControl()),new LinearLayout.LayoutParams(0,px(42),1));
-        controlBase.addView(four,NativeUi.lp(this,-1,42));
+        heartButton=option("♡",()->toggleLike());four.addView(heartButton,new LinearLayout.LayoutParams(0,px(36),1));
+        four.addView(option("⤢",()->cycleScale()),new LinearLayout.LayoutParams(0,px(36),1));
+        four.addView(option("⚙",()->playbackSettings()),new LinearLayout.LayoutParams(0,px(36),1));
+        four.addView(option("◖))",()->volumeControl()),new LinearLayout.LayoutParams(0,px(36),1));
+        controlBase.addView(four,NativeUi.lp(this,-1,36));
         videoBox.setOnClickListener(v->revealControls());
         videoBox.setOnTouchListener((v,event)->{if(event.getAction()==android.view.MotionEvent.ACTION_DOWN)revealControls();return false;});
         fullButton.setVisibility(View.GONE);playbackStatus.setVisibility(View.GONE);playerControls.setVisibility(View.GONE);
-        roomBody=NativeUi.vertical(this);
+        roomBody=NativeUi.vertical(this);roomBody.setBackground(NativeUi.roomBackground());
         roomPage.addView(roomBody,new LinearLayout.LayoutParams(-1,0,1f));
         LinearLayout labels=NativeUi.horizontal(this);
         TextView callTab=NativeUi.text(this,"Video call",17,true),chatTab=NativeUi.text(this,"Chat",17,true);
