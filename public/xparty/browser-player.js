@@ -5,7 +5,7 @@ export function safeBrowserURL(value) {
   try {
     if(typeof value!=='string'||value.trim().length>2048)return null;
     const raw=value.trim(),address=/^https?:\/\//i.test(raw)?raw:'https://'+raw;
-    const url=new URL(address),host=url.hostname.toLowerCase();
+    const url=new URL(address),host=url.hostname.toLowerCase().replace(/\.$/,'');
     if(url.protocol!=='https:'||url.username||url.password||
        (url.port&&url.port!=='443')||!host.includes('.')||
        host===location.hostname.toLowerCase()||
@@ -114,9 +114,6 @@ export function initBrowserPlayer({getContext,send,notify}) {
   });
   window.addEventListener('xparty:open-browser',open);
   window.addEventListener('xparty:browser-share',event=>share(event.detail?.url||''));
-  document.addEventListener('krezi:room',event=>{
-    if(!panel.hidden&&event.detail?.source)close();
-  });
   updateButtons();
   return {open,close};
 }
