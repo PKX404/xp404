@@ -13,7 +13,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public final class NativeUi {
-    public static final int BG=Color.rgb(15,12,23),SURFACE=Color.rgb(31,25,41),PANEL=Color.rgb(44,33,54);
+    public static final int BG=Color.rgb(14,11,21),SURFACE=Color.rgb(28,20,34),PANEL=Color.rgb(46,31,50);
     public static final int WHITE=Color.rgb(247,245,250),FAINT=Color.rgb(180,171,196),PURPLE=Color.rgb(197,158,243);
     public static int dp(Context c,float v){return Math.round(v*c.getResources().getDisplayMetrics().density);}
     public static GradientDrawable shape(int color,int radius,Context c){
@@ -27,10 +27,18 @@ public final class NativeUi {
     }
     public static TextView label(Context c,String value,int sp){TextView t=text(c,value,sp,false);t.setTextColor(FAINT);return t;}
     public static TextView icon(Context c,String value,Runnable action){
-        TextView t=text(c,value,25,false);t.setGravity(Gravity.CENTER);
-        t.setMinWidth(dp(c,44));t.setMinHeight(dp(c,44));
+        XPartyIcons t=new XPartyIcons(c);t.setText(value);t.setTextSize(24);
+        t.setMinWidth(dp(c,40));t.setMinHeight(dp(c,40));
         t.setContentDescription(value);
+        // Touch feedback only. No permanent ring or circle behind icons.
+        t.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x35D2B6FF),null,null));
         t.setOnClickListener(v->action.run());return t;
+    }
+    public static GradientDrawable roomBackground(){
+        return new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xFF611825,0xFF311524,0xFF150E20,0xFF0D0B13});
+    }
+    public static GradientDrawable homeBackground(){
+        return new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xFF381D35,0xFF10101D,0xFF0C0A13});
     }
     public static Button button(Context c,String value,Runnable action){
         Button b=new Button(c);b.setAllCaps(false);b.setText(value);b.setTextColor(WHITE);b.setTextSize(14);
