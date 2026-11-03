@@ -1,0 +1,42 @@
+name: XParty genuine native Android APK
+on:
+  push:
+    branches: ['feature/xparty-fully-native-android-20261103']
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/xparty-native-apk.yml'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/xparty-native-apk.yml'
+jobs:
+  native-android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Assemble XParty native APK
+        run: gradle --no-daemon --stacktrace -p android-native :app:assembleDebug
+      - name: Verify compiled APK and installability metadata
+        shell: bash
+        run: |
+          set -e
+          test -s android-native/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify -v android-native/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging android-native/app/build/outputs/apk/debug/app-debug.apk | head -10
+      - name: Upload installable native Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: XParty-Native-Android-Alpha-APK
+          path: android-native/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+          if-no-files-found: error
