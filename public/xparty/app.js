@@ -8,6 +8,7 @@ import {MAX_VIDEO_BYTES,MAX_CALL_SEATS,MAX_FINITE_ROOM_CAPACITY,validRoomCapacit
 import {isCompanion,parseCompanionLink} from './companion-providers.js';
 import {initCompanion} from './companion-client.js';
 import {initProviderUI,providerName} from './provider-ui.js';
+import {initBrowserPlayer} from './browser-player.js';
 import {createHeartbeat,retryDelay,peerLabel} from '/xparty/connection-policy.js';
 import {initRoomInteractions} from '/xparty/room-interactions.js';
 import {initRoomDesign} from './room-design.js';
@@ -856,6 +857,7 @@ const subtitles=initSubtitles({getContext:()=>({room,video:filePlayer}),onLoaded
 setInterval(()=>{if(room&&!preview&&socket?.readyState===WebSocket.OPEN)send('watch-heartbeat',{sourceId,active:!document.hidden&&!localPaused&&isPlaying()});},3000);
 window.addEventListener('pagehide',()=>{if(room&&!preview&&socket?.readyState===WebSocket.OPEN)send('watch-heartbeat',{sourceId,active:false});});
 providerUI=initProviderUI({getContext:()=>({room,me}),companion,base});
+initBrowserPlayer({getContext:()=>({room,me}),send,notify:toast});
 roomDesign=initRoomDesign({getContext:()=>({room,me})});
 roomInteractions=initRoomInteractions({getContext:()=>({room,me,token,source:xpartyUI?.local?.source||room?.source}),send,notify:toast,base,profiles:memberProfiles,friendAction:roomFriendAction,refreshAudio:()=>{for(const p of peers.values())attachRemoteAudio(p);},conversation,icon});
 fullscreen=initFullscreen({getContext:()=>({room,me}),notify:toast,nativeVideo});
