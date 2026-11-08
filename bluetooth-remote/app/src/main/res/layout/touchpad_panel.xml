@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.pkx404.xpartyremote.RemoteTouchpadView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/remote_touchpad"
+    android:layout_width="match_parent"
+    android:layout_height="236dp"
+    android:layout_marginTop="4dp"
+    android:contentDescription="XParty blue touchpad: one finger pointer, tap click, two fingers scroll" />
