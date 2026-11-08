@@ -1,3 +1,3 @@
-// Set to the HTTPS address of your deployed Xparty backend (no trailing slash).
-// Empty uses this page's origin for local development or an all-in-one deployment.
-window.XPARTY_CONFIG = { backendUrl: '' };
+// XParty v31.5 site and Android clients share the live HTTPS room backend.
+// Keep this endpoint in sync with the Android package and Render's xp404 service.
+window.XPARTY_CONFIG = { backendUrl: 'https://xp404.onrender.com' };
