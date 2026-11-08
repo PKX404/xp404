@@ -53,3 +53,34 @@ test('Android file-origin access is opt-in, limited to room APIs and websockets'
     else process.env.ALLOW_ANDROID_FILE_ORIGIN=old;
   }
 });
+
+
+test('Production HTTPS website can open a room WebSocket without Render runtime URL env',async()=>{
+ const prior=process.env.RENDER_EXTERNAL_URL;
+ let app;
+ try {
+   delete process.env.RENDER_EXTERNAL_URL;
+   app=createXparty();
+   await new Promise(r=>app.server.listen(0,'127.0.0.1',r));
+   const port=app.server.address().port;
+   const ws=new WebSocket(`ws://127.0.0.1:${port}/ws`,{origin:'https://xp404.onrender.com'});
+   await new Promise((resolve,reject)=>{ws.once('open',resolve);ws.once('error',reject);});
+   ws.send(JSON.stringify({type:'create',name:'Hosted web test'}));
+   const welcome=await new Promise((resolve,reject)=>{
+     const timer=setTimeout(()=>reject(new Error('No welcome for production origin')),4000);
+     ws.on('message',raw=>{
+       const event=JSON.parse(raw);
+       if(event.type==='welcome'){clearTimeout(timer);resolve(event);}
+     });
+   });
+   assert.match(welcome.room.code,/^[A-Z2-9]{7}$/);
+   const api=await fetch(`http://127.0.0.1:${port}/api/room-status?code=${welcome.room.code}`,{headers:{Origin:'https://xp404.onrender.com'}});
+   assert.equal(api.status,200);
+   assert.equal(api.headers.get('access-control-allow-origin'),'https://xp404.onrender.com');
+   ws.close();
+ } finally {
+   if(app)await app.close();
+   if(prior===undefined)delete process.env.RENDER_EXTERNAL_URL;
+   else process.env.RENDER_EXTERNAL_URL=prior;
+ }
+});
