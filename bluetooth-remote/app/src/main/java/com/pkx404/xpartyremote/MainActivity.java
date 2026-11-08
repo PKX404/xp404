@@ -135,34 +135,57 @@ public final class MainActivity extends Activity {
     status.setOnClickListener(v->openSettings());
     status.setContentDescription("Bluetooth connection status. Open connection settings");
     add(root,status,10);
-    add(root,label("TOUCHPAD · Move and tap to select",13,0xFFBB9EFC),7);
+    add(root,label("TOUCHPAD  ·  ONE FINGER POINTER / TWO FINGER SCROLL",11,0xFFC3B0FF),7);
     FrameLayout pad=new FrameLayout(this);
-    pad.setBackground(shape(0xFF24273D,22));
-    TextView guide=label("SWIPE TO MOVE POINTER\nTAP TO CLICK",14,0xFF8589AC);
+    GradientDrawable padBg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xFF292844,0xFF19253B,0xFF342445});
+    padBg.setCornerRadius(dp(22));padBg.setStroke(dp(1),0xFF8568B8);
+    pad.setBackground(padBg);pad.setContentDescription("One-finger touchpad and two-finger scroll gesture.");
+    TextView guide=label("ONE FINGER: MOVE & TAP\nTWO FINGERS: SCROLL",14,0xFF8589AC);
     guide.setGravity(Gravity.CENTER);pad.addView(guide,new FrameLayout.LayoutParams(-1,-1));
     pad.setOnTouchListener(new View.OnTouchListener(){
-      float px,py,sx,sy;boolean moved;
+      float px,py,startX,startY,midY,remainder;
+      boolean moved,twoFinger;
       @Override public boolean onTouch(View v,MotionEvent e){
+        int count=e.getPointerCount();
         switch(e.getActionMasked()){
           case MotionEvent.ACTION_DOWN:
             v.getParent().requestDisallowInterceptTouchEvent(true);
-            px=sx=e.getX();py=sy=e.getY();moved=false;return true;
+            px=startX=e.getX();py=startY=e.getY();
+            remainder=0;moved=false;twoFinger=false;return true;
+          case MotionEvent.ACTION_POINTER_DOWN:
+            if(count>=2){twoFinger=true;moved=true;midY=(e.getY(0)+e.getY(1))*.5f;}
+            return true;
           case MotionEvent.ACTION_MOVE:
-            float dx=e.getX()-px,dy=e.getY()-py;
-            if(Math.abs(e.getX()-sx)+Math.abs(e.getY()-sy)>dp(7))moved=true;
-            int x=clamp(Math.round(dx*1.7f)),y=clamp(Math.round(dy*1.7f));
-            if(x!=0||y!=0)mouse(0,x,y,0);
-            px=e.getX();py=e.getY();return true;
+            if(count>=2){
+              float nextY=(e.getY(0)+e.getY(1))*.5f;
+              remainder+=nextY-midY;midY=nextY;
+              int steps=(int)(remainder/dp(15));
+              if(steps!=0){
+                mouse(0,0,0,clamp(-steps));
+                remainder-=steps*dp(15);
+              }
+              twoFinger=true;moved=true;
+            }else if(!twoFinger){
+              float dx=e.getX()-px,dy=e.getY()-py;
+              if(Math.abs(e.getX()-startX)+Math.abs(e.getY()-startY)>dp(7))moved=true;
+              int x=clamp(Math.round(dx*1.7f)),y=clamp(Math.round(dy*1.7f));
+              if(x!=0||y!=0)mouse(0,x,y,0);
+              px=e.getX();py=e.getY();
+            }
+            return true;
+          case MotionEvent.ACTION_POINTER_UP:
+            twoFinger=true;moved=true;return true;
           case MotionEvent.ACTION_UP:
-            if(!moved)click(1);
-            v.performClick();
+            if(!moved&&!twoFinger)click(1);
+            v.performClick();return true;
+          case MotionEvent.ACTION_CANCEL:
             return true;
         }
         return true;
       }
     });
     add(root,pad,10);
-    pad.getLayoutParams().height=dp(165);
+    pad.getLayoutParams().height=dp(188);
 
     buttonRow(root,new String[]{"Left click","Right click","Back"},
       new Runnable[]{()->click(1),()->click(2),()->key(41)});
@@ -180,13 +203,13 @@ public final class MainActivity extends Activity {
     buttonRow(root,new String[]{"Send text","Enter","⌫ Delete"},
       new Runnable[]{()->typeText(textToSend.getText().toString()),()->key(40),()->key(42)});
     add(root,label("PLAYBACK / SOUND",12,0xFFBB9EFC),7);
-    buttonRow(root,new String[]{"⏮ Previous","⏯ Play / pause","Next ⏭"},
+    buttonRow(root,new String[]{"PREVIOUS","PLAY / PAUSE","NEXT"},
       new Runnable[]{()->consumer(0xB6),()->consumer(0xCD),()->consumer(0xB5)});
     buttonRow(root,new String[]{"Volume −","Mute","Volume +"},
       new Runnable[]{()->consumer(0xEA),()->consumer(0xE2),()->consumer(0xE9)});
-    buttonRow(root,new String[]{"Space","Fullscreen (F)","Esc"},
+    buttonRow(root,new String[]{"SPACE","FULLSCREEN","ESC"},
       new Runnable[]{()->key(44),()->key(9),()->key(41)});
-    add(root,label("Tip: Tap the search icon or channel list on the tablet using the touchpad, then send your search. Channel arrows navigate whichever list currently has focus. Media keys depend on the tablet player. Keep this screen open.",12,0xFF9496B2),2);
+    add(root,label("Tip: Select the search field on your tablet, then send text. Bluetooth pairing and switching live in Settings.",12,0xFF9496B2),2);
   }
   private static int clamp(int x){return Math.max(-127,Math.min(127,x));}
   private void status(String message){statusMessage=message;runOnUiThread(()->{if(status!=null)status.setText(message);});}
