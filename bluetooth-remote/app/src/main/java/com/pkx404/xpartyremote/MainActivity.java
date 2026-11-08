@@ -12,6 +12,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
+import android.content.res.ColorStateList;
+import android.widget.ImageView;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -34,9 +37,9 @@ import java.util.Set;
 public final class MainActivity extends Activity {
   private static final int REQUEST_BT=10;
   private static final int REQUEST_ENABLE=11;
-  private static final int BG=Color.rgb(12,13,23);
-  private static final int PANEL=Color.rgb(29,31,48);
-  private static final int ACCENT=Color.rgb(132,100,250);
+  private static final int BG=Color.rgb(10,12,25);
+  private static final int PANEL=Color.rgb(29,30,48);
+  private static final int ACCENT=Color.rgb(157,123,254);
   private static final byte[] KEY_UP=new byte[8];
   private final Handler handler=new Handler(Looper.getMainLooper());
   private BluetoothAdapter adapter;
@@ -48,6 +51,8 @@ public final class MainActivity extends Activity {
   private TextView status;
   private LinearLayout devices;
   private EditText textToSend;
+  private boolean settingsShown=false;
+  private String statusMessage="Not connected · Tap Settings to pair";
 
   // Standard HID keyboard (ID 1), relative pointer (ID 2), consumer/media keys (ID 3).
   private static final byte[] REPORT_DESCRIPTOR=hex(
@@ -77,7 +82,7 @@ public final class MainActivity extends Activity {
   private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
   private GradientDrawable shape(int color,int round){
     GradientDrawable d=new GradientDrawable();
-    d.setColor(color);d.setCornerRadius(dp(round));return d;
+    d.setColor(color);d.setCornerRadius(dp(round));d.setStroke(dp(1),0xFF48425F);return d;
   }
   private LinearLayout stack(){
     LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;
@@ -90,35 +95,46 @@ public final class MainActivity extends Activity {
     lp.bottomMargin=dp(bottom);root.addView(view,lp);
   }
   private TextView button(String caption,Runnable r){
-    TextView b=label(caption,15,Color.WHITE);
-    b.setGravity(Gravity.CENTER);b.setMinHeight(dp(49));b.setPadding(dp(10),dp(10),dp(10),dp(10));
-    b.setBackground(shape(PANEL,13));b.setOnClickListener(v->r.run());return b;
+    TextView b=label(caption,12,Color.WHITE);
+    b.setTypeface(null,1);b.setGravity(Gravity.CENTER);b.setMinHeight(dp(50));
+    b.setPadding(dp(6),dp(10),dp(6),dp(10));
+    b.setBackground(shape(PANEL,14));
+    b.setForeground(new RippleDrawable(ColorStateList.valueOf(0x55CBB6FF),null,shape(0xFFFFFFFF,14)));
+    b.setContentDescription(caption);b.setOnClickListener(v->r.run());return b;
   }
   private void buttonRow(LinearLayout parent,String[] titles,Runnable[] callbacks){
     LinearLayout row=new LinearLayout(this);
     for(int i=0;i<titles.length;i++){
       TextView b=button(titles[i],callbacks[i]);
-      LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(54),1);
+      LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(50),1);
       if(i>0)p.leftMargin=dp(7);row.addView(b,p);
     }
-    add(parent,row,9);
+    add(parent,row,7);
   }
   private void render(){
     ScrollView scroller=new ScrollView(this);scroller.setFillViewport(true);scroller.setBackgroundColor(BG);
     LinearLayout root=stack();root.setPadding(dp(18),dp(30),dp(18),dp(24));
     scroller.addView(root);setContentView(scroller);
-    TextView title=label("XPARTY  /  REMOTE",27,Color.WHITE);title.setTypeface(null,1);
-    add(root,title,4);
-    add(root,label("Bluetooth controller for your XParty tablet",13,0xFFADADC5),14);
-    status=label("Not connected · Tap Activate remote",13,0xFFDECAFF);
-    status.setPadding(dp(15),dp(13),dp(13),dp(13));status.setBackground(shape(0xFF24223F,12));
-    add(root,status,13);
-
-    buttonRow(root,new String[]{"Activate remote","Make discoverable"},
-      new Runnable[]{this::activate,this::discoverable});
-    buttonRow(root,new String[]{"Refresh paired tablets","Disconnect"},
-      new Runnable[]{this::showPaired, this::disconnect});
-    devices=stack();add(root,devices,13);
+    settingsShown=false;devices=null;
+    LinearLayout header=new LinearLayout(this);
+    header.setGravity(Gravity.CENTER_VERTICAL);
+    ImageView mark=new ImageView(this);mark.setImageResource(R.drawable.xparty_remote_icon);
+    header.addView(mark,new LinearLayout.LayoutParams(dp(54),dp(54)));
+    LinearLayout captions=stack();
+    LinearLayout.LayoutParams capLp=new LinearLayout.LayoutParams(0,-2,1);capLp.leftMargin=dp(10);
+    TextView name=label("XPARTY",19,Color.WHITE);
+    name.setTypeface(null,1);name.setLetterSpacing(.07f);
+    captions.addView(name);
+    captions.addView(label("REMOTE  /  BLUETOOTH",11,0xFFAAA2CB));
+    header.addView(captions,capLp);
+    header.addView(button("SETTINGS",()->openSettings()),new LinearLayout.LayoutParams(dp(92),dp(50)));
+    add(root,header,15);
+    status=label(statusMessage,13,0xFFE4D7FF);
+    status.setPadding(dp(13),dp(13),dp(13),dp(13));
+    status.setBackground(shape(0xFF29263D,15));
+    status.setOnClickListener(v->openSettings());
+    status.setContentDescription("Bluetooth connection status. Open connection settings");
+    add(root,status,10);
     add(root,label("TOUCHPAD · Move and tap to select",13,0xFFBB9EFC),7);
     FrameLayout pad=new FrameLayout(this);
     pad.setBackground(shape(0xFF24273D,22));
@@ -173,7 +189,7 @@ public final class MainActivity extends Activity {
     add(root,label("Tip: Tap the search icon or channel list on the tablet using the touchpad, then send your search. Channel arrows navigate whichever list currently has focus. Media keys depend on the tablet player. Keep this screen open.",12,0xFF9496B2),2);
   }
   private static int clamp(int x){return Math.max(-127,Math.min(127,x));}
-  private void status(String message){runOnUiThread(()->status.setText(message));}
+  private void status(String message){statusMessage=message;runOnUiThread(()->{if(status!=null)status.setText(message);});}
   private void note(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
   private boolean permissions(){
     if(Build.VERSION.SDK_INT>=31){
