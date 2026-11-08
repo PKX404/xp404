@@ -1,4 +1,4 @@
-import {isCompanion,normalizeCompanionSource,sanitizeCompanionSnapshot,sanitizeCompanionReport,validCompanionNonce} from './companion-providers.js';
+import {isCompanion,normalizeCompanionSource,sanitizeCompanionSnapshot,sanitizeCompanionReport,validCompanionNonce,BROWSE_PROVIDERS,normalizeBrowseSelection} from './companion-providers.js';
 
 const CHANNEL='xparty-companion-v1';
 const nonce=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
@@ -6,6 +6,7 @@ const labels={connecting:'Opening your service tab…','waiting-for-video':'Star
 
 export function initCompanion({getContext,notify=()=>{},onIntent=()=>{},onChange=()=>{}}) {
   let pair=null,disposed=false,connecting=false,lastSeq=-1,measurement=null;
+  let browserSession=null;
   let state={connected:false,installed:false,status:'disconnected',message:labels.disconnected};
   const pending=new Map();
   function change(patch){state={...state,...patch};state.message=labels[state.status]||state.status;onChange({...state});}
@@ -18,8 +19,17 @@ export function initCompanion({getContext,notify=()=>{},onIntent=()=>{},onChange
     return sanitizeCompanionSnapshot({sourceId:r.source.id,provider:source.type,videoId:source.videoId,url:source.url,position:Math.min(604800,Math.max(0,(p.position||0)+elapsed)),playing:!!p.playing&&!p.waitingFor?.length,localPaused:!!c.localPaused,canControl:r.hostId===c.me||r.mode==='SHARED_CONTROL',revision:p.revision||0,sentAt:Date.now(),force});
   }
   function disconnect(){if(pair)post('disconnect',{nonce:pair.nonce,sourceId:pair.sourceId});pair=null;measurement=null;lastSeq=-1;change({connected:false,status:'disconnected'});}
+  function cancelBrowse(){if(browserSession)post('browse-cancel',{nonce:browserSession.nonce});browserSession=null;}
+  async function browse(provider){
+    if(disposed||!Object.hasOwn(BROWSE_PROVIDERS,provider))return false;
+    if(!state.browseAvailable){notify('Install or update XParty Companion to choose titles directly from the service tab.');return false;}
+    if(browserSession?.provider!==provider||browserSession?.roomCode!==getContext()?.room?.code){cancelBrowse();browserSession={provider,nonce:nonce(),roomCode:getContext()?.room?.code};}
+    const selected=browserSession;
+    try{const result=await request('browse',{provider,nonce:selected.nonce});if(browserSession!==selected)return false;if(!result?.ok)throw Error(result?.error||'This service could not open.');return true;}
+    catch(error){if(browserSession===selected)cancelBrowse();notify(error.message);return false;}
+  }
   function applyPlayback(force=false){if(!pair||disposed)return;const next=snapshot(force);if(!next||next.sourceId!==pair.sourceId){disconnect();return;}post('snapshot',{nonce:pair.nonce,snapshot:next});}
-  function update(){if(pair)applyPlayback(false);}
+  function update(){if(browserSession&&browserSession.roomCode!==getContext()?.room?.code)cancelBrowse();if(pair)applyPlayback(false);}
   async function connect() {
     if(disposed||connecting)return false;
     const first=snapshot(true);
@@ -42,6 +52,11 @@ export function initCompanion({getContext,notify=()=>{},onIntent=()=>{},onChange
   function receive(event){
     if(event.source!==window||event.origin!==location.origin)return;
     const m=event.data;if(!m||m.channel!==CHANNEL||m.direction!=='from-extension')return;
+    if(m.type==='selection'){
+      if(!browserSession||m.nonce!==browserSession.nonce||m.provider!==browserSession.provider||browserSession.roomCode!==getContext()?.room?.code)return;
+      const source=normalizeBrowseSelection(m.provider,m.source?.url);
+      if(source)window.dispatchEvent(new CustomEvent('xparty:provider-picked',{detail:source}));return;
+    }
     if(m.type==='response'&&validCompanionNonce(m.requestId)){
       const item=pending.get(m.requestId);if(!item||item.nonce&&item.nonce!==m.nonce)return;
       clearTimeout(item.timer);pending.delete(m.requestId);item.resolve(m.result);return;
@@ -55,11 +70,13 @@ export function initCompanion({getContext,notify=()=>{},onIntent=()=>{},onChange
     else change({connected:true,status:report.playing?'playing':getContext()?.localPaused?'local-paused':'paused'});
   }
   const timer=setInterval(()=>applyPlayback(false),500);
-  window.addEventListener('message',receive);window.addEventListener('pagehide',disconnect);
-  return {connect,disconnect,focus,update,applyPlayback,
+  const leave=()=>{cancelBrowse();disconnect();};
+  window.addEventListener('message',receive);window.addEventListener('pagehide',leave);
+  request('probe',{},1500).then(result=>{if(!disposed&&result?.ok)change({installed:true,browseAvailable:result.browse===true});}).catch(()=>{});
+  return {connect,disconnect,focus,update,applyPlayback,browse,cancelBrowse,
     currentTime:()=>measurement?Math.min(measurement.duration||604800,measurement.position+(measurement.playing?Math.max(0,Date.now()-measurement.at)/1000:0)):0,
     duration:()=>measurement?.duration||0,isPlaying:()=>!!measurement?.playing,
     getState:()=>({...state,provider:getContext()?.room?.source?.type,sourceId:pair?.sourceId||null}),
-    dispose(){if(disposed)return;disconnect();disposed=true;clearInterval(timer);window.removeEventListener('message',receive);window.removeEventListener('pagehide',disconnect);for(const item of pending.values()){clearTimeout(item.timer);item.reject(Error('Companion closed'));}pending.clear();}
+    dispose(){if(disposed)return;leave();disposed=true;clearInterval(timer);window.removeEventListener('message',receive);window.removeEventListener('pagehide',leave);for(const item of pending.values()){clearTimeout(item.timer);item.reject(Error('Companion closed'));}pending.clear();}
   };
 }

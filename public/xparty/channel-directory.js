@@ -1,5 +1,6 @@
 import {parseM3U} from './iptv-playlist.js';
 const ROOT='https://iptv-org.github.io/',cache=new Map();
+const MAJOR_LANGUAGES=new Set(['Arabic','Bengali','Chinese','German','English','Spanish','Persian','French','Hindi','Indonesian','Italian','Japanese','Korean','Malayalam','Marathi','Malay','Punjabi','Portuguese','Russian','Tamil','Telugu','Thai','Turkish','Urdu']);
 const storage=()=>{try{return localStorage;}catch{return null;}};
 export async function boundedText(response,max=2*1024*1024){
  if(!response.ok)throw Error('Directory unavailable ('+response.status+').');
@@ -12,7 +13,7 @@ export function cachedDirectory(key,loader,ttl=900000){
  if(cache.size>16)cache.delete(cache.keys().next().value);return entry.promise;
 }
 export function countryList(){return cachedDirectory('countries',async()=>JSON.parse(await boundedText(await fetch(ROOT+'api/countries.json',{credentials:'omit',signal:AbortSignal.timeout(10000)}),512000)).filter(c=>/^[A-Z]{2}$/.test(c.code)&&typeof c.name==='string').sort((a,b)=>a.name.localeCompare(b.name)),86400000);}
-export function languageList(){return cachedDirectory('languages',async()=>JSON.parse(await boundedText(await fetch(ROOT+'api/languages.json',{credentials:'omit',signal:AbortSignal.timeout(10000)}),512000)).filter(c=>/^[a-z]{3}$/.test(c.code)&&typeof c.name==='string').sort((a,b)=>a.name.localeCompare(b.name)),86400000);}
+export function languageList(){return cachedDirectory('languages-major',async()=>JSON.parse(await boundedText(await fetch(ROOT+'api/languages.json',{credentials:'omit',signal:AbortSignal.timeout(10000)}),512000)).filter(c=>/^[a-z]{3}$/.test(c.code)&&typeof c.name==='string'&&MAJOR_LANGUAGES.has(c.name)).sort((a,b)=>a.name.localeCompare(b.name)),86400000);}
 export function channelPlaylist(kind,code){
  if(!['countries','languages','categories'].includes(kind)||!/^[a-z]{2,20}$/.test(code))return Promise.reject(Error('Invalid channel selection.'));
  return cachedDirectory(kind+':'+code,async()=>parseM3U(await boundedText(await fetch(ROOT+'iptv/'+kind+'/'+code+'.m3u',{credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(15000)}))).channels);

@@ -1,0 +1,19 @@
+/* Xparty Club mode: a custom equalizer mark inside Playback settings. */
+#playback-options .xparty-club-setting{display:flex!important;align-items:center!important;gap:9px!important;width:100%!important;min-height:64px!important;margin:6px 0 7px!important;padding:8px 7px!important;background:linear-gradient(100deg,#302139bd,#222235a8)!important;color:#eee9ff!important;border:1px solid #976dc43b!important;border-radius:13px!important;text-align:left!important;box-shadow:none!important;touch-action:manipulation}
+#playback-options .xparty-club-setting:active{background:#38304e!important}
+#playback-options .xparty-club-setting:focus-visible{outline:2px solid #b9a2f9!important;outline-offset:2px}
+#playback-options .xparty-club-symbol{width:34px!important;height:34px!important;display:grid!important;place-items:center!important;flex:none!important;color:#dcc1ff!important;border-radius:9px!important;background:linear-gradient(140deg,#8c67c044,#42d9e31a)!important}
+#playback-options .club-icon-svg{width:27px!important;height:27px!important}
+#playback-options .xparty-club-copy{display:flex!important;flex-direction:column!important;gap:2px!important;min-width:0!important;flex:1!important}
+#playback-options .xparty-club-copy strong{font-size:12px!important;font-weight:760!important;letter-spacing:.15px!important;line-height:1.3!important}
+#playback-options .xparty-club-copy small{font-size:9px!important;line-height:1.3!important;color:#bbadcb!important;white-space:normal!important;min-height:21px!important}
+#playback-options .xparty-club-toggle{position:relative;flex:none!important;width:31px!important;height:18px!important;border-radius:12px!important;background:#4d4459!important;box-shadow:inset 0 0 0 1px #a697ba3b!important;transition:background .18s ease!important}
+#playback-options .xparty-club-toggle i{position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .18s ease}
+#playback-options .xparty-club-setting[aria-checked="true"]{border-color:#87dddf88!important;background:linear-gradient(110deg,#4c356fba,#204954a6)!important}
+#playback-options .xparty-club-setting[aria-checked="true"] .xparty-club-symbol{color:#a5f3ff!important;background:#46dae535!important}
+#playback-options .xparty-club-setting[aria-checked="true"] .xparty-club-toggle{background:#66c6d2!important}
+#playback-options .xparty-club-setting[aria-checked="true"] .xparty-club-toggle i{transform:translateX(13px)}
+/* No strobe, no white flash: translucent color follows detected bass/treble. */
+#watch-stage #xparty-club-wash{position:absolute!important;inset:0!important;z-index:6!important;pointer-events:none!important;opacity:var(--club-level,0);mix-blend-mode:screen;will-change:opacity;background:radial-gradient(ellipse at 0 55%,hsla(var(--club-hue,260),90%,60%,.5),transparent 52%),radial-gradient(ellipse at 100% 38%,hsla(calc(var(--club-hue,260) + 45),90%,55%,.42),transparent 56%);transition:opacity .18s ease-out}
+#player-shell.xparty-club-active{box-shadow:0 0 calc(10px + var(--club-level,0) * 45px) hsla(var(--club-hue,260),80%,60%,.18)!important}
+@media(prefers-reduced-motion:reduce){#watch-stage #xparty-club-wash{opacity:0!important;transition:none!important}#player-shell.xparty-club-active{box-shadow:none!important}}

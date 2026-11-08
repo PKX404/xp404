@@ -1,0 +1,91 @@
+/* Xparty 1.1.2 Test 3: author-controlled chat alignment. Treat the whole
+   message as one flex/grid item: name, text, image, attachment, reactions and
+   receipts always stay on the same side. Overrides legacy 1.1.2 selectors. */
+body.in-room #room #messages .message:not(.system):not(.mine){
+  display:block!important;position:relative!important;
+  width:fit-content!important;max-width:min(89%,580px)!important;
+  min-width:100px!important;box-sizing:border-box!important;
+  align-self:flex-start!important;margin:2px auto 8px 0!important;
+  padding:0 8px 0 52px!important;text-align:left!important;
+}
+body.in-room #room #messages .message.mine:not(.system){
+  display:block!important;position:relative!important;
+  width:fit-content!important;max-width:min(89%,580px)!important;
+  min-width:100px!important;box-sizing:border-box!important;
+  align-self:flex-end!important;margin:2px 0 8px auto!important;
+  padding:0 52px 0 8px!important;text-align:right!important;
+}
+body.in-room #room #messages .message.mine:not(.system)>.chat-member-avatar,
+body.in-room #room #messages .message.mine:not(.system)>small .chat-member-avatar{
+  left:auto!important;right:0!important;top:2px!important;
+}
+body.in-room #room #messages .message:not(.system):not(.mine)>.chat-member-avatar,
+body.in-room #room #messages .message:not(.system):not(.mine)>small .chat-member-avatar{
+  left:0!important;right:auto!important;top:2px!important;
+}
+body.in-room #room #messages .message.mine:not(.system) .message-meta{
+  display:flex!important;justify-content:flex-end!important;text-align:right!important;
+  gap:7px!important;max-width:100%!important;
+}
+body.in-room #room #messages .message:not(.system):not(.mine) .message-meta{
+  display:flex!important;justify-content:flex-start!important;text-align:left!important;
+}
+body.in-room #room #messages .message.mine:not(.system) .message-reactions{
+  display:flex!important;justify-content:flex-end!important;flex-wrap:wrap!important;
+}
+body.in-room #room #messages .message:not(.system):not(.mine) .message-reactions{
+  display:flex!important;justify-content:flex-start!important;flex-wrap:wrap!important;
+}
+body.in-room #room #messages .message.mine:not(.system) :is(.attachment-card,.message-reply,.message-retry){
+  margin-left:auto!important;margin-right:0!important;text-align:left!important;
+}
+body.in-room #room #messages .message:not(.system):not(.mine) :is(.attachment-card,.message-reply){
+  margin-left:0!important;margin-right:auto!important;text-align:left!important;
+}
+body.in-room #room #messages .message :is(.attachment-card,.chat-image-preview){
+  position:relative!important;max-width:min(100%,320px)!important;min-width:0!important;
+  box-sizing:border-box!important;overflow:hidden!important;
+}
+body.in-room #room #messages .message :is(.attachment-card img,.chat-image-preview img,.attachment-card video){
+  display:block;max-width:100%!important;width:auto!important;height:auto!important;
+  max-height:330px!important;object-fit:contain!important;border-radius:13px!important;
+}
+body.in-room #room #messages .message :is(.message-body,.message-reply,.message-reactions){
+  overflow-wrap:anywhere!important;word-break:break-word!important;
+}
+body.in-room #room #messages .message.mine:not(.system)>small,
+body.in-room #room #messages .message.mine:not(.system)>.message-body{
+  text-align:right!important;
+}
+/* Keep writing field above keyboard; avoid chat/keyboard overlay swallowing taps. */
+body.in-room.room-keyboard-open #room #chat-form{
+  min-height:54px!important;height:54px!important;pointer-events:auto!important;
+  transform:none!important;backdrop-filter:none!important;
+}
+body.in-room #room #chat-form :is(button,#message-input){pointer-events:auto!important;}
+/* Lightweight interaction feedback; avoid expensive live backdrop compositing during IME. */
+body.in-room.room-keyboard-open #room :is(.chat-panel,.conversation-tabs){backdrop-filter:none!important;}
+body.in-room #room button:active,body.in-room #room a:active{filter:brightness(1.17)!important;}
+
+/* XParty Test 4: all parts of a message follow the sender side, not just text. */
+body.in-room #room #messages .message.mine:not(.system){
+ display:flex!important;flex-direction:column!important;align-items:flex-end!important;
+ text-align:right!important;flex:0 0 auto!important;overflow:visible!important;
+}
+body.in-room #room #messages .message:not(.mine):not(.system){
+ display:flex!important;flex-direction:column!important;align-items:flex-start!important;
+ text-align:left!important;flex:0 0 auto!important;overflow:visible!important;
+}
+body.in-room #room #messages .message.mine:not(.system) :is(.message-body,.attachment-card,.chat-image-preview,.message-reactions,.message-reply,.message-meta,.message-retry,video,figure){
+ align-self:flex-end!important;margin-left:auto!important;margin-right:0!important;max-width:100%!important;
+}
+body.in-room #room #messages .message:not(.mine):not(.system) :is(.message-body,.attachment-card,.chat-image-preview,.message-reactions,.message-reply,.message-meta,.message-retry,video,figure){
+ align-self:flex-start!important;margin-left:0!important;margin-right:auto!important;max-width:100%!important;
+}
+body.in-room #room #messages .message.mine:not(.system)>.message-body{text-align:right!important;}
+body.in-room #room #messages .message:not(.mine):not(.system)>.message-body{text-align:left!important;}
+body.in-room #room #messages .message :is(img,video){height:auto;max-width:100%!important;object-fit:contain;}
+body.in-room #room #messages .message .message-meta{display:flex!important;align-items:center!important;flex-wrap:wrap!important;}
+body.in-room #room #messages .message.mine .message-meta{justify-content:flex-end!important;}
+body.in-room #room #messages .message:not(.mine) .message-meta{justify-content:flex-start!important;}
+body.in-room #room #messages .message :is(.message-reaction,.message-react-trigger,.message-more){touch-action:manipulation;}

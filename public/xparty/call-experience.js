@@ -1,15 +1,17 @@
+import {initRoomViewport} from './room-viewport.js';
 const el=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls||'';if(text)n.textContent=text;return n;};
 export function initCallExperience({getContext,send,notify,conversation,startCamera,icon}){
  const $=id=>document.getElementById(id),participants=$('participants');
  $('choose-room-video').onclick=()=>$('browse').click();
- const viewport=()=>document.documentElement.style.setProperty('--room-height',(window.visualViewport?.height||innerHeight)+'px');viewport();window.addEventListener('resize',viewport);window.visualViewport?.addEventListener('resize',viewport);
+ const stage=$('watch-stage');
+ initRoomViewport({stage,panel:document.querySelector('.chat-panel'),form:$('chat-form')});
  let roomCode=null,accepted=false,awaitingSeat=false,pending=null,selected=null,drag=null,corner={x:1,y:0},timeout;
  const sheet=el('dialog','video-request-sheet');sheet.setAttribute('aria-label','Video call request');document.body.append(sheet);
  const makeButton=(label,fn)=>{const b=el('button','',label);b.type='button';b.onclick=fn;return b;};
  const request=$('panel-call');
  const hangup=$('call-seat');
  // Camera controls remain reachable when the self preview is small.
- const callControls=el('div','call-primary-controls');for(const id of ['mic','camera','camera-flip'])callControls.append($(id));document.querySelector('.call-panel').append(callControls);
+ const callControls=el('div','call-primary-controls');for(const id of ['mic','camera','camera-flip','swap-camera-view'])callControls.append($(id));document.querySelector('.call-panel').append(callControls);
  const sound=el('div','call-audio-control'),soundInput=$('call-volume'),soundLabel=soundInput.closest('label');
  sound.append($('speaker'),soundInput);soundLabel.remove();document.querySelector('.participant-strip').prepend(sound);
  soundInput.setAttribute('aria-orientation','horizontal');soundInput.setAttribute('aria-label','Call volume');
@@ -49,7 +51,7 @@ export function initCallExperience({getContext,send,notify,conversation,startCam
   if(awaitingSeat&&self?.inCall){awaitingSeat=false;open();}
   const overVideo=!!room.source||document.body.classList.contains('device-local-video');sound.classList.toggle('over-video',overVideo);const soundHome=overVideo?document.querySelector('.video-volume-overlay'):document.querySelector('.participant-strip');if(sound.parentElement!==soundHome)soundHome.prepend(sound);
   if(!self?.inCall&&accepted){accepted=false;conversation('chat');}
-  const active=room.people.some(p=>p.inCall&&p.camera),vcActive=!!self?.inCall&&(accepted||self.camera);
+  const active=room.people.some(p=>p.inCall&&p.camera),vcActive=!!self?.inCall&&(accepted||active);
   document.body.classList.toggle('call-has-media',active);document.body.classList.toggle('vc-active',vcActive);
   document.querySelector('.participant-strip').hidden=!vcActive;
   sound.hidden=!vcActive;

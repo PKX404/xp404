@@ -6,7 +6,8 @@ body.in-room.room-header-idle .mobile-room-header{margin-top:calc(-1 * var(--roo
 .room-comment-ticker[hidden]{display:none}.room-comment-ticker>span{display:inline-block;white-space:nowrap;will-change:transform}
 .call-message-overlay{position:absolute;z-index:6;left:10px;right:10px;bottom:52px;height:35%;pointer-events:none;overflow:hidden;mask-image:linear-gradient(transparent,#000 30%)}
 .call-floating-message{position:absolute;left:0;right:0;bottom:0;margin:0;color:#fff;font-size:12px;line-height:1.4;text-shadow:0 1px 4px #000,0 1px 8px #000;overflow-wrap:anywhere;max-height:4.2em;overflow:hidden}
-body.in-room #room .video-volume-overlay{background:transparent!important;border:0!important;box-shadow:none!important;padding:4px!important;gap:8px!important}
+body.in-room #room .video-volume-overlay{background:transparent!important;border:0!important;box-shadow:none!important;padding:4px!important;gap:8px!important;pointer-events:none!important}
+body.in-room #room .video-volume-overlay input,body.in-room #room .video-volume-overlay button{pointer-events:auto!important}
 body.in-room #room #watch-stage .call-audio-control.over-video{display:flex!important;flex-direction:column;align-items:center;justify-content:center;width:28px!important;min-width:28px!important;max-width:28px!important;flex:0 0 28px!important;gap:4px!important;background:transparent!important;border:0!important}
 body.in-room #room #watch-stage .call-audio-control.over-video #call-volume{width:24px!important;min-width:24px!important;height:90px!important;min-height:90px!important;max-width:24px!important;writing-mode:vertical-lr!important;direction:rtl!important;appearance:slider-vertical;transform:none!important;background:transparent!important}
 body.in-room #room #watch-stage .call-audio-control.over-video .room-speaker{width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;padding:3px!important}
@@ -43,7 +44,7 @@ body.in-room #room #participants .local-controls{display:none!important}
 body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count].duo{position:relative!important;display:block!important;overflow:hidden!important;min-height:100px!important;isolation:isolate}
 body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count].duo>.participant{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;min-width:0!important;border-radius:16px!important;z-index:0!important}
 body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count].duo>.participant video{object-fit:contain!important;background:#100d16}
-body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count].duo>.call-pip-preview{left:var(--pip-x,calc(100% - 112px))!important;top:var(--pip-y,8px)!important;right:auto!important;bottom:auto!important;width:clamp(64px,28%,112px)!important;height:clamp(80px,36%,150px)!important;max-width:38%!important;max-height:48%!important;min-height:0!important;z-index:4!important;border:1px solid #ffffff66!important;box-shadow:0 4px 18px #0006!important;cursor:grab;touch-action:none;border-radius:14px!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count].duo>.call-pip-preview{left:var(--pip-x,calc(100% - 112px))!important;top:var(--pip-y,8px)!important;right:auto!important;bottom:auto!important;width:clamp(78px,32%,138px)!important;height:clamp(100px,36%,176px)!important;max-width:42%!important;max-height:48%!important;min-height:70px!important;z-index:4!important;border:1px solid #ffffff66!important;box-shadow:0 4px 18px #0006!important;cursor:grab;touch-action:none;border-radius:14px!important}
 body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count].duo>.call-pip-preview:active{cursor:grabbing}
 body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count].duo>.call-pip-preview:focus-visible{outline:2px solid #c9b6ff;outline-offset:-3px}
 body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count].duo>.call-pip-preview video{object-fit:cover!important}
@@ -62,17 +63,17 @@ body.in-room #room #participants .call-pip-preview .avatar{width:32px!important;
 body.in-room dialog{width:min(480px,calc(100vw - 24px));box-sizing:border-box;max-width:calc(100vw - 24px)!important}
 body.in-room .room-mini-profile{width:min(300px,calc(100vw - 24px))}
 body.in-room #participants-drawer[open]{max-height:calc(var(--room-height,100dvh) - 52px)!important}
-@media(max-width:900px) and (orientation:portrait){
+@media(max-width:700px) and (orientation:portrait){
  body.in-room:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{max-height:min(32dvh,220px)!important}
  body.in-room #room .mobile-room-header{padding:0 4px!important;grid-template-columns:44px 44px minmax(0,1fr) 44px 44px!important}
  body.in-room #room .room-wordmark{max-width:100%;width:104px}
- body.in-room.room-people-open #room #chat-form{flex-wrap:nowrap;height:46px!important}
- body.in-room.room-people-open #room #message-input{flex:1 1 0!important;order:0;font-size:16px!important}
- body.in-room.room-people-open #room #chat-form button{flex-basis:28px!important;width:28px!important;min-width:28px!important;padding:5px!important}body.in-room.room-people-open #room #chat-form #chat-mic{display:none!important}
- body.in-room.room-people-open #room .conversation-tabs{gap:2px}
- body.in-room.room-people-open #room .conversation-tabs button{min-width:0!important;flex:1;padding:4px!important;font-size:11px!important}
- body.in-room.room-people-open #room .call-primary-controls{gap:2px;padding:4px 0}
- body.in-room.room-people-open #room .call-primary-controls button{width:36px!important;min-width:36px!important;height:36px!important;min-height:36px!important}
+ 
+ 
+ 
+ 
+ 
+ 
+ 
  body.in-room #room .call-primary-controls{padding:4px}
 }
 @media(max-height:480px) and (orientation:landscape){
@@ -103,7 +104,7 @@ body.in-room #room .provider-card{min-height:76px!important;padding:12px!importa
 body.in-room #room .provider-card :is(svg,img){width:22px!important;height:22px!important}
 body.in-room #room .player-bar button{min-height:32px!important;min-width:32px!important;height:32px!important;padding:6px!important;border-radius:16px!important}
 body.in-room #room .player-bar .icon-control:before{width:18px!important;height:18px!important}
-@media(max-width:900px) and (orientation:portrait){
+@media(max-width:700px) and (orientation:portrait){
  body.in-room.room-empty-video:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{height:76px!important;aspect-ratio:auto!important;max-height:76px!important;border-radius:0!important}
  body.in-room.room-empty-video #room #choose-room-video{padding:7px 12px!important}
  body.in-room.room-empty-video #room #choose-room-video small{font-size:10px}
@@ -132,24 +133,24 @@ body.in-room #participants-drawer .room-drawer-count{margin:4px 0 6px!important}
 body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]:not(.duo){grid-template-rows:minmax(0,1fr)!important;grid-auto-rows:64px!important}
 body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]>.bubble-call-tile{min-height:0!important;max-height:64px!important;border-radius:18px!important}
 body.in-room #room #participants:not(.duo) :is(.tile-pip,.tile-move,.tile-resize){display:none!important}
-@media(max-width:900px) and (orientation:portrait){
+@media(max-width:700px) and (orientation:portrait){
  body.in-room:not(.watch-fullscreen):not(.focus-call) #room .together-column{gap:0!important}
  body.in-room:not(.watch-fullscreen):not(.focus-call) #room .room-footer{padding:4px!important;font-size:8px!important}
- body.in-room.room-people-open:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]:not(.duo){grid-template-columns:minmax(0,1fr)!important;grid-template-rows:repeat(2,minmax(0,1fr))!important;grid-auto-rows:54px!important}
- body.in-room.room-people-open #room .participant-strip{justify-content:space-between!important}
- body.in-room.room-people-open #room .participant-strip .call-seat-row{gap:2px!important}
- body.in-room.room-people-open #room .participant-strip #expand-call{display:none!important}
- body.in-room.room-people-open #room .call-audio-control{min-width:54px;flex-basis:54px}
- body.in-room.room-people-open #room .call-audio-control #call-volume{min-width:24px;max-width:36px}
- body.in-room.room-people-open #room .call-audio-control .room-speaker{min-width:24px!important;width:24px!important;padding:3px!important}
+ 
+ 
+ 
+ 
+ 
+ 
+ 
 }
 @media(max-width:700px) and (orientation:landscape){
- body.in-room.room-people-open:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]:not(.duo){position:relative!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;grid-template-rows:minmax(0,1fr)!important;grid-auto-rows:0!important;overflow:hidden!important}
- body.in-room.room-people-open:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]>.bubble-call-tile{position:absolute!important;left:auto!important;top:auto!important;bottom:4px!important;right:4px!important;width:40px!important;height:40px!important;min-height:40px!important;max-height:40px!important;border-radius:50%!important;z-index:5}
- body.in-room.room-people-open:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]>.bubble-call-tile:nth-child(4){right:48px!important}
- body.in-room.room-people-open:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]>.bubble-call-tile:nth-child(5){right:92px!important}
- body.in-room.room-people-open:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count]>.bubble-call-tile:nth-child(6){right:136px!important}
- body.in-room.room-people-open #room #participants .bubble-call-tile .person-label{display:none!important}
+ 
+ 
+ 
+ 
+ 
+ 
 }
 
 /* The chat surface exposes the existing live room lighting without a tinted sheet. */
@@ -171,55 +172,199 @@ body.in-room #room #messages{color:#fff;text-shadow:0 1px 3px #000}
  body.in-room #room #chat-form button[type=submit]{justify-self:end}
 }
 
-body.in-room:not(.watch-fullscreen):not(.focus-call):not(.vc-active) #room .participant-strip,body.in-room:not(.vc-active) #room #watch-stage .call-audio-control,body.in-room:not(.vc-active) #room .call-audio-control,body.in-room:not(.vc-active) #room .call-primary-controls{display:none!important}
-body.watch-fullscreen:not(.vc-active) #room .call-panel,body.watch-fullscreen:not([data-conversation="call"]) #room .call-panel,body.watch-fullscreen:not(.vc-active) #fullscreen-call-toggle{display:none!important}
+/* One room key beside settings, and call controls only during an active VC. */
+body.in-room:not(.watch-fullscreen):not(.focus-call) .mobile-room-header{grid-template-columns:36px 36px 66px minmax(48px,1fr) 36px 36px!important;padding-inline:6px!important;gap:0!important}
+body.in-room .mobile-room-header button{width:36px!important;min-width:36px!important;height:36px!important;min-height:36px!important;padding:7px!important}
+body.in-room .mobile-room-header #copy.room-key{display:flex!important;align-items:center;justify-content:center;width:66px!important;min-width:66px!important;height:28px!important;min-height:28px!important;padding:3px!important;font:600 10px/1.1 system-ui!important;letter-spacing:.3px;border:1px solid #ffffff24!important;border-radius:14px!important;background:#ffffff08!important;color:white!important}
+body.in-room .mobile-room-header #copy.room-key:before,body.in-room .mobile-room-header #copy.room-key:after{display:none!important}
+body.in-room .mobile-room-header #room-code{font:inherit!important}
+@media(max-width:380px){body.in-room .room-wordmark{width:86px;height:32px}}
+body.in-room:not(.watch-fullscreen):not(.focus-call):not(.vc-active) #room .participant-strip,
+body.in-room:not(.vc-active) #room #watch-stage .call-audio-control,
+body.in-room:not(.vc-active) #room .call-audio-control,
+body.in-room:not(.vc-active) #room .call-primary-controls{display:none!important}
+body.watch-fullscreen:not(.vc-active) #room .call-panel{display:none!important}
+body.watch-fullscreen.in-room #room .mobile-room-header{display:block!important;position:fixed!important;inset:max(8px,env(safe-area-inset-top)) auto auto 8px!important;width:38px!important;height:38px!important;margin:0!important;padding:0!important;background:transparent!important;border:0!important;z-index:122!important;opacity:1!important;pointer-events:auto!important}
+body.watch-fullscreen.in-room #room .mobile-room-header>:not(#room-home){display:none!important}
+body.watch-fullscreen.in-room #room #room-home,body.watch-fullscreen.in-room #room .fullscreen-bar button{display:grid!important;place-items:center;width:36px!important;min-width:36px!important;height:36px!important;min-height:36px!important;padding:8px!important;border:1px solid #ffffff26!important;border-radius:18px!important;background:#19132077!important;color:white!important;font-size:0!important;box-shadow:none!important;backdrop-filter:blur(12px)}
+body.watch-fullscreen.in-room #room .fullscreen-bar{left:auto!important;right:8px!important;top:max(8px,env(safe-area-inset-top))!important;gap:6px!important}
+body.watch-fullscreen.in-room #room .fullscreen-bar button[hidden]{display:none!important}
+body.watch-fullscreen.in-room #room .fullscreen-bar .icon-control:before{width:20px!important;height:20px!important}
+
+@media(orientation:landscape){
+ body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room .room-grid{grid-template-columns:minmax(0,4fr) minmax(0,1fr)!important;gap:6px!important}
+ body.in-room #room .conversation-tabs button{min-width:0!important;padding:3px 6px!important;flex:1;font-size:11px!important}
+ body.in-room #room .call-primary-controls{gap:4px!important;padding:3px!important;flex-wrap:wrap}
+ body.in-room #room .call-primary-controls button{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:6px!important}
+ body.in-room #room .participant-strip{padding:2px!important;gap:2px!important}
+ body.in-room #room .participant-strip button{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:6px!important}
+ body.in-room #room .participant-strip .call-seat-row{flex-wrap:wrap;justify-content:center;gap:2px!important;font-size:9px}
+}
+/* Mini profile follows the supplied mobile reference: large avatar, pill actions, and a plum-to-charcoal glass fade. */
+body.in-room dialog.room-mini-profile{width:min(360px,calc(100vw - 28px))!important;max-width:calc(100vw - 28px)!important;max-height:min(88dvh,760px)!important;box-sizing:border-box!important;overflow-x:hidden!important;overflow-y:auto!important;padding:24px 20px 20px!important;border:1px solid #ffffff36!important;border-radius:32px!important;background:linear-gradient(180deg,rgba(116,66,119,.96) 0%,rgba(87,57,91,.94) 48%,rgba(43,39,50,.93) 100%)!important;color:#fff!important;backdrop-filter:blur(18px) saturate(1.18)!important;box-shadow:0 24px 70px #0008!important;text-align:center!important}
+body.in-room dialog.room-mini-profile::backdrop{background:#0008!important;backdrop-filter:blur(3px)}
+body.in-room dialog.room-mini-profile .mini-avatar{width:clamp(132px,48vw,184px)!important;height:clamp(132px,48vw,184px)!important;min-height:0!important;margin:2px auto 18px!important;border-radius:30px!important;border:1px solid #ffffff35!important;box-shadow:0 14px 32px #170c1c66,0 0 46px #d98ee333!important}
+body.in-room dialog.room-mini-profile h2{margin:0!important;color:#fff!important;font-size:22px!important;font-weight:750!important;line-height:1.2!important}
+body.in-room dialog.room-mini-profile .mini-role{margin:7px 0 20px!important;color:#e4d3e4!important;font-size:14px!important;line-height:1.3!important}
+body.in-room dialog.room-mini-profile .mini-actions{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:9px!important;width:100%!important}
+body.in-room dialog.room-mini-profile .mini-actions button{display:flex!important;flex-flow:row nowrap!important;align-items:center!important;justify-content:center!important;gap:14px!important;width:100%!important;min-width:0!important;max-width:none!important;height:56px!important;min-height:56px!important;box-sizing:border-box!important;padding:0 20px!important;overflow:hidden!important;white-space:nowrap!important;overflow-wrap:normal!important;word-break:normal!important;border:1px solid #ffffff0c!important;border-radius:28px!important;background:rgba(34,29,40,.73)!important;color:#fff!important;font:700 16px/1 system-ui,sans-serif!important;text-align:left!important;box-shadow:0 5px 14px #100b1640!important}
+body.in-room dialog.room-mini-profile .mini-actions button:hover{background:rgba(29,25,36,.9)!important}
+body.in-room dialog.room-mini-profile .mini-actions .mini-action-icon{display:inline-flex!important;flex:0 0 22px!important;align-items:center!important;justify-content:center!important;width:22px!important;height:22px!important;min-width:22px!important;min-height:22px!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;color:#fff!important}
+body.in-room dialog.room-mini-profile .mini-actions .mini-action-icon::before{display:block!important;width:22px!important;height:22px!important;flex:none!important}
+body.in-room dialog.room-mini-profile .mini-close{top:10px!important;right:10px!important;width:34px!important;min-width:34px!important;height:34px!important;min-height:34px!important;border-radius:50%!important;background:#17131c77!important;color:#fff!important;font-size:22px!important;z-index:2}
+body.in-room dialog.room-mini-profile .mini-scope{margin:12px 4px 0!important;color:#e6dbe8!important}
+.official-wordmark{mix-blend-mode:screen}
+body.in-room dialog.room-exit-confirm{width:min(360px,calc(100vw - 32px))!important;max-width:calc(100vw - 32px)!important;box-sizing:border-box!important;padding:20px!important;border:1px solid #ffffff24!important;border-radius:24px!important;background:linear-gradient(160deg,#302139,#17131f)!important;color:#fff!important;box-shadow:0 20px 60px #0009!important}
+body.in-room dialog.room-exit-confirm::backdrop{background:#0009!important;backdrop-filter:blur(3px)}
+body.in-room dialog.room-exit-confirm .dialog-heading{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;margin:0 0 12px!important}
+body.in-room dialog.room-exit-confirm h2{margin:0!important;font-size:18px!important}
+body.in-room dialog.room-exit-confirm>p{margin:0 0 18px!important;color:#d8cedf!important;font-size:13px!important;line-height:1.5!important}
+body.in-room dialog.room-exit-confirm .room-exit-actions{display:flex!important;justify-content:flex-end!important;gap:8px!important}
+body.in-room dialog.room-exit-confirm .room-exit-actions button{min-height:42px!important;padding:8px 16px!important;border-radius:21px!important;white-space:nowrap!important}
+body.in-room dialog.room-exit-confirm .room-exit-actions .danger-button{background:#9b3043!important;color:#fff!important}
+body.in-room .room-key-dialog #leave{display:none!important}
 body dialog{max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 24px)!important;box-sizing:border-box!important;overflow:auto!important}
 body dialog button{max-width:100%;overflow-wrap:anywhere}
+body.in-room #room #fullscreen-call-shape{border:1px solid #ffffff26!important;border-radius:16px!important;width:30px!important;min-width:30px!important;height:30px!important;padding:6px!important;font-size:0!important}
 
-body.in-room:not(.watch-fullscreen):not(.focus-call):not(.vc-active) #room .participant-strip,body.in-room:not(.vc-active) #room #watch-stage .call-audio-control,body.in-room:not(.vc-active) #room .call-audio-control,body.in-room:not(.vc-active) #room .call-primary-controls{display:none!important}
-body.watch-fullscreen:not(.vc-active) #room .call-panel,body.watch-fullscreen:not([data-conversation="call"]) #room .call-panel,body.watch-fullscreen:not(.vc-active) #fullscreen-call-toggle{display:none!important}
-body dialog{max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 24px)!important;box-sizing:border-box!important;overflow:auto!important}
-body dialog button{max-width:100%;overflow-wrap:anywhere}
+/* Message direction belongs to sender identity; the room surface stays clear. */
+body.in-room #room #messages{display:flex!important;flex-direction:column!important;gap:8px!important}
+body.in-room #room #messages .message:not(.system){display:flex!important;flex-direction:column!important;flex:none!important;width:fit-content!important;max-width:90%!important;align-self:flex-start!important;text-align:left!important;align-items:flex-start!important;padding:5px 8px 5px 40px!important;margin:0!important;border-radius:14px!important;background:transparent!important}
+body.in-room #room #messages .message.mine:not(.system){align-self:flex-end!important;align-items:flex-end!important;text-align:right!important;padding:5px 10px!important;border:1px solid #ffffff16!important;background:#ffffff09!important}
+body.in-room #room #messages .message.mine .chat-member-avatar{display:none!important}
+body.in-room #room #messages .message>p{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
+body.in-room #room #messages .message small{max-width:100%;font-size:11px!important;line-height:1.4}
+body.in-room #room #messages .message .chat-member-name{padding:0!important;min-height:20px!important;background:transparent!important;border:0!important;font-size:11px!important;line-height:1.3}
+body.in-room #room #messages .presence-message{align-self:center!important;width:fit-content!important;max-width:95%!important;text-align:center!important;padding:4px 8px!important;min-height:0!important;flex:none;font-size:11px!important;color:#e3ddeb!important;background:#16122033!important;border-radius:12px!important}
+body.in-room:not(.browsing) #room #source-panel{display:none!important}
+body.in-room #room .room-wordmark{width:150px!important;height:44px!important}
+body.in-room #room .mobile-room-header{grid-template-columns:40px 40px 40px minmax(100px,1fr) 40px 40px!important;padding-inline:5px!important}
+body.in-room #room .mobile-room-header button:not(#copy){width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;padding:9px!important}
+body.in-room #room .mobile-room-header #copy.room-key{display:grid!important;place-items:center;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;padding:8px!important;gap:0!important;border:0!important;background:transparent!important}
+body.in-room #room .mobile-room-header #copy.room-key:before{content:''!important;display:block!important;width:24px!important;height:24px!important;flex:none;mask-image:var(--control-icon);mask-size:contain;mask-position:center;mask-repeat:no-repeat;background:currentColor}
+body.in-room #room .mobile-room-header #copy #room-code{font-size:9px!important;letter-spacing:0!important}
+@media(max-width:420px){body.in-room #room .room-wordmark{width:104px!important;height:36px!important}body.in-room #room .mobile-room-header{grid-template-columns:36px 36px 36px minmax(60px,1fr) 36px 36px!important}body.in-room #room .mobile-room-header button:not(#copy){width:36px!important;min-width:36px!important;height:40px!important;padding:8px!important}body.in-room #room .mobile-room-header #copy.room-key{width:36px!important;min-width:36px!important;padding:6px!important}}
 
-/* Refinements: a transparent room, high-contrast controls, maximum dual-call area. */
-body.native-media-active.in-room:not(.watch-fullscreen) #room .together-column,
-body.native-media-active.in-room:not(.watch-fullscreen) #room .chat-panel,
-body.native-media-active.in-room:not(.watch-fullscreen) #room #messages,
-body.native-media-active.in-room:not(.watch-fullscreen) #room #chat-form{background:transparent!important;background-image:none!important;backdrop-filter:none!important}
-body.in-room #room .conversation-tabs button{font-size:clamp(13px,3.5vw,15px)!important;font-weight:750!important;letter-spacing:-.015em}
-body.in-room #room #chat-form button{display:grid!important;place-items:center!important;flex:0 0 34px!important;min-width:34px!important;width:34px!important;height:38px!important;min-height:38px!important;padding:8px!important}
-body.in-room #room #chat-form button[type=submit]{background:#d7c6fc!important;color:#1b1726!important;border-radius:20px!important}
-body.in-room #room #chat-form button[type=submit]:before{background-color:currentColor!important}
-body.in-room #room #chat-mic{display:grid!important;place-items:center!important;flex:0 0 34px!important;width:34px!important;min-width:34px!important;color:#e6d5ff!important}
-body.in-room #room #chat-mic[aria-pressed=true]{color:#ecdaff!important;background:#604b795e!important;border-radius:19px!important}
-body.in-room.room-people-open #room #chat-form #chat-mic{display:grid!important}
-body.in-room #room #chat-form #message-input{font-size:16px!important;min-width:0!important}
-body.in-room #room .room-footer{padding-bottom:max(4px,env(safe-area-inset-bottom))!important}
-body.in-room #room .mobile-room-header button{touch-action:manipulation}
-body.in-room #room .mobile-room-header button:first-child{margin-inline-start:0!important}
-body.in-room:not(.watch-fullscreen):not(.focus-call) #room .call-panel{min-height:0!important;flex:1 1 0!important}
-body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo,
-body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants[data-count="2"].duo{
- width:100%!important;max-width:none!important;min-width:0!important;height:100%!important;flex:1 1 0!important;min-height:0!important;align-self:stretch!important
+/* The landscape player uses its whole column; the conversation column keeps its existing share. */
+@media(orientation:landscape){
+ body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room .watch-column{justify-content:stretch!important}
+ body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room #player-shell{display:flex!important;flex:1 1 0!important;flex-direction:column!important;width:100%!important;height:auto!important;min-height:0!important}
+ body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{flex:1 1 0!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:auto!important}
 }
-body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo>.participant:not(.call-pip-preview){width:100%!important;height:100%!important;max-width:none!important;max-height:none!important}
-body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo>.participant:not(.call-pip-preview) video{object-fit:cover!important}
-body.in-room:not(.watch-fullscreen):not(.focus-call)[data-conversation=call] #room .watch-column{max-height:20dvh!important}
-body.in-room:not(.watch-fullscreen):not(.focus-call)[data-conversation=call] #room #watch-stage{max-height:20dvh!important}
-@media(max-width:500px){
- body.in-room #room #chat-form{gap:2px!important;padding-inline:4px!important}
- body.in-room #room #chat-form button{flex-basis:32px!important;min-width:32px!important;width:32px!important}
- body.in-room #room #chat-form #chat-mic{flex-basis:32px!important;min-width:32px!important;width:32px!important}
- body.in-room #room .conversation-tabs button{flex:1!important;min-width:0!important}
-}
-body.in-room #room-settings-dialog,body.in-room .room-report{width:min(370px,calc(100vw - 32px))!important;max-width:calc(100vw - 32px)!important;padding:18px!important}
-body.in-room #room-settings-dialog :is(h2,h3,summary,strong),body.in-room .room-report :is(h2,h3,summary,strong){font-weight:800!important}
-body.in-room #room-settings-dialog button,body.in-room .room-report button{font-weight:700!important}
 
-/* Compact native-feeling long-press/message action sheet. */
-.xparty-message-actions{width:min(350px,calc(100vw - 36px))!important;max-width:calc(100vw - 36px)!important;padding:16px!important;border:1px solid #574764!important;border-radius:22px!important;background:#1b1526!important;color:#f9f5ff!important;box-shadow:0 22px 72px #000a!important;overflow:visible!important}
-.xparty-message-actions h2{font:800 21px/1.3 system-ui;margin:4px 6px 15px}
-.xparty-message-actions button{display:block!important;width:100%!important;margin:6px 0!important;min-height:48px!important;padding:12px 16px!important;text-align:left!important;font:700 15px/1.4 system-ui!important;border-radius:15px!important;border:1px solid #ffffff0c!important;background:#30283b!important;color:#fff!important}
-.xparty-message-actions button:last-child{background:transparent!important}
-.xparty-message-actions::backdrop{background:#090712aa!important;backdrop-filter:blur(5px)}
-body.in-room #room #messages .message-more{align-self:end;min-height:30px!important;height:30px!important;width:38px!important;min-width:38px!important;border:0!important;padding:0!important;background:transparent!important;color:#ddd0ec!important;font-weight:800!important;letter-spacing:2px;border-radius:16px!important;line-height:1!important}
+/* Keep only the key glyph in the room bar. Room code and access controls live in its panel. */
+body.in-room:not(.watch-fullscreen):not(.focus-call) .mobile-room-header{grid-template-columns:36px 36px 36px minmax(48px,1fr) 36px 36px!important}
+body.in-room .mobile-room-header #copy.room-key{display:grid!important;place-items:center;width:36px!important;min-width:36px!important;height:36px!important;min-height:36px!important;padding:7px!important;border:0!important;border-radius:18px!important;background:transparent!important}
+body.in-room .mobile-room-header #copy.room-key:before{display:block!important;width:22px!important;height:22px!important;mask-image:var(--control-icon)!important;mask-size:contain!important;mask-position:center!important;mask-repeat:no-repeat!important;background:currentColor!important}
+body.in-room .mobile-room-header #copy #room-code{display:none!important}
+body.in-room .room-key-dialog{box-sizing:border-box;width:min(300px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:min(82dvh,680px)!important;margin:auto!important;padding:16px!important;border:1px solid #ffffff20!important;border-radius:24px!important;background:#1e1528f5!important;color:white!important;overflow:auto!important;box-shadow:0 18px 56px #0008!important}
+body.in-room .room-key-dialog::backdrop{background:#0009!important;backdrop-filter:blur(3px)}
+body.in-room .room-key-dialog .room-key-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:5px 6px;margin:12px 0;padding:10px;border:1px solid #ffffff16;border-radius:16px;background:#ffffff08}
+body.in-room .room-key-dialog .room-key-card small{grid-column:1/-1;color:#b9a9c6;font-size:10px;letter-spacing:.12em}
+body.in-room .room-key-dialog .room-key-card #room-code{grid-column:1;min-width:0;font-size:clamp(18px,5vw,21px);letter-spacing:.08em;color:#c9f16a;font-variant-numeric:tabular-nums}
+body.in-room .room-key-dialog .room-key-card button{grid-column:2;grid-row:2;min-height:36px!important;padding:7px 12px!important}
+body.in-room .room-key-dialog .room-key-status{margin:0 0 12px;color:#ded6e7;font-size:12px;line-height:1.5}
+body.in-room .room-key-dialog>button.secondary{width:100%;margin:0 0 10px}
+body.in-room .room-key-dialog #room-menu{display:block!important;position:static!important;width:100%!important;min-width:0!important}
+body.in-room .room-key-dialog #control-key{display:block!important;width:100%!important;min-width:0!important;padding:10px 0!important;border:0!important;background:transparent!important;color:#ded6e7!important}
+body.in-room .room-key-dialog .room-menu-content{position:static!important;inset:auto!important;width:100%!important;min-width:0!important;max-height:none!important;overflow:visible!important;padding:8px 0 0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+@media(orientation:landscape){
+ body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room .room-grid{grid-template-columns:minmax(0,4fr) minmax(180px,1fr)!important}
+ body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room .watch-column,body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room #player-shell{min-width:0!important;min-height:0!important}
+ body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{position:relative!important;overflow:hidden!important}
+ body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room #youtube-wrap,body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room #youtube-player,body.in-room.room-has-source:not(.watch-fullscreen):not(.focus-call) #room #youtube-wrap iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important}
+}
+@media(max-width:420px){body.in-room:not(.watch-fullscreen):not(.focus-call) .mobile-room-header{grid-template-columns:32px 32px 32px minmax(60px,1fr) 36px 36px!important}body.in-room .mobile-room-header #copy.room-key{width:32px!important;min-width:32px!important}}
+
+/* Keep the two main calls usable when the participant rail narrows the column. */
+@media(orientation:landscape) and (max-width:1440px){
+ 
+ 
+}
+
+/* Xparty original-layout patch: never paint a translucent sheet over chat. */
+body.in-room #room .chat-panel,body.in-room #room #messages,body.in-room #room #chat-form,body.native-media-active.in-room #room .together-column{background:transparent!important;background-image:none!important;backdrop-filter:none!important}
+/* Remove fixed 3:4 call width limitation on portrait phones. */
+@media(max-width:900px) and (orientation:portrait){
+ body.in-room:not(.watch-fullscreen):not(.focus-call)[data-conversation=call] #room .watch-column{max-height:20dvh!important}
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo{width:100%!important;max-width:none!important;height:100%!important;min-width:0!important;flex:1 1 0!important;align-self:stretch!important}
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo>.participant:not(.call-pip-preview){height:100%!important;width:100%!important;max-width:none!important}
+ body.in-room:not(.watch-fullscreen):not(.focus-call) #room #participants.duo>.participant:not(.call-pip-preview) video{object-fit:cover!important}
+}
+body.in-room #room #chat-form #chat-mic{display:grid!important;place-items:center!important;flex:0 0 34px!important;min-width:34px!important;width:34px!important;height:34px!important;padding:7px!important;background:transparent!important;color:#ece2ff!important}
+body.in-room #room #chat-form #chat-mic[aria-pressed=true]{background:#5a45778c!important;border-radius:50%!important;color:white!important}
+
+body.in-room .room-key-dialog{width:min(370px,calc(100vw - 32px))!important;max-height:76dvh!important;padding:16px!important}
+body.in-room .room-key-dialog :is(h2,h3,strong,button){font-weight:750!important}
+body.in-room #room .conversation-tabs button{font-weight:750!important;font-size:14px!important}
+
+/* 1.0.6 narrow fixes: controls only. Preserve all native immersive backgrounds. */
+body.in-room :is(.mobile-room-header,.mobile-room-header *,
+ .conversation-tabs,.conversation-tabs button,.participant-strip button,
+ .room-actions button,#panel-call,#panel-chat,#panel-both,#focus-call,
+ .room-footer,#choose-room-video){
+ -webkit-user-select:none!important;user-select:none!important;
+ -webkit-touch-callout:none!important;touch-action:manipulation;
+}
+/* Never block copying actual messages or typing. */
+body.in-room :is(#messages .message-body,#message-input,textarea){
+ -webkit-user-select:text!important;user-select:text!important;
+ -webkit-touch-callout:default!important;
+}
+/* Six grid columns: five equal touch targets + flexible centered wordmark.
+   This only alters control hitboxes; it does not resize the video. */
+@media (max-width:600px) and (orientation:portrait){
+ body.in-room:not(.watch-fullscreen):not(.focus-call) .mobile-room-header{
+  grid-template-columns:42px 42px 42px minmax(0,1fr) 42px 42px!important;
+  padding-inline:4px!important;min-height:52px!important;
+ }
+ body.in-room .mobile-room-header button:not(.hidden),
+ body.in-room .mobile-room-header #copy.room-key{
+  width:42px!important;min-width:42px!important;height:42px!important;
+  min-height:42px!important;padding:8px!important;
+ }
+ body.in-room .mobile-room-header .icon-control:before{width:23px!important;height:23px!important}
+ body.in-room #room #watch-stage{flex-shrink:0!important}
+ body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{
+  height:var(--ime-watch-height)!important;
+  width:var(--ime-watch-width,100%)!important;
+  min-height:var(--ime-watch-height)!important;
+  max-height:var(--ime-watch-height)!important;
+  aspect-ratio:auto!important;
+ }
+ body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room .watch-column{
+  flex-shrink:0!important;
+ }
+}
+body.in-room #messages .read-receipt[data-state=read]{letter-spacing:normal!important}
+body.in-room #messages .read-receipt[data-state=read] svg{display:inline-block;vertical-align:middle;overflow:visible}
+
+/* Xparty 1.0.7: slightly larger navigation, larger tactile chat icons.
+   These rules never alter the native video size/quality. */
+@media(max-width:900px){
+ body.in-room:not(.watch-fullscreen) .mobile-room-header{height:56px!important;min-height:56px!important;grid-template-columns:48px 48px minmax(0,1fr) 48px 48px!important;padding:0 5px!important}
+ body.in-room .mobile-room-header button{width:48px!important;min-width:48px!important;height:48px!important;min-height:48px!important;padding:10px!important;touch-action:manipulation!important}
+ body.in-room .mobile-room-header .icon-control:before{width:25px!important;height:25px!important}
+ body.in-room .mobile-room-header .room-wordmark{width:122px!important;height:auto!important}
+ body.in-room #room #chat-form{gap:3px!important;min-height:56px!important;height:56px!important;align-items:center!important}
+ body.in-room #room #chat-form button{width:40px!important;min-width:40px!important;flex:0 0 40px!important;height:42px!important;min-height:42px!important;padding:8px!important;touch-action:manipulation!important}
+ body.in-room #room #chat-form .icon-control:before{height:23px!important;width:23px!important}
+ body.in-room #room #chat-form #attach-chat{font:700 28px/1 system-ui!important}
+ body.in-room #room #chat-form #chat-mic{display:grid!important;place-items:center!important;width:40px!important;min-width:40px!important}
+ body.in-room #room #message-input{font-size:16px!important;min-width:0!important;flex:1 1 0!important}
+}
+#chat-attachment-menu[hidden],#chat-camera-sheet:not([open]){display:none!important}
+#chat-attachment-menu{position:absolute;left:8px;bottom:calc(100% + 8px);z-index:100;min-width:190px;max-width:calc(100vw - 24px);display:grid;gap:6px;background:#201a2b;border:1px solid #ffffff25;padding:9px;border-radius:18px;box-shadow:0 12px 48px #0008;backdrop-filter:blur(16px)}
+body.in-room #room #chat-attachment-menu button{display:flex!important;align-items:center!important;justify-content:flex-start!important;width:100%!important;min-width:160px!important;min-height:44px!important;padding:10px 14px!important;color:#fff!important;background:#362b49!important;border:1px solid #ffffff13!important;border-radius:13px!important;font:700 14px/1.2 system-ui!important}
+#chat-camera-sheet{width:min(470px,calc(100vw - 24px));max-height:80dvh!important;box-sizing:border-box;background:#17121f;color:white;border-radius:22px;border:1px solid #ffffff33;padding:18px}
+#chat-camera-sheet h2{font:800 20px system-ui;margin:0 0 12px}
+#chat-camera-sheet video{display:block;width:100%;height:auto;max-height:43dvh;aspect-ratio:3/4;object-fit:cover;border-radius:15px;background:#07070a}
+#chat-camera-sheet .chat-camera-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+#chat-camera-sheet button{min-height:44px!important;font:700 13px system-ui;border-radius:14px;background:#322741;color:white;border:1px solid #ffffff30;padding:8px}
+#chat-camera-sheet button:nth-child(2){background:#d5c2ff;color:#1c1327}
+#chat-camera-sheet::backdrop{background:#08040e99}
+/* Chat/keyboard resize: only the conversation region compresses. Native tile stays full-width. */
+body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room .watch-column{flex:0 0 auto!important;transform:none!important}
+body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room #player-shell,
+body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{transform:none!important;transition:none!important;contain:layout!important}
+body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room .together-column{min-height:0!important;overflow:hidden!important}

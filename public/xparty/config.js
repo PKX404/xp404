@@ -1,3 +1,3 @@
-// XParty v31.5 site and Android clients share the live HTTPS room backend.
-// Keep this endpoint in sync with the Android package and Render's xp404 service.
+// Android v31.5: packaged interface must use the deployed HTTPS backend.
+// A blank URL falls back to file:// in Android WebView and cannot open /ws.
 window.XPARTY_CONFIG = { backendUrl: 'https://xp404.onrender.com' };
