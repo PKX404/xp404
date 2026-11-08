@@ -1,3 +1,4 @@
+import {paintRoomAvatar} from './room-identity.js';
 // Room presentation uses the existing transport and action controls.
 // Layout reference: Xparty's participant list and chat composer; independently implemented.
 const instances = new WeakMap();
@@ -128,18 +129,11 @@ export function initRoomDesign({getContext}) {
       if (!person) continue;
       row.dataset.searchName = String(person.name || '').toLocaleLowerCase();
       row.dataset.online = String(!!person.online);
-      if (row.querySelector('.room-member-identity')) continue;
-      const identity = action('', 'room-member-identity', () => openProfile(person.id));
-      identity.setAttribute('aria-label', 'View ' + person.name + ' profile');
-      const text = node('span', 'room-member-text');
-      text.append(node('strong', 'room-member-name', person.name + (person.id === me ? ' · You' : '')));
-      const state = [person.id === room.hostId ? 'Host' : 'Guest', !person.online ? 'Reconnecting' : person.inCall ? (person.mic ? 'Mic on' : 'In the call') : 'Watching'];
-      text.append(node('span', 'room-member-state', state.join(' · ')));
-      identity.append(avatar(person), text);
-      // renderMembers reconstructs these rows; only this row's redundant name is hidden.
-      const originalLabel = row.firstElementChild;
-      if (originalLabel?.tagName === 'SPAN') originalLabel.hidden = true;
-      row.prepend(identity);
+      row.dataset.personId=person.id;
+      let identity=row.querySelector('.room-member-identity');
+      if(!identity){identity=action('','room-member-identity',()=>openProfile(person.id));const portrait=node('span','room-member-avatar'),text=node('span','room-member-text');text.append(node('strong','room-member-name'),node('span','room-member-state'));identity.append(portrait,text);const originalLabel=row.firstElementChild;if(originalLabel?.tagName==='SPAN')originalLabel.hidden=true;row.prepend(identity);}
+      identity.setAttribute('aria-label','View '+person.name+' profile');identity.querySelector('.room-member-name').textContent=person.name+(person.id===me?' · You':'');identity.querySelector('.room-member-state').textContent=[person.id===room.hostId?'Host':'Guest',!person.online?'Reconnecting':person.inCall?(person.mic?'Mic on':'In the call'):'Watching'].join(' · ');
+      paintRoomAvatar(identity.querySelector('.room-member-avatar'),person,{hostId:room.hostId,...(person.id===me?{mic:getContext().micEnabled}:{})});
     }
     filterMembers();
     for (const tile of $('participants')?.children || []) {
@@ -161,11 +155,12 @@ export function initRoomDesign({getContext}) {
     const open = !!drawer?.open;
     people.setAttribute('aria-expanded', String(open));
     document.body.classList.toggle('room-people-open', open);
+    window.dispatchEvent(new Event('xparty:room-layout'));
     if (open) {
       previousFocus = document.activeElement;
       update();
-      // The search retains focus, keeping the existing inactivity timer from closing the panel mid-task.
-      search.focus({preventScroll:true});
+      // Opening a panel must not summon the mobile keyboard.
+      $('close-participants')?.focus({preventScroll:true});
     } else if (previousFocus && drawer?.contains(document.activeElement)) {
       if (previousFocus.isConnected) previousFocus.focus({preventScroll:true});
       previousFocus = null;

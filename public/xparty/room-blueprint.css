@@ -102,3 +102,4 @@ body.watch-fullscreen .mobile-room-header{display:none!important}body.watch-full
  body.in-room #room .watch-column:has(.end-suggestions:not([hidden])) :is(.player-bar,#controls-toggle,.video-volume-overlay){visibility:hidden!important;pointer-events:none!important}
 }
 .end-suggestions{background:#100c18fa}
+

@@ -1,0 +1,147 @@
+/* A balanced seven-column header reserves equal space on either side of the logo. */
+@media (min-width: 0px) {
+  body.in-room:not(.watch-fullscreen):not(.focus-call) #room .mobile-room-header {
+    --head-target: clamp(36px, 11vw, 44px);
+    position: relative;
+    display: grid !important;
+    grid-template-columns: repeat(3, var(--head-target)) minmax(0, 1fr) repeat(3, var(--head-target)) !important;
+    justify-content: stretch !important;
+    align-items: center !important;
+    gap: 0 !important;
+    padding: 0 4px !important;
+    height: 56px !important;
+    min-height: 56px !important;
+  }
+  body.in-room #room .mobile-room-header > :nth-child(1) { grid-column: 1 !important; }
+  body.in-room #room .mobile-room-header > :nth-child(2) { grid-column: 2 !important; }
+  body.in-room #room .mobile-room-header > :nth-child(3) { grid-column: 3 !important; }
+  body.in-room #room .mobile-room-header > .mobile-room-brand {
+    grid-column: 4 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    position: static !important;
+    transform: none !important;
+  }
+  body.in-room #room .mobile-room-header > :nth-child(5) { grid-column: 6 !important; }
+  body.in-room #room .mobile-room-header > :nth-child(6) { grid-column: 7 !important; }
+  body.in-room #room .mobile-room-header > button:not(#copy),
+  body.in-room #room .mobile-room-header > #copy.room-key {
+    display: grid !important;
+    place-items: center !important;
+    width: var(--head-target) !important;
+    min-width: var(--head-target) !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 8px !important;
+    box-sizing: border-box !important;
+  }
+  body.in-room #room .mobile-room-header .icon-control:before,
+  body.in-room #room .mobile-room-header #copy.room-key:before {
+    width: 26px !important;
+    height: 26px !important;
+  }
+  body.in-room #room .mobile-room-header .room-wordmark {
+    display: block;
+    width: min(134px, 100%) !important;
+    max-width: 100% !important;
+    height: 40px !important;
+    object-fit: contain !important;
+  }
+}
+
+/* The composer is one row. Attachments open as four small icon-only actions. */
+body.in-room #room #chat-form {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 2px !important;
+  padding-inline: 6px !important;
+}
+body.in-room #room #chat-form > button {
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 7px !important;
+}
+body.in-room #room #chat-form > .icon-control:before {
+  width: 25px !important;
+  height: 25px !important;
+}
+body.in-room #room #chat-form #chat-mic {
+  order: 0 !important;
+  color: #f5efff !important;
+}
+body.in-room #room #chat-form #message-input {
+  order: 0 !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  width: 0 !important;
+}
+body.in-room #room #chat-form > button[type=submit] {
+  background: #e8dfff !important;
+  color: #2b1b39 !important;
+  border: 1px solid #f6f0ff !important;
+  border-radius: 50% !important;
+  box-shadow: 0 2px 10px #10081940 !important;
+}
+body.in-room #room #chat-form #chat-attachment-menu[hidden] { display: none !important; }
+body.in-room #room #chat-form #chat-attachment-menu {
+  position: absolute !important;
+  left: 5px !important;
+  bottom: calc(100% + 4px) !important;
+  z-index: 100 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 2px !important;
+  width: 42px !important;
+  min-width: 42px !important;
+  max-width: 42px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+body.in-room #room #chat-form #chat-attachment-menu > button {
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 42px !important;
+  width: 42px !important;
+  min-width: 42px !important;
+  max-width: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 7px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+body.in-room #room #chat-form #chat-attachment-menu > button:before {
+  display: block !important;
+  width: 25px !important;
+  height: 25px !important;
+  filter: drop-shadow(0 1px 2px #000a);
+}
+body.in-room #room #chat-form #chat-attachment-menu > button:focus-visible {
+  outline: 2px solid #e8dfff !important;
+  outline-offset: -2px !important;
+}
+@media (max-width: 340px) {
+  body.in-room #room #chat-form > button {
+    flex-basis: 36px !important;
+    width: 36px !important;
+    min-width: 36px !important;
+  }
+}
