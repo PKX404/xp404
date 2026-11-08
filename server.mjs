@@ -45,6 +45,9 @@ export function createXparty(options={}) {
  const allowed=new Set((process.env.ALLOWED_ORIGINS||'https://pkx404.github.io,http://localhost:8787,http://127.0.0.1:8787').split(',').map(x=>x.trim()));
  if(process.env.RENDER_EXTERNAL_URL)allowed.add(process.env.RENDER_EXTERNAL_URL);
  const originOK=req=>allowed.has(req.headers.origin);
+ // Android file:// pages have an opaque "null" Origin; opt in only for the mobile API and WS.
+ // This is not an Android identity check: protected actions still require room credentials.
+ const androidFileOriginOK=req=>process.env.ALLOW_ANDROID_FILE_ORIGIN==='1'&&req.headers.origin==='null';
  function persist(){if(!statePath)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{const data=[...rooms.values()].map(r=>({...r,people:[...r.people.values()].map(({ws,...p})=>({...p,ready:false,mic:false,camera:false})),source:r.source?.type==='file'?null:r.source,playback:{...r.playback,playing:false}}));writeFileSync(statePath+'.tmp',JSON.stringify(data),{mode:0o600});renameSync(statePath+'.tmp',statePath);}catch(e){console.error('Room checkpoint failed:',e.code);}},150);}
  if(statePath)try{for(const r of JSON.parse(readFileSync(statePath,'utf8'))){r.capacity=validRoomCapacity(r.capacity)?r.capacity:2;r.people=new Map(r.people.map(p=>{p.ws=null;clients.set(p.token,p);return[p.id,p];}));rooms.set(r.code,r);}}catch{}
  function rate(key,limit,ms){const now=Date.now();let b=buckets.get(key);if(!b||b.until<now){b={count:0,until:now+ms};buckets.set(key,b);}return ++b.count<=limit;}
@@ -82,10 +85,13 @@ export function createXparty(options={}) {
  function endRoom(r,message){for(const p of r.people.values()){clients.delete(p.token);send(p.ws,{type:'ended',message});if(p.ws){p.ws.person=null;p.ws.close(1000,'Ended');}}if(r.source?.type==='file')dropFile(r.source.id);attachments.clearRoom(r.code);rooms.delete(r.code);persist();}
  const owner=createOwnerControl({rooms,online,originOK,rate,send,state,remove,endRoom});
  const server=http.createServer(async(req,res)=>{owner.countRequest();
-  const url=new URL(req.url,'http://localhost');if(originOK(req)){res.setHeader('Access-Control-Allow-Origin',req.headers.origin);res.setHeader('Vary','Origin');}
+  const url=new URL(req.url,'http://localhost');
+  const androidAPI=url.pathname==='/health'||url.pathname.startsWith('/api/');
+  const corsOK=originOK(req)||(androidAPI&&androidFileOriginOK(req));
+  if(corsOK){res.setHeader('Access-Control-Allow-Origin',req.headers.origin);res.setHeader('Vary','Origin');}
   res.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type, X-File-Offset, X-Attachment-Name, X-Attachment-To');res.setHeader('Access-Control-Allow-Methods','GET, PUT, POST, OPTIONS');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
   const json=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(body));};
-  if(req.method==='OPTIONS'){res.writeHead(originOK(req)?204:403);return res.end();}
+  if(req.method==='OPTIONS'){res.writeHead(corsOK?204:403);return res.end();}
   if(await owner.handle(req,res,url,json,ip(req)))return;
   if(await handleCompanionDownload(req,res,url))return;
   if(url.pathname==='/health')return json(200,{ok:true,service:'Xparty',version:'0.10.0'});
@@ -94,19 +100,19 @@ export function createXparty(options={}) {
   if(url.pathname==='/api/accounts/me'){
    res.setHeader('Cache-Control','no-store');res.setHeader('Vary',req.headers.origin?'Origin, Authorization':'Authorization');
    if(req.method!=='GET')return json(405,{error:'Method not allowed'});
-   if(req.headers.origin&&!originOK(req))return json(403,{error:'Origin not allowed'});
+   if(req.headers.origin&&!corsOK)return json(403,{error:'Origin not allowed'});
    if(!rate('account-auth:'+ip(req),60,60000))return json(429,{error:'Please wait before retrying sign-in.'});
    const identity=await accountAuth.verify(req.headers.authorization);
    return json(identity.status,identity.user?{user:identity.user}:{error:identity.error});
   }
   if(url.pathname==='/api/room-status'&&req.method==='GET'){
-   if(req.headers.origin&&!originOK(req))return json(403,{error:'Origin not allowed'});
+   if(req.headers.origin&&!corsOK)return json(403,{error:'Origin not allowed'});
    if(!rate('lookup:'+ip(req),30,60000))return json(429,{status:'limited'});
    const c=normalizeRoomCode(url.searchParams.get('code'));if(!validRoomCode(c))return json(400,{status:'invalid',error:'Enter the 7-character room code using letters and numbers 2–9.'});
    const r=rooms.get(c);return json(200,{status:!r?'unavailable':r.locked?'locked':roomIsFull(r.capacity,occupied(r))?'full':'available'});
   }
   if(url.pathname.startsWith('/api/')){
-   if(req.headers.origin&&!originOK(req))return json(403,{error:'Origin not allowed'});const p=authenticate(req);if(!p)return json(401,{error:'Your room connection is offline. Reconnect and retry.'});const r=rooms.get(p.code);
+   if(req.headers.origin&&!corsOK)return json(403,{error:'Origin not allowed'});const p=authenticate(req);if(!p)return json(401,{error:'Your room connection is offline. Reconnect and retry.'});const r=rooms.get(p.code);
    if(url.pathname==='/api/attachment'&&req.method==='POST'&&!rate('attachment:'+p.id,6,60000))return json(429,{error:'Please wait before uploading another attachment.'});
    if(url.pathname.startsWith('/api/attachment/')&&req.method==='GET'&&!rate('attachment-download:'+p.id,60,60000))return json(429,{error:'Please wait before downloading again.'});
    if(await attachments.handle(req,res,url,p,r,json))return;
@@ -237,7 +243,7 @@ export function createXparty(options={}) {
 
  }
  const wss=new WebSocketServer({noServer:true,maxPayload:64*1024,perMessageDeflate:false});
- server.on('upgrade',(req,socket,head)=>{if(req.url!=='/ws'||!originOK(req)||!rate('connect:'+ip(req),60,60000)||wss.clients.size>=500){socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');return socket.destroy();}wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));});
+ server.on('upgrade',(req,socket,head)=>{if(req.url!=='/ws'||!(originOK(req)||androidFileOriginOK(req))||!rate('connect:'+ip(req),60,60000)||wss.clients.size>=500){socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');return socket.destroy();}wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));});
  wss.on('connection',(ws,req)=>{
   ws.alive=true;ws.on('pong',()=>ws.alive=true);ws.on('error',()=>{});const timeout=setTimeout(()=>{if(!ws.person)ws.close(1008,'Join timeout');},20000);
   ws.on('message',raw=>{owner.observeMessage(raw.length);try{
