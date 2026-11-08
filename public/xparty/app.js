@@ -73,7 +73,7 @@ function status(text) {const el=$('sync-status');el.setAttribute('data-localize-
 function notice(text) {$('connection-notice').textContent=text||'Connected. Share the room code privately.';}
 function send(type, fields={}) {if(['playback','source','next','previous','party-mode'].includes(type))fields.eventId??=crypto.randomUUID();if(type==='playback'&&!fields.intent)fields.intent=Math.abs((fields.position||0)-currentTime())>1?'seek':fields.playing?'play':'pause';if(preview) {toast('This is a design preview. Create a room to connect.');return false;}if(socket?.readyState!==WebSocket.OPEN){toast('Room connection is offline. Reconnecting…');return false;}socket.send(JSON.stringify({type,...fields}));return true;}
 function ping(){if(socket?.readyState!==WebSocket.OPEN)return;const sent=Date.now();pingProbes.set(sent,performance.now());while(pingProbes.size>10)pingProbes.delete(pingProbes.keys().next().value);socket.send(JSON.stringify({type:'ping',sent}));}
-let serviceWarmup, preparingConnection=false;
+let serviceWarmup, preparingConnection=false, initialRoomRetryTimer=null;
 const serviceStatus=document.createElement('p');serviceStatus.className='small';serviceStatus.setAttribute('role','status');serviceStatus.hidden=true;$('create').parentElement.append(serviceStatus);
 function warmService(){
  if(serviceWarmup)return serviceWarmup;
@@ -81,7 +81,8 @@ function warmService(){
 }
 // One bounded warm-up per visit; no idle keep-alive traffic.
 if(base!==location.origin)warmService().catch(()=>{});
-async function connect(action) {
+async function connect(action,attempt=0) {
+ clearTimeout(initialRoomRetryTimer);
  if(preparingConnection||switching)return;
  if(!room&&action.type!=='resume'){preparingConnection=true;$('create').disabled=true;$('join-button').disabled=true;serviceStatus.hidden=false;serviceStatus.textContent=t('Connecting to the party server… First connection may take about a minute.');
  try{await warmService();}catch(error){toast(error.message);return;}finally{preparingConnection=false;serviceStatus.hidden=true;$('create').disabled=false;$('join-button').disabled=false;}}
@@ -96,19 +97,35 @@ async function connect(action) {
   const ws=new WebSocket(url);let welcomed=false;connectionStatus(action.type==='resume'?'reconnecting':'connecting');if(!switchingRoom)socket=ws;
   const handshakeTimer=setTimeout(()=>{if(!welcomed&&ws.readyState<2){ws.close(4001,'Room handshake timeout');if(!token)toast('The room service did not respond. Try again.');}},15000);connectTimer=handshakeTimer;
   ws.onopen=()=>{if(ws!==socket&&!switchingRoom){ws.close();return;}heartbeat.heard();bestRTT=Infinity;pingProbes.clear();pingWindow.length=0;lastPingAt=0;pingIndicator.textContent='Ping —';ws.send(JSON.stringify(action));if(ws===socket)ping();};
-  ws.onmessage=e=>{if(ws!==socket&&!switchingRoom)return;if(ws===socket){heartbeat.heard();if(welcomed&&connectionState==='checking')connectionStatus('connected');}try{const message=JSON.parse(e.data);if(message.type==='welcome'){welcomed=true;clearTimeout(handshakeTimer);reconnectAttempts=0;connectionStatus('connected');}
+  ws.onmessage=e=>{if(ws!==socket&&!switchingRoom)return;if(ws===socket){heartbeat.heard();if(welcomed&&connectionState==='checking')connectionStatus('connected');}try{const message=JSON.parse(e.data);if(message.type==='welcome'){welcomed=true;clearTimeout(handshakeTimer);clearTimeout(initialRoomRetryTimer);serviceStatus.hidden=true;reconnectAttempts=0;connectionStatus('connected');}
     if(switchingRoom&&ws!==socket){
       if(message.type==='welcome'){socket=oldSocket;leave(true);socket=ws;intentionalClose=false;switching=false;}
       else if(message.type==='error'||message.type==='resume-failed'){switching=false;clearTimeout(connectTimer);ws.close();toast(message.message||'Unable to join this room.');$('create').disabled=false;$('join-button').disabled=false;return;}
       else return;
     }
     handle(message);}catch(error){console.error('Room event failed',error);toast('An action failed. Please retry.');}};
-  ws.onerror=()=>{if(!room){$('setup-notice').hidden=false;toast('Unable to reach the room service. The portal needs a live backend.');}};
+  ws.onerror=()=>{
+    // A WebSocket error is also emitted on temporary wake-up and network interruption.
+    // Do not claim the backend is missing until retries have actually failed.
+    if(ws!==socket||room)return;
+    connectionStatus(navigator.onLine?'checking':'offline');
+    serviceStatus.hidden=false;
+    serviceStatus.textContent=navigator.onLine?'Room connection interrupted. Checking server and retrying…':'Device offline. Check your connection.';
+  };
   ws.onclose=e=>{
     clearTimeout(handshakeTimer);if(ws!==socket){if(switchingRoom)switching=false;return;}$('create').disabled=false;$('join-form').querySelector('button').disabled=false;
     if(e.code===4000){const saved=readSession();leave(false);if(saved)try{localStorage.setItem(SESSION,JSON.stringify(saved));}catch{}toast("This session was opened in another connection.");return;}
-    if(!intentionalClose && !suspended && token){scheduleReconnect();}
-    else if(!intentionalClose&&!suspended){$('setup-notice').hidden=false;}
+    if(!intentionalClose && !suspended && token){serviceStatus.hidden=true;scheduleReconnect();}
+    else if(!intentionalClose&&!suspended&&!welcomed&&['create','join'].includes(action.type)&&attempt<3&&navigator.onLine){
+      connectionStatus('reconnecting');
+      serviceStatus.hidden=false;
+      serviceStatus.textContent='Reconnecting to room service ('+(attempt+2)+'/4)…';
+      initialRoomRetryTimer=setTimeout(()=>connect(action,attempt+1),retryDelay(attempt));
+    }else if(!intentionalClose&&!suspended){
+      serviceStatus.hidden=true;
+      $('setup-notice').hidden=false;
+      toast(navigator.onLine?'Room connection failed after retries. Please try again.':'Your device is offline. Reconnect to the internet and try again.');
+    }
   };
 }
 function handle(m) {
