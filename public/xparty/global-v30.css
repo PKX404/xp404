@@ -1,0 +1,62 @@
+/* XParty Global v30: targeted repair of v25 video controls. No clone player, no second fullscreen, no ping readouts. */
+body.in-room #room #player-shell.xparty-global-player{position:relative!important;isolation:isolate!important;overflow:hidden!important}
+body.in-room:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{width:100%!important;height:auto!important;aspect-ratio:16/9!important;max-height:calc(100dvh - 120px)!important;min-height:0!important;object-fit:contain!important;margin:0!important}
+body.in-room #room #player-shell :is(#file-player,#device-local-player,#youtube-wrap,#vimeo-wrap){object-fit:contain!important}
+/* Top controls: one small fullscreen icon on the left and a compact status label beside it. */
+body.in-room #room #player-shell .xparty-player-topline{position:absolute!important;inset:7px auto auto 8px!important;right:auto!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:7px!important;z-index:230!important;min-height:0!important;max-width:calc(100% - 16px)!important;pointer-events:none!important;background:none!important}
+body.in-room #room #player-shell #fullscreen-video.xparty-top-fullscreen{position:relative!important;inset:auto!important;order:0!important;display:grid!important;place-items:center!important;flex:0 0 32px!important;width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;max-width:32px!important;padding:6px!important;background:rgba(10,9,15,.48)!important;border:0!important;border-radius:6px!important;box-shadow:none!important;outline:0!important;color:#fff!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}
+body.in-room #room #player-shell #fullscreen-video.xparty-top-fullscreen :is(svg, .icon){width:18px!important;height:18px!important}
+body.in-room #room #player-shell #controls-toggle.xparty-top-playing{position:relative!important;inset:auto!important;order:1!important;display:flex!important;align-items:center!important;width:auto!important;max-width:min(65vw,240px)!important;height:28px!important;min-height:28px!important;padding:3px 9px!important;border:0!important;border-radius:7px!important;background:rgba(12,10,20,.48)!important;box-shadow:none!important;outline:0!important;opacity:1!important;visibility:visible!important;pointer-events:none!important;overflow:hidden!important}
+body.in-room #room #player-shell #controls-toggle.xparty-top-playing #sync-status{font:600 11px/1.25 system-ui!important;white-space:nowrap!important;text-overflow:ellipsis!important;overflow:hidden!important;max-width:100%!important}
+/* Bottom overlay fits WITHIN the video; it must never add height above the chat. */
+body.in-room #room #player-shell .player-bar.playback-refined{position:absolute!important;inset:auto 0 0!important;display:flex!important;flex-direction:column!important;gap:3px!important;align-items:stretch!important;justify-content:flex-end!important;box-sizing:border-box!important;min-height:0!important;max-height:65px!important;height:auto!important;width:100%!important;padding:3px 7px 5px!important;margin:0!important;background:linear-gradient(0deg,rgba(7,6,13,.83),rgba(7,6,13,.22))!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important;z-index:160!important;transform:none!important}
+body.in-room #room #player-shell .player-bar.playback-refined>#seek{order:0!important;display:block!important;position:static!important;width:100%!important;height:4px!important;min-height:4px!important;max-height:4px!important;flex:0 0 4px!important;min-width:0!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important;touch-action:pan-x!important;accent-color:#f1deff!important}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row{order:1!important;display:flex!important;align-items:center!important;flex-wrap:nowrap!important;justify-content:flex-start!important;width:100%!important;height:42px!important;min-height:42px!important;gap:4px!important;margin:0!important;padding:0!important;box-sizing:border-box!important;overflow:visible!important}
+body.in-room #room #player-shell .player-bar.playback-refined #play{display:grid!important;place-items:center!important;flex:0 0 36px!important;width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;padding:5px!important;border:0!important;background:transparent!important;border-radius:7px!important;box-shadow:none!important}
+body.in-room #room #player-shell .player-bar.playback-refined #time{display:block!important;flex:0 1 auto!important;font:600 10px/1.2 system-ui!important;white-space:nowrap!important;margin:0!important;min-width:0!important;padding:0 2px!important}
+body.in-room #room #player-shell .player-bar.playback-refined .xparty-player-toolstrip{display:flex!important;flex:1 1 0!important;min-width:0!important;margin-left:auto!important;align-items:center!important;justify-content:flex-end!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;overflow:visible!important}
+body.in-room #room #player-shell .xparty-player-tool-family{display:flex!important;min-width:0!important;align-items:center!important;justify-content:flex-end!important;gap:clamp(1px,1.25vw,8px)!important;flex-wrap:nowrap!important}
+body.in-room #room #player-shell .player-bar.playback-refined .xparty-player-toolstrip button{display:grid!important;place-items:center!important;flex:0 0 clamp(30px,9vw,39px)!important;width:clamp(30px,9vw,39px)!important;height:38px!important;min-width:30px!important;min-height:38px!important;max-width:40px!important;padding:6px!important;margin:0!important;background:transparent!important;background-image:none!important;border:0!important;border-radius:7px!important;box-shadow:none!important;outline:0!important;color:#fff!important;opacity:1!important;visibility:visible!important}
+body.in-room #room #player-shell .xparty-player-toolstrip button :is(svg,.icon){display:block!important;width:22px!important;height:22px!important;max-width:22px!important;max-height:22px!important}
+body.in-room #room #player-shell .xparty-player-toolstrip #video-like{font-size:0!important}
+body.in-room #room #player-shell .xparty-player-toolstrip .xparty-hero-heart .video-like-count{display:none!important}
+body.in-room #room #player-shell .xparty-player-toolstrip button:active,body.in-room #room #player-shell #play:active{background:#ffffff29!important;transform:scale(1.06)!important;transition:none!important}
+body.in-room #room #player-shell .playback-actions{display:none!important}
+/* Small screens: give 4 video actions actual touch targets, keep seek and play visible. */
+@media(max-width:375px){body.in-room #room #player-shell .player-bar.playback-refined #time{font-size:9px!important}body.in-room #room #player-shell .xparty-player-tool-family{gap:0!important}}
+/* While watching, avoid disappearing controls due to legacy CSS selectors. Use one existing 3.6-second class switch. */
+body.in-room #room #player-shell:not(.controls-hidden) .player-bar.playback-refined{opacity:1!important;visibility:visible!important;pointer-events:auto!important}
+body.in-room #room #player-shell.controls-hidden:not(:focus-within) .player-bar.playback-refined{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+/* The single mini reveal button remains accessible after auto-hide, including in native video. */
+body.in-room #room #player-shell #xparty-v30-reveal{position:absolute!important;bottom:5px!important;right:6px!important;z-index:195!important;display:grid!important;place-items:center!important;width:34px!important;height:30px!important;min-width:34px!important;min-height:30px!important;border:0!important;border-radius:7px!important;background:rgba(10,8,18,.42)!important;box-shadow:none!important;color:#fff!important;font:700 20px/1 system-ui!important;opacity:0!important;pointer-events:none!important}
+body.in-room #room #player-shell.controls-hidden #xparty-v30-reveal{opacity:1!important;pointer-events:auto!important}
+/* Hide every player UI element when there is no video. */
+body.in-room:not(.room-has-source):not(.device-local-video) #room #player-shell :is(.player-bar.playback-refined,.xparty-player-topline,#xparty-v30-reveal,#stage-title,.xparty-scale-notice){display:none!important;pointer-events:none!important}
+body.in-room:not(.room-has-source):not(.device-local-video) #room #player-shell #empty-player{display:grid!important;place-items:center!important}
+body.in-room:not(.room-has-source):not(.device-local-video) #room #player-shell #empty-player[hidden]{display:none!important}
+/* One fullscreen switch; no competing exit X, room-home or cinema-exit overlay. */
+body.watch-fullscreen #room :is(#exit-theatre,#room-home,.fullscreen-exit,#fullscreen-exit,.header-reveal){display:none!important}
+body.watch-fullscreen #room #player-shell .xparty-player-topline{display:flex!important;z-index:400!important}
+body.watch-fullscreen #room #player-shell #fullscreen-video{display:grid!important;pointer-events:auto!important}
+/* Remove duplicate latency badges visually. Keep ping transport operating for synchronization. */
+body.in-room #room :is(#ping-status,#xparty-net-ping,.ping-duplicate,.xparty-ping-badge){display:none!important}
+/* Call panel controls remain callable but don't masquerade as extra fullscreen icons. */
+body.in-room #room .participant-strip .call-seat-row #expand-call{display:none!important}
+body.in-room #room .participant-strip .call-seat-row button{background:transparent!important;background-image:none!important;border:0!important;border-radius:8px!important;box-shadow:none!important;outline:0!important;min-width:34px!important;width:34px!important;height:34px!important;min-height:34px!important;padding:5px!important}
+body.in-room #room .participant-strip .call-seat-row button:active{background:#ffffff20!important;transform:scale(1.03)!important}
+body.in-room #room .participant-strip .call-seat-row button :is(svg,.icon){width:21px!important;height:21px!important}
+/* Recommendations should not obliterate the movie or obstruct player controls. */
+body.in-room #room #watch-stage .end-suggestions:not([hidden]){top:auto!important;left:7px!important;right:7px!important;bottom:58px!important;width:auto!important;height:auto!important;max-height:min(35%,145px)!important;padding:6px!important;border-radius:12px!important;overflow:auto!important;background:rgba(14,11,20,.82)!important;backdrop-filter:blur(9px)!important;z-index:18!important}
+body.in-room #room .end-suggestions .end-cards{grid-auto-columns:38%!important;grid-template-rows:minmax(60px,1fr)!important;grid-auto-flow:column!important;gap:6px!important}
+body.in-room #room .end-suggestions .end-title{font-size:9px!important}
+/* Respect portrait, landscape and desktop native player surface; no fixed shrinking 30dvh override. */
+@media(orientation:landscape) and (max-width:960px){body.in-room:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{max-height:calc(100dvh - 95px)!important}}
+/* Made4Love belongs ONLY at the bottom of the HOME screen. */
+#lobby .xparty-v30-home-dedication{display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;gap:2px!important;width:100%!important;padding:18px 6px!important;margin:15px auto 0!important;box-sizing:border-box!important;color:#dfb8d4!important;text-align:center!important}
+#lobby .xparty-v30-home-dedication span{font-size:12px!important;letter-spacing:.07em!important}
+body.in-room #room .xparty-v30-home-dedication{display:none!important}
+/* Empty room must still display the single Choose a video action (legacy room-layout hid the entire video column). */
+body.in-room.room-empty-video:not(.watch-fullscreen):not(.focus-call) #room .watch-column{display:flex!important;visibility:visible!important;flex-direction:column!important}
+body.in-room.room-empty-video:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{display:grid!important;place-items:center!important}
+body.in-room.room-empty-video:not(.watch-fullscreen):not(.focus-call) #room #empty-player{position:relative!important;display:grid!important;place-items:center!important;visibility:visible!important;opacity:1!important;z-index:4!important}
+body.in-room.room-empty-video:not(.watch-fullscreen):not(.focus-call) #room #empty-player[hidden]{display:none!important}

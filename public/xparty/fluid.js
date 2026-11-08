@@ -41,7 +41,7 @@ export function initFluidBackground(){
  function visible(){return !destroyed&&!suspended&&!document.hidden&&mode!=='covered';}
  function stop(){if(frame!==null)cancelAnimationFrame(frame);frame=null;last=0;}
  function draw(){if(pipeline&&!lost){pipeline.draw();layer.dataset.renderer='webgl';}else{canvas.hidden=true;layer.dataset.renderer='css';}}
- function loop(now){frame=null;if(!visible()||motion.matches||!pipeline||lost)return;if(now-lastDraw>=32){time+=last?Math.min(.1,(now-last)/1000):0;last=now;lastDraw=now;draw();}frame=requestAnimationFrame(loop);}
+ function loop(now){frame=null;if(!visible()||motion.matches||!pipeline||lost)return;if(now-lastDraw>=50){time+=last?Math.min(.1,(now-last)/1000):0;last=now;lastDraw=now;draw();}frame=requestAnimationFrame(loop);}
  function update(){
   layer.dataset.mode=mode;layer.hidden=mode==='covered';layer.classList.toggle('fluid-paused',!visible()||motion.matches);
   if(!visible()||motion.matches||!pipeline||lost){stop();if(visible())draw();return;}

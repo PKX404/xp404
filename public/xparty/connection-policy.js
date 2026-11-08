@@ -2,7 +2,7 @@ export function retryDelay(attempt,random=Math.random){
  return Math.round(Math.min(30000,1000*2**Math.min(Math.max(0,attempt),5))*(.8+random()*.4));
 }
 // A suspended tab must get a fresh response window before we declare it dead.
-export function createHeartbeat({now=()=>performance.now(),idle=15000,grace=12000}={}){
+export function createHeartbeat({now=()=>performance.now(),idle=30000,grace=50000}={}){
  let heard=now(),probe=null,paused=false;
  return {
   heard(){heard=now();probe=null;},

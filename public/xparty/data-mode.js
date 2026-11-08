@@ -13,12 +13,12 @@ export function levelForMode(levels,value){
  const eligible=ranked.filter(({level})=>bitrate(level)>0&&bitrate(level)<=budget&&(!level.height||level.height<=height));
  return (eligible.at(-1)||ranked[0]).index;
 }
-export function bindHlsDataMode(player,Hls,onUpdate=()=>{}){
+export function bindHlsDataMode(player,Hls,onUpdate=()=>{},fixedMode=null){
  const apply=()=>{
-  const selected=levelForMode(player.levels,mode);
-  player.autoLevelCapping=mode==='high'?-1:selected;
+  const value=fixedMode||mode,selected=levelForMode(player.levels,value);
+  player.autoLevelCapping=value==='high'?-1:selected;
   // nextLevel switches at a segment boundary without restarting the media element.
-  player.nextLevel=mode==='high'?selected:-1;
+  player.nextLevel=value==='high'?selected:-1;
   onUpdate();
  };
  const info=()=>{
@@ -33,5 +33,5 @@ export function bindHlsDataMode(player,Hls,onUpdate=()=>{}){
  const events=[Hls.Events.MANIFEST_PARSED,Hls.Events.LEVELS_UPDATED].filter(Boolean);
  for(const event of events)player.on(event,apply);
  apply();
- return {info,destroy(){dataModeEvents.removeEventListener('change',apply);for(const event of events)player.off(event,apply);}};
+ return {info,refresh:apply,destroy(){dataModeEvents.removeEventListener('change',apply);for(const event of events)player.off(event,apply);}};
 }

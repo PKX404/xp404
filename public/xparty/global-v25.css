@@ -1,0 +1,78 @@
+/* XParty Global v25: overlay, media and explore refinements. */
+body.in-room #room #player-shell{position:relative!important;isolation:isolate}
+body.in-room #room #player-shell .xparty-player-topline{position:absolute!important;inset:8px 8px auto auto!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:6px!important;z-index:130!important;pointer-events:none!important;min-height:40px}
+body.in-room #room #player-shell .xparty-player-topline>button{pointer-events:auto!important;box-shadow:none!important;background:rgba(9,10,20,.42)!important;backdrop-filter:blur(8px);border:0!important;border-radius:9px!important;outline:0!important;min-height:36px!important;transform:none!important}
+body.in-room #room #player-shell #fullscreen-video.xparty-top-fullscreen{position:relative!important;top:auto!important;right:auto!important;left:auto!important;bottom:auto!important;display:grid!important;place-items:center!important;visibility:visible!important;opacity:1!important;min-width:40px!important;width:40px!important;height:40px!important;z-index:150!important;order:2!important;color:#fff!important}
+body.in-room #room #player-shell .xparty-top-playing{position:relative!important;inset:auto!important;order:1!important;max-width:170px!important;white-space:nowrap!important;font-size:11px!important;text-overflow:ellipsis!important;overflow:hidden!important;color:#fff!important}
+body.in-room #room #player-shell .xparty-top-playing #sync-status{font-size:10px!important;display:inline-flex!important;align-items:center!important;white-space:nowrap!important}
+body.in-room #room #player-shell .player-bar.playback-refined{display:flex!important;visibility:visible!important;opacity:1!important;min-height:52px!important;flex-direction:column!important;padding:6px 6px 8px!important;z-index:105!important}
+body.in-room #room #player-shell.controls-hidden .player-bar.playback-refined{opacity:0!important;visibility:hidden!important;pointer-events:none!important;transition:opacity .18s ease,visibility .18s!important}
+body.in-room #room #player-shell:not(.controls-hidden) .player-bar.playback-refined{opacity:1!important;visibility:visible!important;pointer-events:auto!important;transition:opacity .12s ease!important}
+body.in-room #room #player-shell .xparty-timeline{width:100%!important;position:relative!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:2px!important;z-index:112!important;min-height:22px!important}
+body.in-room #room #player-shell #seek{display:block!important;position:relative!important;inset:auto!important;width:100%!important;height:7px!important;min-height:7px!important;max-height:7px!important;opacity:1!important;pointer-events:auto!important;margin:2px 0 0!important;flex:0 0 7px!important;touch-action:pan-x}
+body.in-room #room #player-shell #ping-status{position:relative!important;display:block!important;inset:auto!important;align-self:flex-end!important;text-align:right!important;font:600 10px/1.2 system-ui!important;color:#efedff!important;opacity:.8!important;min-height:12px}
+body.in-room #room #player-shell .playback-row #play{display:grid!important;place-items:center!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;min-width:40px!important;width:40px!important;height:40px!important;flex:0 0 40px!important;order:0!important}
+body.in-room #room #player-shell :is(.player-bar button,.xparty-player-toolstrip button,.xparty-player-topline button){border-radius:8px!important;box-shadow:none!important;outline:0!important}
+body.in-room #room #player-shell :is(.player-bar button,.xparty-player-toolstrip button)::before{border-radius:0!important;box-shadow:none!important}
+body.in-room #room #player-shell :is(.player-bar button,.xparty-player-toolstrip button):active{transform:scale(1.065)!important;filter:brightness(1.22)!important;transition:transform .08s ease!important}
+body.in-room #room :is(#captions-toggle,#load-subtitles,#stop,#pip-handle,#pip-resize,.tile-pip){display:none!important}
+body.in-room #room #player-shell :is(#file-player[hidden],#youtube-wrap[hidden]){display:none!important}
+/* Profile dialog proportions: image overlaps a compact tinted glass card. */
+body.in-room dialog.room-mini-profile{box-sizing:border-box!important;position:fixed!important;inset:50% auto auto 50%!important;transform:translate(-50%,-44%)!important;display:flex!important;flex-direction:column!important;align-items:center!important;width:min(84vw,365px)!important;max-width:365px!important;max-height:min(85dvh,790px)!important;min-width:0!important;overflow:visible!important;padding:0 18px 16px!important;border:1px solid rgba(255,255,255,.13)!important;border-radius:32px!important;background:linear-gradient(145deg,rgba(var(--xparty-profile-rgb,68,54,86),.91),rgba(14,12,20,.96))!important;backdrop-filter:blur(28px) saturate(1.18)!important;color:#fff!important;box-shadow:0 22px 70px #000a!important;z-index:1000!important}
+body.in-room dialog.room-mini-profile:not([open]){display:none!important}
+body.in-room dialog.room-mini-profile .mini-avatar{width:clamp(148px,44vw,205px)!important;height:clamp(154px,49vw,218px)!important;max-height:28dvh!important;min-height:0!important;position:relative!important;margin:-58px auto 12px!important;border:0!important;border-radius:35px!important;background:rgba(255,255,255,.12)!important;box-shadow:0 10px 26px #0005!important;overflow:hidden!important;padding:0!important;font-size:45px!important;color:white!important}
+body.in-room dialog.room-mini-profile .mini-avatar img{width:100%!important;height:100%!important;object-fit:cover!important;border-radius:inherit!important}
+body.in-room dialog.room-mini-profile .mini-close{position:absolute!important;top:9px!important;right:10px!important;width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;z-index:2!important;border:0!important;background:#19151ba8!important;color:#fff!important;font-size:22px!important}
+body.in-room dialog.room-mini-profile h2{text-align:center!important;margin:2px auto 0!important;font:800 clamp(20px,6vw,25px)/1.2 system-ui!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#fff!important}
+body.in-room dialog.room-mini-profile .mini-role{font:500 15px/1.2 system-ui!important;color:#e8dce8!important;text-align:center!important;margin:8px 0 18px!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important}
+body.in-room dialog.room-mini-profile .mini-actions{display:flex!important;flex-direction:column!important;width:100%!important;gap:9px!important;overflow-y:auto!important;min-height:0!important;padding:0!important}
+body.in-room dialog.room-mini-profile .mini-actions>button{width:100%!important;flex:none!important;height:50px!important;min-height:50px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:13px!important;font:750 18px/1 system-ui!important;background:rgba(0,0,0,.39)!important;border:0!important;border-radius:22px!important;color:#fff!important;padding:0 12px!important}
+body.in-room dialog.room-mini-profile .mini-actions>button:active{transform:scale(1.02)!important;background:rgba(255,255,255,.13)!important}
+body.in-room dialog.room-mini-profile .mini-action-icon{width:25px!important;min-width:25px!important;height:25px!important;display:grid!important;place-items:center!important}
+body.in-room dialog.room-mini-profile .mini-scope{display:none!important}
+body.in-room dialog.room-mini-profile .mini-moderate{background:rgba(92,26,40,.6)!important}
+/* Source picker: colorful genuine branded SVG silhouettes + labels, no descriptions/cards. */
+body #source-panel .provider-picker{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:14px 6px!important;padding:12px 3px!important;border:0!important;background:transparent!important;box-shadow:none!important}
+body #source-panel .provider-picker[hidden]{display:none!important}
+body #source-panel .provider-picker>.provider-card{display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:center!important;gap:8px!important;border:0!important;box-shadow:none!important;outline:0!important;background:transparent!important;color:#fff!important;min-height:76px!important;height:auto!important;max-width:none!important;padding:6px 1px!important;border-radius:12px!important;transform:none!important}
+body #source-panel .provider-picker>.provider-card:active{background:#ffffff10!important;transform:scale(1.07)!important}
+body #source-panel .provider-picker>.provider-card>strong{font:650 11px/1.25 system-ui!important;text-align:center!important;white-space:normal!important;overflow:visible!important;color:#fff!important}
+body #source-panel .provider-picker>.provider-card>span:not(.service-logo):not(.xp-yb-icon){display:none!important}
+body #source-panel .provider-picker>.provider-card .service-logo{width:44px!important;height:44px!important;min-width:44px!important;display:grid!important;place-items:center!important;mask:none!important;-webkit-mask:none!important;background:transparent!important;position:relative!important}
+body #source-panel .provider-picker>.provider-card .service-logo[style]{background:transparent!important;mask:none!important;-webkit-mask:none!important}
+body #source-panel .provider-picker>.provider-card .service-logo[style]:after{content:'';position:absolute;inset:4px;background:var(--service-logo) center/contain no-repeat;filter:brightness(0) saturate(100%) invert(48%) sepia(98%) saturate(4010%) hue-rotate(330deg) brightness(99%) contrast(102%)}
+body #source-panel .service-logo-youtube:after,body #source-panel .service-logo-netflix:after{filter:brightness(0) saturate(100%) invert(30%) sepia(98%) saturate(6200%) hue-rotate(350deg) brightness(106%) contrast(108%)!important}
+body #source-panel .service-logo-prime:after{filter:brightness(0) saturate(100%) invert(55%) sepia(80%) saturate(3300%) hue-rotate(162deg) brightness(99%)!important}
+body #source-panel .service-logo-twitch:after{filter:brightness(0) saturate(100%) invert(45%) sepia(50%) saturate(4500%) hue-rotate(235deg) brightness(100%)!important}
+body #source-panel .service-logo-vimeo:after{filter:brightness(0) saturate(100%) invert(57%) sepia(90%) saturate(2000%) hue-rotate(162deg) brightness(111%)!important}
+body #source-panel .service-logo-soundcloud:after{filter:brightness(0) saturate(100%) invert(56%) sepia(95%) saturate(4900%) hue-rotate(2deg) brightness(111%)!important}
+body #source-panel .service-logo-drive:after{filter:brightness(0) saturate(100%) invert(53%) sepia(96%) saturate(500%) hue-rotate(90deg) brightness(101%)!important}
+body #source-panel .service-logo-iptv{color:#19e2ad!important;background:linear-gradient(145deg,#164a54,#0c1720)!important;border-radius:12px!important}
+body #source-panel .service-logo-direct{color:#62a8f8!important}
+body #source-panel .service-logo-file{color:#e6c187!important}
+body #source-panel .provider-picker .xp-yb-icon{width:42px!important;height:42px!important;color:#fff!important;background:#fb1930!important;border-radius:10px!important;display:grid!important;place-items:center!important;font-size:22px!important}
+/* Home: only Explore and Join Invite as main choices; keep room creation accessible in Explore. */
+#lobby.xparty-global-home .entry-card{padding:10px 12px 4px!important;max-width:680px!important;margin:0 auto!important;box-shadow:none!important;border:0!important;background:transparent!important}
+#lobby.xparty-global-home .entry-card>:not(.xparty-home-choices){display:none!important}
+#lobby.xparty-global-home .xparty-home-choices{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;margin:0!important}
+#lobby.xparty-global-home .xparty-home-choices button{min-height:52px!important;border-radius:16px!important;color:white!important;font:750 15px system-ui!important;background:linear-gradient(135deg,#6546d8,#a940a2)!important;border:1px solid #ffffff35!important}
+#lobby.xparty-global-home .xparty-home-choices .xparty-home-invite{background:#272134!important}
+#lobby.xparty-global-home .entry-card:has(#join-form:not([hidden])) #join-form{display:block!important;padding:14px 0!important}
+#lobby.xparty-global-home .entry-card:has(#join-form:not([hidden])) .xparty-home-choices{margin-bottom:10px!important}
+#lobby.xparty-global-home .entry-card:has(#join-form:not([hidden])) #join-form>*{display:block!important}
+#lobby.xparty-global-home{margin:0 auto!important;min-height:auto!important;padding:0!important}
+#room-directory.xparty-explore-feed{background:linear-gradient(180deg,#18121e,#09080e)!important;border:0!important;box-shadow:none!important;border-radius:18px!important;margin:0 auto 8px!important;padding:12px!important;max-width:1100px!important}
+#room-directory.xparty-explore-feed .directory-heading h2{font-size:27px!important;font-weight:850!important;color:#fff!important}
+#room-directory.xparty-explore-feed .directory-heading p{font-size:12px!important;color:#d4c8df!important}
+#room-directory.xparty-explore-feed .directory-results{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+#room-directory.xparty-explore-feed .directory-card{background:transparent!important;border:0!important;border-radius:7px!important;padding:0!important;gap:6px!important}
+#room-directory.xparty-explore-feed .directory-preview{border-radius:4px!important;aspect-ratio:16/10!important;min-height:0!important}
+#room-directory.xparty-explore-feed .directory-card h3{font-size:12px!important;color:#fff!important}
+#room-directory.xparty-explore-feed .directory-card button{width:100%!important;border-radius:9px!important;min-height:35px!important}
+#room-directory.xparty-explore-feed .xparty-explore-create{min-width:90px!important;min-height:37px!important;border-radius:14px!important;background:#6945cc!important;color:#fff!important;white-space:nowrap!important}
+@media(min-width:760px){#room-directory.xparty-explore-feed .directory-results{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+
+/* No decorative rings or circular plates around playback and call action glyphs. */
+body.in-room #room #player-shell .player-bar button{background:transparent!important;background-image:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+body.in-room #room .participant-strip .call-seat-row>button:not(#call-seat){background:transparent!important;background-image:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+body.in-room #room #player-shell .xparty-top-fullscreen{border:0!important;border-radius:8px!important}

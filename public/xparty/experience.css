@@ -1,7 +1,7 @@
 /* App-first navigation over the automatic light field, shared with Android. */
 body.app-experience{--accent:#d5c3ff;--text:#f8f7ff;--muted:#c0b9d1;color:#f8f7ff;color-scheme:dark}
 .app-experience .topbar .brand-icon{display:grid!important;place-items:center;background:#d5c3ff!important;color:#221436!important;font-size:23px!important;font-weight:850;line-height:1;border-radius:7px!important}
-.app-experience:not(.in-room) main{padding-bottom:110px!important}
+.app-experience:not(.in-room) main{padding-bottom:calc(104px + env(safe-area-inset-bottom))!important}
 .app-experience:not(.in-room) .topbar{max-width:none!important;padding:12px max(24px,calc((100vw - 1120px)/2))!important;min-height:68px!important;background:#0a091a6e!important;border-bottom:1px solid #ffffff12;backdrop-filter:blur(18px)}
 .app-experience:not(.in-room) .topbar .brand{font-size:23px!important;gap:10px!important}
 .app-experience:not(.in-room) .topbar .brand-icon{width:30px!important;height:30px!important}
@@ -40,13 +40,13 @@ body.app-experience:not(.in-room) #lobby .entry-card{margin-top:0;padding:24px!i
 .app-experience .room-directory{max-width:1072px!important;margin:0 auto 26px!important;padding:24px!important;border:1px solid #ffffff20!important;background:#101323a6!important;border-radius:22px!important}
 .app-experience .room-directory h2{font-size:23px!important;letter-spacing:-.7px}
 .app-experience .room-directory p{color:#c6bfd5}
-.app-dock{position:fixed;bottom:max(16px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:space-around;gap:8px;width:min(470px,calc(100vw - 24px));padding:8px 12px;border:1px solid #ffffff24;border-radius:24px;background:#11101ee8;backdrop-filter:blur(24px);box-shadow:0 8px 35px #0005;z-index:80}
+.app-dock{position:fixed;bottom:max(16px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;gap:3px;box-sizing:border-box;width:min(470px,calc(100vw - 24px));padding:7px 6px;border:1px solid #ffffff24;border-radius:24px;background:#11101ee8;backdrop-filter:blur(24px);box-shadow:0 8px 35px #0005;z-index:80}
 .app-dock[hidden]{display:none!important}
-.app-dock .dock-action{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:70px!important;min-width:0!important;height:50px!important;min-height:50px!important;padding:4px!important;border:0!important;background:transparent!important;color:#bdb4ce!important;border-radius:12px;position:relative}
+.app-dock .dock-action{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:100%!important;min-width:0!important;height:50px!important;min-height:50px!important;padding:4px!important;border:0!important;background:transparent!important;color:#bdb4ce!important;border-radius:12px;position:relative}
 .app-dock .dock-action:before{position:static!important;transform:none!important;width:21px!important;height:21px!important;flex:none}
 .dock-label{font-size:10px;line-height:1.2;letter-spacing:0;clip:auto!important;width:auto!important;height:auto!important;position:static!important}
 .app-dock .dock-action[aria-current]{color:#e5d6ff!important;background:#ceb6ff12!important}
-.app-dock .dock-create{background:#dbc7ff!important;color:#241332!important;width:52px!important;flex:none;border-radius:17px!important}
+.app-dock .dock-create{background:#dbc7ff!important;color:#241332!important;width:100%!important;min-width:0!important;border-radius:17px!important}
 .source-sheet-shade{position:fixed;inset:0;z-index:85;background:#05041185;border:0;border-radius:0;cursor:default;backdrop-filter:blur(5px)}
 .source-sheet-shade[hidden]{display:none!important}
 body.app-experience.in-room.browsing:not(.watch-fullscreen) #room #source-panel{position:fixed;z-index:86;bottom:0;left:50%;transform:translateX(-50%);width:min(800px,calc(100vw - 20px));max-height:86dvh;overflow:auto;overscroll-behavior:contain;margin:0!important;padding:22px 22px max(22px,env(safe-area-inset-bottom))!important;border-radius:25px 25px 0 0!important;background:#131221f5!important;box-shadow:0 -16px 80px #0005!important}

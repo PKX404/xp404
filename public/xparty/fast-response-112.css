@@ -1,0 +1,12 @@
+/* Fast input on Android. Avoid GPU-heavy button and card animations. */
+body.in-room #room button,body.in-room #room a,body.in-room #room [role="tab"],
+body.in-room #room [role="button"],.mobile-room-header button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color .09s linear,border-color .09s linear,opacity .09s linear!important}
+body.in-room #room :is(button,a,[role="tab"],[role="button"]):is(:active,.xparty-tapped),
+body.in-room .mobile-room-header :is(button,a):is(:active,.xparty-tapped){background-color:rgba(181,143,248,.28)!important;outline:2px solid #d3bbff!important;outline-offset:-2px!important;filter:none!important;}
+body.in-room #room :is(button,[role="tab"],.provider-card,.result):is([aria-pressed="true"],[aria-selected="true"],.active,.xparty-choice-active){box-shadow:inset 0 0 0 1px #cab0ff88!important;outline:1px solid #ae8cfa88!important;outline-offset:-1px!important}
+body.in-room #room button[aria-busy="true"]{opacity:.78!important;pointer-events:none!important}
+body.in-room #room .room-grid{transition:none!important;}
+body.in-room #room :is(.chat-panel,.call-panel,.conversation-tabs,.mobile-room-header){-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+body.in-room #room :is(.chat-panel,.call-panel){background-color:rgba(25,20,32,.73)!important}
+body.in-room #room .message{contain:layout style;}
+@media (prefers-reduced-motion: reduce){body.in-room #room button,body.in-room #room a{transition:none!important}}

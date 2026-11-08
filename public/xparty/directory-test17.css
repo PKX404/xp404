@@ -1,0 +1,59 @@
+/* XParty PT Test17 — directory presentation; retains all Test16 room styling. */
+body:not(.in-room){overflow-x:hidden!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch;}
+body:not(.in-room) :is(#lobby,#room-directory){max-height:none!important;overflow:visible;}
+body:not(.in-room) #room-directory{position:relative!important;margin:0 auto 90px!important;
+ padding:12px clamp(10px,3vw,22px) 24px!important;background:transparent!important;border:0!important;box-shadow:none!important;
+ width:min(100%,920px);min-width:0;box-sizing:border-box;content-visibility:auto;contain-intrinsic-size:auto 500px;}
+body:not(.in-room) #room-directory .directory-heading{margin:6px 0 8px;gap:8px;}
+body:not(.in-room) #room-directory .directory-heading h2{font:750 clamp(19px,5vw,24px)/1.2 system-ui;letter-spacing:-.03em;}
+body:not(.in-room) #room-directory .directory-heading h2::before{content:'◎';font-size:22px;margin-right:8px;color:#dec9ff;}
+body:not(.in-room) #room-directory .directory-heading p{font-size:12px;margin:6px 0;}
+body:not(.in-room) #room-directory .directory-results{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:8px!important;margin-top:11px;}
+body:not(.in-room) #room-directory .directory-card{display:grid!important;grid-template-columns:minmax(0,44%) minmax(0,56%)!important;align-items:stretch!important;min-width:0!important;gap:0!important;padding:0!important;
+ background:linear-gradient(120deg,#12121d98,#262039a4)!important;border:1px solid #ffffff22!important;border-radius:17px!important;overflow:hidden!important;
+ box-shadow:none!important;content-visibility:auto;contain-intrinsic-size:105px;}
+body:not(.in-room) #room-directory .directory-preview{width:100%!important;min-width:0!important;min-height:0!important;
+ height:100%!important;aspect-ratio:auto!important;border-radius:0!important;overflow:hidden!important;background:#101019!important;position:relative!important;}
+body:not(.in-room) #room-directory .directory-preview>img,
+body:not(.in-room) #room-directory .directory-preview video,
+body:not(.in-room) #room-directory .directory-preview iframe{height:100%!important;width:100%!important;object-fit:cover!important;}
+body:not(.in-room) #room-directory .directory-info{display:flex!important;flex-direction:column!important;justify-content:space-between!important;min-width:0!important;gap:5px!important;padding:10px 10px 7px!important;overflow:hidden!important;}
+body:not(.in-room) #room-directory .directory-title{font:800 clamp(12px,3.5vw,16px)/1.25 system-ui!important;overflow:hidden!important;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal!important;margin:0!important;text-overflow:ellipsis!important;}
+body:not(.in-room) #room-directory .directory-detail{font:450 clamp(11px,3vw,14px)/1.35 system-ui!important;min-width:0;min-height:26px!important;
+ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden!important;margin:0!important;color:#ded7e8!important;}
+body:not(.in-room) #room-directory .directory-info-bottom{display:flex;align-items:center;gap:5px;min-width:0;margin-top:4px;}
+body:not(.in-room) #room-directory .directory-members{display:flex;align-items:center;flex:1 1 auto;gap:3px;min-width:0;overflow:hidden;}
+body:not(.in-room) #room-directory .directory-people{display:flex;align-items:center;min-width:0;flex:0 1 auto;max-width:66%;overflow-x:auto;overflow-y:hidden;touch-action:pan-x;scrollbar-width:none;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;}
+body:not(.in-room) #room-directory .directory-people::-webkit-scrollbar{display:none;}
+body:not(.in-room) #room-directory .directory-person{display:grid;place-items:center;flex:0 0 clamp(19px,5.5vw,27px);width:clamp(19px,5.5vw,27px);height:clamp(19px,5.5vw,27px);border-radius:50%;background:#363149;color:#f8efff;border:1px solid #e3d3ff4c;
+ font:700 11px system-ui;overflow:hidden;margin-right:-5px;}
+body:not(.in-room) #room-directory .directory-person img{position:relative!important;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%;}
+body:not(.in-room) #room-directory .directory-count{font:650 10px/1.2 system-ui!important;white-space:nowrap;color:#cdbbe8;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+body:not(.in-room) #room-directory .directory-more{flex:none;background:#d32137;border-radius:50%;display:grid;place-items:center;color:white;min-width:22px;height:22px;font:750 10px system-ui;}
+body:not(.in-room) #room-directory .directory-more[hidden]{display:none!important;}
+body:not(.in-room) #room-directory .directory-join{min-width:0!important;width:auto!important;min-height:29px!important;flex:0 0 auto;padding:4px 9px!important;border-radius:15px!important;font:750 11px system-ui!important;background:#d7bcff25!important;border:1px solid #ffffff3b!important;touch-action:manipulation;}
+body:not(.in-room) #room-directory .directory-join:active{background:#e6d1ff54!important;transform:none!important;}
+body:not(.in-room) #room-directory .directory-preview-status{bottom:13px!important;left:5px!important;right:auto!important;max-width:calc(100% - 10px)!important;padding:3px 5px!important;font:600 9px system-ui!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#080811ac!important;}
+body:not(.in-room) #room-directory .directory-preview-fallback{font:650 11px/1.3 system-ui;padding:8px;}
+body:not(.in-room) #room-directory .directory-preview-timeline{position:absolute;bottom:2px;left:3px;right:3px;height:3px;border-radius:8px;background:#ffffff40;z-index:6;overflow:hidden;}
+body:not(.in-room) #room-directory .directory-preview-timeline-fill{display:block;width:0;height:100%;background:#dfc8ff;transition:width .12s linear;}
+body:not(.in-room) #room-directory .directory-preview-timeline:not([data-known]){opacity:.5;}
+/* Three soft concentric rings, visible only while media is preparing. */
+body:not(.in-room) #room-directory .directory-bubble-loader{position:absolute;z-index:7;left:50%;top:50%;width:40px;height:40px;transform:translate(-50%,-50%);
+ display:none;pointer-events:none;}
+body:not(.in-room) #room-directory .directory-bubble-loader i{position:absolute;inset:5px;border:2px solid #f3e5ffdf;border-radius:50%;animation:xp-ring 1.15s ease-out infinite;}
+body:not(.in-room) #room-directory .directory-bubble-loader i:nth-child(2){animation-delay:.32s;}body:not(.in-room) #room-directory .directory-bubble-loader i:nth-child(3){animation-delay:.64s;}
+body:not(.in-room) #room-directory .directory-preview[data-preview-state=loading] .directory-bubble-loader{display:block;}
+@keyframes xp-ring{0%{transform:scale(.3);opacity:.95}100%{transform:scale(1.35);opacity:0}}
+/* Keep thumbnails compact even for Twitch/Vimeo; no 200-300px forced preview tiles. */
+@media(min-width:700px){body:not(.in-room) #room-directory .directory-card{min-height:135px!important;grid-template-columns:minmax(0,40%) minmax(0,60%)!important;}
+body:not(.in-room) #room-directory .directory-info{padding:13px 16px!important;}}
+@media(max-width:380px){body:not(.in-room) #room-directory .directory-info{padding:7px 7px 6px!important;}body:not(.in-room) #room-directory .directory-join{padding:3px 7px!important;}}
+/* Make the existing main-video loading indicator circular; never block the picture with a gray screen. */
+body.in-room #room #xparty-video-loading:not([hidden]){font-size:0!important;line-height:0!important;width:58px!important;height:58px!important;padding:0!important;
+ display:grid!important;place-items:center;border-radius:50%!important;background:#0b0b15a8!important;box-shadow:0 0 0 1px #eadcff33!important;}
+body.in-room #room #xparty-video-loading:not([hidden]):before{content:'';position:absolute;width:25px;height:25px;border:3px solid #edd5ff;border-radius:50%;animation:xp-ring 1s ease-out infinite;}
+body.in-room #room #xparty-video-loading:not([hidden]):after{content:'';position:absolute;width:34px;height:34px;border:2px solid #e9ccff7c;border-radius:50%;animation:xp-ring 1s ease-out .34s infinite;}
+/* In fullscreen the native close button is enough. Do not add duplicate shrink/fullscreen controls. */
+body.watch-fullscreen #room #fullscreen-video,body.in-room.watch-fullscreen #room #player-shell>#fullscreen-video{display:none!important;}
+@media(prefers-reduced-motion:reduce){.directory-bubble-loader i,body.in-room #room #xparty-video-loading:before,body.in-room #room #xparty-video-loading:after{animation-duration:2s!important;}}
