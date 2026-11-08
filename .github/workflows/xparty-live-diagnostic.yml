@@ -16,5 +16,20 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --omit=dev
+      - name: Diagnose public DNS, TLS and Render edge routing
+        shell: bash
+        run: |
+          set +e
+          echo "=== DNS RESOLUTION ==="
+          getent ahostsv4 xp404.onrender.com | head -n 6
+          echo "=== DNS OVER HTTPS HOST ==="
+          getent ahostsv4 render.com | head -n 3
+          echo "=== HTTP RESPONSE FROM RENDER ==="
+          curl -v -L --connect-timeout 8 --max-time 25 -o /tmp/xparty-health https://xp404.onrender.com/health 2>&1 | tail -n 35
+          echo "CURL_EXIT_CODE=${PIPESTATUS[0]}"
+          head -c 240 /tmp/xparty-health || :
+          echo
+          echo "=== CONTROL WEBSITE ==="
+          curl -sSL --connect-timeout 8 --max-time 15 -o /dev/null -w 'CONTROL_HTTP_STATUS=%{http_code}\\n' https://render.com || :
       - name: Check Render live HTTP, WebSocket origin and room creation
         run: node tests/live-endpoint-probe.mjs
