@@ -211,6 +211,48 @@ public final class MainActivity extends Activity {
       new Runnable[]{()->key(44),()->key(9),()->key(41)});
     add(root,label("Tip: Select the search field on your tablet, then send text. Bluetooth pairing and switching live in Settings.",12,0xFF9496B2),2);
   }
+
+  private void openSettings(){
+    settingsShown=true;
+    ScrollView scroller=new ScrollView(this);
+    scroller.setFillViewport(true);scroller.setBackgroundColor(BG);
+    LinearLayout root=stack();root.setPadding(dp(18),dp(24),dp(18),dp(30));
+    scroller.addView(root);setContentView(scroller);
+    LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
+    ImageView mark=new ImageView(this);
+    mark.setImageResource(R.drawable.xparty_remote_icon);
+    header.addView(mark,new LinearLayout.LayoutParams(dp(52),dp(52)));
+    LinearLayout heading=stack();
+    LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(0,-2,1);hp.leftMargin=dp(12);
+    TextView title=label("CONNECTIVITY",19,Color.WHITE);title.setTypeface(null,1);
+    heading.addView(title);
+    heading.addView(label("XPARTY REMOTE  /  SETTINGS",11,0xFFACA3CE));
+    header.addView(heading,hp);
+    header.addView(button("BACK",()->render()),new LinearLayout.LayoutParams(dp(75),dp(50)));
+    add(root,header,16);
+    status=label(statusMessage,13,0xFFEEE2FF);
+    status.setPadding(dp(15),dp(16),dp(15),dp(16));
+    status.setBackground(shape(0xFF29243F,15));
+    add(root,status,18);
+    add(root,label("BLUETOOTH CONNECTION",12,0xFFC8B4FF),10);
+    buttonRow(root,new String[]{"ACTIVATE REMOTE","DISCOVERABLE"},
+      new Runnable[]{this::activate,this::discoverable});
+    buttonRow(root,new String[]{"REFRESH DEVICES","DISCONNECT"},
+      new Runnable[]{this::showPaired,this::disconnect});
+    add(root,label("YOUR PAIRED DEVICES",12,0xFFC8B4FF),9);
+    devices=stack();add(root,devices,12);
+    showPaired();
+    add(root,label("PAIRING GUIDE",12,0xFFC8B4FF),9);
+    TextView guide=label("1. Enable Bluetooth on phone and tablet.\n2. Activate remote, then make phone discoverable.\n3. From the tablet Bluetooth settings, pair with this phone.\n4. Refresh paired tablets here and connect.\n5. Return to remote controls.",13,0xFFDDD7EE);
+    guide.setPadding(dp(14),dp(16),dp(14),dp(16));
+    guide.setBackground(shape(PANEL,14));guide.setLineSpacing(dp(4),1.0f);
+    add(root,guide,18);
+    add(root,label("GESTURES",12,0xFFC8B4FF),9);
+    add(root,label("One finger moves the pointer. Tap to select.\nTwo fingers swipe to scroll on the tablet.\nVolume and playback keys depend on tablet support.",13,0xFFBCB6D1),0);
+  }
+  @Override public void onBackPressed(){
+    if(settingsShown)render();else super.onBackPressed();
+  }
   private static int clamp(int x){return Math.max(-127,Math.min(127,x));}
   private void status(String message){statusMessage=message;runOnUiThread(()->{if(status!=null)status.setText(message);});}
   private void note(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
