@@ -1,0 +1,104 @@
+/* Global v31: eliminate duplicate UI overrides instead of stacking more animations. */
+body.in-room #room #player-shell.xparty-v31{position:relative!important;isolation:isolate!important}
+/* Only one fullscreen control and one compact playback-state label. */
+body.in-room #room #player-shell.xparty-v31 .xparty-player-topline{inset:6px auto auto 7px!important;z-index:210!important;max-width:calc(100% - 14px)!important;display:flex!important;align-items:center!important;gap:5px!important;pointer-events:none!important;background:none!important;max-height:36px!important}
+body.in-room #room #player-shell.xparty-v31 #fullscreen-video.xparty-top-fullscreen{display:grid!important;place-items:center!important;position:relative!important;inset:auto!important;flex:0 0 30px!important;width:30px!important;height:30px!important;min-height:30px!important;min-width:30px!important;padding:5px!important;margin:0!important;border:0!important;border-radius:5px!important;background:rgba(9,8,16,.38)!important;box-shadow:none!important;pointer-events:auto!important;opacity:1!important;visibility:visible!important}
+body.in-room #room #player-shell.xparty-v31 #fullscreen-video svg{width:18px!important;height:18px!important}
+body.in-room #room #player-shell.xparty-v31 #controls-toggle.xparty-top-playing{position:relative!important;inset:auto!important;flex:0 1 auto!important;height:25px!important;max-height:25px!important;min-height:0!important;width:auto!important;max-width:170px!important;padding:3px 6px!important;border:0!important;background:rgba(10,8,17,.32)!important;border-radius:5px!important;box-shadow:none!important;pointer-events:none!important;visibility:visible!important;opacity:1!important}
+body.in-room #room #player-shell.xparty-v31 #controls-toggle #sync-status{display:block!important;font:500 10px/1.25 system-ui!important;text-overflow:ellipsis!important;overflow:hidden!important;white-space:nowrap!important}
+body.watch-fullscreen #room :is(#exit-theatre,#room-home,.fullscreen-exit,#fullscreen-exit,#xparty-v30-reveal){display:none!important}
+/* The progress BAR is a directly positioned element. The prior parent wrapper
+   caused old CSS selectors to miss it and left a large black gradient slab. */
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined{position:absolute!important;left:0!important;right:0!important;top:auto!important;bottom:0!important;display:flex!important;flex-flow:column nowrap!important;gap:0!important;width:100%!important;height:68px!important;min-height:0!important;max-height:68px!important;margin:0!important;padding:2px 6px 2px!important;box-sizing:border-box!important;overflow:visible!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:linear-gradient(0deg,rgba(6,5,12,.48),rgba(6,5,12,.04))!important;transform:none!important;z-index:180!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined>#seek{display:block!important;position:relative!important;inset:auto!important;order:0!important;flex:0 0 18px!important;align-self:stretch!important;width:100%!important;min-width:0!important;height:18px!important;min-height:18px!important;max-height:18px!important;margin:1px 0 1px!important;padding:0!important;border:0!important;box-shadow:none!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;appearance:auto!important;-webkit-appearance:auto!important;accent-color:#dbbbff!important;touch-action:pan-x!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row{position:relative!important;inset:auto!important;order:1!important;display:flex!important;flex:0 0 44px!important;flex-flow:row nowrap!important;align-items:center!important;justify-content:flex-start!important;height:44px!important;min-height:0!important;width:100%!important;margin:0!important;padding:0!important;gap:4px!important;background:transparent!important;overflow:visible!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row #play{display:grid!important;place-items:center!important;order:0!important;flex:0 0 44px!important;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;max-height:44px!important;padding:5px!important;background:transparent!important;background-image:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row #time{display:inline-flex!important;align-items:center!important;order:1!important;flex:0 0 auto!important;width:auto!important;max-width:76px!important;min-width:0!important;padding:0!important;margin:0!important;white-space:nowrap!important;font:600 10px/1.1 system-ui!important;background:none!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row>.xparty-player-toolstrip{display:flex!important;position:relative!important;inset:auto!important;order:2!important;align-items:center!important;justify-content:flex-end!important;flex:1 1 auto!important;min-width:0!important;width:auto!important;max-width:none!important;height:44px!important;bottom:auto!important;margin:0 0 0 auto!important;padding:0!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;background:transparent!important;border:0!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .xparty-player-tool-family{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:3px!important;flex:0 1 auto!important;min-width:0!important;background:none!important}
+/* Override earlier HIGH specificity rules that forced circular backgrounds. */
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row .xparty-player-tool-family>button,
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row .xparty-player-toolstrip .xparty-player-tool-family>button{
+ display:grid!important;place-items:center!important;position:relative!important;inset:auto!important;flex:0 0 44px!important;min-width:44px!important;width:44px!important;max-width:44px!important;min-height:44px!important;height:44px!important;max-height:44px!important;padding:5px!important;margin:0!important;outline:none!important;border:0!important;border-radius:0!important;background:transparent!important;background-image:none!important;box-shadow:none!important;filter:none!important;transform:none!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;transition:none!important;animation:none!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .xparty-player-tool-family>button :is(svg,.icon){display:block!important;width:22px!important;height:22px!important;min-width:0!important;min-height:0!important;max-width:24px!important;max-height:24px!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .xparty-player-tool-family>button::after{box-shadow:none!important;border:0!important;background-image:none!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .xparty-player-tool-family>button:active{opacity:.78!important;transform:scale(1.03)!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .xparty-player-tool-family>button[hidden]{display:none!important}
+/* Remove duplicate readout everywhere. Latency is still used internally to sync rooms. */
+body #ping-status,body #xparty-net-ping,body .ping-duplicate,body .xparty-ping-badge{display:none!important;visibility:hidden!important}
+/* Do not hide controls while paused; one tap reveals controls while playing. */
+body.in-room #room #player-shell.xparty-v31:not(.controls-hidden) .player-bar.playback-refined,
+body.in-room #room #player-shell.xparty-v31:has(#playback-options[open]) .player-bar.playback-refined{opacity:1!important;visibility:visible!important;pointer-events:auto!important}
+body.in-room #room #player-shell.xparty-v31.controls-hidden:not(:focus-within) .player-bar.playback-refined{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+body.in-room #room #player-shell.xparty-v31:not(.v31-has-video) :is(.player-bar.playback-refined,.xparty-player-topline,#xparty-v30-reveal){display:none!important}
+body.in-room #room #player-shell.xparty-v31:not(.v31-has-video) #empty-player:not([hidden]){display:grid!important;place-items:center!important}
+/* Chat text history stays scrollable when the Android keyboard opens. */
+body.in-room #room .chat-panel,body.in-room #room #room-chat-panel{min-height:0!important}
+body.in-room #room #messages{display:flex!important;flex-direction:column!important;flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain!important;scroll-behavior:auto!important;scroll-padding-bottom:12px!important;-webkit-overflow-scrolling:touch!important}
+body.in-room.room-keyboard-open #room #messages{overflow-y:auto!important;touch-action:pan-y!important}
+/* Compact, static dialog/panel presentation. Keep all original actions working. */
+body.in-room #room :is(.source-panel[role=dialog],.room-key-dialog,.room-report),body.in-room dialog.room-mini-profile{
+ animation:none!important;transition:none!important;filter:none!important;box-shadow:0 14px 32px rgba(0,0,0,.21)!important;border:1px solid rgba(255,255,255,.12)!important;background:rgba(25,20,33,.94)!important;border-radius:17px!important}
+body.in-room #room :is(.room-key-dialog,.room-report) :is(button,select,input),body.in-room #source-panel :is(button,select,input){animation:none!important;transition:background .12s ease!important;box-shadow:none!important}
+body.in-room #source-panel .provider-picker .provider-card{border:0!important;border-radius:12px!important;background:transparent!important;box-shadow:none!important;animation:none!important;transition:none!important;min-height:64px!important;padding:7px 3px!important}
+body.in-room #source-panel .provider-card>strong+span{display:none!important}
+body.in-room #source-panel .provider-card strong{font:600 11px/1.25 system-ui!important}
+@media(max-width:340px){body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row #time{font-size:9px!important;max-width:63px!important}body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .xparty-player-tool-family{gap:0!important}body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .xparty-player-tool-family>button{flex-basis:40px!important;min-width:40px!important;width:40px!important}}
+@media(prefers-reduced-motion:reduce){body.in-room #room #player-shell.xparty-v31 *{animation:none!important;transition:none!important}}
+
+/* v31.1: range track remains slim inside the larger touch target. */
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined>#seek{appearance:none!important;-webkit-appearance:none!important;background:transparent!important;}
+body.in-room #room #player-shell.xparty-v31 #seek::-webkit-slider-runnable-track{height:3px;background:#ffffff70;border-radius:3px;}
+body.in-room #room #player-shell.xparty-v31 #seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:13px;height:13px;margin-top:-5px;border-radius:50%;background:#e7d7ff;}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row{gap:2px!important;}
+body.in-room #room #player-shell.xparty-v31 .xparty-player-topline #fullscreen-video.xparty-top-fullscreen{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;flex-basis:44px!important;background:transparent!important;}
+body.in-room #room #player-shell.xparty-v31.controls-hidden:not(:focus-within) .xparty-player-topline{opacity:0!important;visibility:hidden!important;pointer-events:none!important;}
+body.in-room #room #player-shell.xparty-v31 :is(button,input):focus-visible{outline:2px solid #ddcaff!important;outline-offset:1px!important;}
+/* Fullscreen uses its single SVG, without a legacy pseudo-element underneath. */
+body.in-room #room #player-shell.xparty-v31 #fullscreen-video.xparty-top-fullscreen::before,
+body.in-room #room #player-shell.xparty-v31 #fullscreen-video.xparty-top-fullscreen::after{display:none!important;content:none!important;}
+body.in-room #room #player-shell.xparty-v31 #fullscreen-video.xparty-top-fullscreen{order:0!important;}
+body.in-room #room #player-shell.xparty-v31 #controls-toggle.xparty-top-playing{order:1!important;}
+
+/* Slim seek rail and compact control footer; each family action has a 44px target. */
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined{height:58px!important;max-height:58px!important;padding:1px 6px!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined>#seek{flex-basis:12px!important;height:12px!important;min-height:12px!important;max-height:12px!important;margin:0!important}
+body.in-room #room #player-shell.xparty-v31 #seek::-webkit-slider-thumb{width:11px;height:11px;margin-top:-4px}
+body.in-room #room #player-shell.xparty-v31 .playback-row{height:44px!important;min-height:44px!important}
+body.in-room #room #player-shell.xparty-v31 .xparty-player-tool-family{flex:1 1 auto!important;justify-content:space-between!important;gap:0!important}
+body.in-room #room #player-shell.xparty-v31 .xparty-player-tool-family>button,
+body.in-room #room #player-shell.xparty-v31 .xparty-player-toolstrip .xparty-player-tool-family>button{transition:background 110ms ease,box-shadow 110ms ease,transform 110ms ease!important}
+body.in-room #room #player-shell.xparty-v31 .xparty-player-tool-family>button:active,
+body.in-room #room #player-shell.xparty-v31 .xparty-player-toolstrip .xparty-player-tool-family>button:active{background:rgba(213,188,255,.2)!important;box-shadow:0 0 0 2px rgba(213,188,255,.28),0 0 13px rgba(199,161,255,.62)!important;transform:scale(.96)!important;opacity:1!important}
+body.in-room #room #player-shell.xparty-v31 .xparty-player-tool-family>button:focus-visible{background:rgba(213,188,255,.16)!important;box-shadow:0 0 0 2px rgba(213,188,255,.4),0 0 12px rgba(199,161,255,.45)!important}
+/* Put one fullscreen toggle at the absolute corner. Its label and glyph become Exit in fullscreen. */
+body.in-room #room #player-shell.xparty-v31 .xparty-player-topline{position:absolute!important;inset:6px 6px auto 6px!important;display:block!important;width:auto!important;max-width:none!important;height:38px!important;max-height:38px!important;pointer-events:none!important}
+body.in-room #room #player-shell.xparty-v31 #fullscreen-video.xparty-top-fullscreen{position:absolute!important;top:0!important;right:0!important;left:auto!important;inset-inline:auto 0!important;width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;flex:none!important;border-radius:9px!important;background:rgba(9,8,16,.48)!important;pointer-events:auto!important}
+body.in-room #room #player-shell.xparty-v31 #controls-toggle.xparty-top-playing{position:absolute!important;left:0!important;top:2px!important;max-width:min(150px,calc(100% - 46px))!important;height:25px!important;pointer-events:none!important}
+body.watch-fullscreen.in-room #room>.mobile-room-header{display:none!important}
+body.watch-fullscreen.in-room #room #player-shell.xparty-v31 .xparty-player-topline{display:block!important;z-index:500!important}
+body.watch-fullscreen.in-room #room #player-shell.xparty-v31 #fullscreen-video{display:grid!important;pointer-events:auto!important}
+body.in-room #room #messages>#xparty-watch-chat-status .xparty-watch-art-fallback{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:linear-gradient(145deg,#8b68d8,#36245e);color:#fff;font:800 19px/1 system-ui;box-shadow:inset 0 0 0 1px #ffffff36}
+body.in-room #room #messages>#xparty-watch-chat-status .xparty-watch-art-fallback[hidden]{display:none!important}
+@media(max-width:360px){body.in-room #room #messages>#xparty-watch-chat-status .xparty-watch-art-fallback{width:32px;height:32px;font-size:15px}}
+body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room #player-shell.xparty-v31,body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room #watch-stage{height:var(--ime-watch-height)!important;min-height:var(--ime-watch-height)!important;max-height:var(--ime-watch-height)!important;flex-shrink:0!important;transition:none!important}
+body.in-room #room #player-shell.xparty-v31 #seek::-webkit-slider-runnable-track{height:5px!important}
+body.in-room #room #player-shell.xparty-v31 #seek::-webkit-slider-thumb{width:13px;height:13px;margin-top:-4px}
+body.in-room #room #player-shell.xparty-v31 .xparty-player-topline{inset:0 0 auto 0!important}
+body.in-room #room #player-shell.xparty-v31 #fullscreen-video.xparty-top-fullscreen{inset:0 auto auto 0!important;inset-inline:0 auto!important;height:44px!important;width:44px!important;background:transparent!important}
+body.in-room #room #player-shell.xparty-v31 #controls-toggle.xparty-top-playing{inset:6px 6px auto auto!important;width:fit-content!important;height:auto!important;min-height:0!important;max-width:calc(100% - 58px)!important;padding:3px 6px!important;white-space:nowrap!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row .xparty-player-toolstrip .xparty-player-tool-family{flex:0 0 auto!important;gap:2px!important}
+body.in-room #room #player-shell.xparty-v31 .playback-row .xparty-player-tool-family>button :is(svg,.icon){width:22px!important;height:22px!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row .xparty-player-toolstrip .xparty-player-tool-family>button:active,body.in-room #room #player-shell.xparty-v31 :is(#play,#fullscreen-video):active{background:#d0adff32!important;box-shadow:0 0 9px #c999ff99!important;transition:none!important}
+body.watch-fullscreen.in-room #room #room-home{display:none!important}
+
+/* In typing mode the existing conversation switch occupies the vacated navigation row. */
+body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room>.mobile-room-header{display:none!important;height:0!important;min-height:0!important}
+body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room>.room-grid{margin-top:var(--ime-header-height,0px)!important}
+body.in-room.xparty-ime-lock:not(.watch-fullscreen):not(.focus-call) #room .conversation-tabs{position:fixed!important;top:var(--ime-header-top,0px)!important;left:0!important;right:0!important;height:var(--ime-header-height)!important;min-height:0!important;z-index:30!important;align-items:center!important}
+body.in-room #room #chat-form>:is(#attach-chat,#chat-video,#chat-mention,#chat-emoji,button[type=submit]){display:inline-grid!important;position:relative!important;inset:auto!important;visibility:visible!important;opacity:1!important;align-items:center!important;justify-items:center!important;flex:0 0 clamp(29px,8vw,40px)!important;width:clamp(29px,8vw,40px)!important;min-width:0!important;height:40px!important;min-height:40px!important;pointer-events:auto!important;margin:0!important}
+body.in-room #room #chat-form{gap:2px!important}
+body.in-room #room #chat-form #message-input{min-width:36px!important;flex:1 1 36px!important}
+body.in-room #room #chat-form>button[type=submit]:disabled{opacity:.48!important}
+body.in-room #room #player-shell.xparty-v31 .player-bar.playback-refined .playback-row .xparty-player-toolstrip .xparty-player-tool-family>button :is(svg,.icon){display:block!important;width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;max-width:24px!important;max-height:24px!important}
+body.in-room #room #player-shell.xparty-v31 #playback-more::before{width:24px!important;height:24px!important}

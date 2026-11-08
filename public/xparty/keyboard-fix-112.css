@@ -1,0 +1,39 @@
+/* XParty 1.1.2 keyboard stability: only the chat composer moves with the IME. */
+html,body{overflow-x:hidden}
+body.in-room #room .chat-panel{min-height:0!important;contain:layout style;}
+body.in-room #room #messages{min-height:0!important;overscroll-behavior:contain!important}
+body.in-room #room .chat-panel #chat-form{
+ bottom:var(--chat-ime-offset,0px)!important;
+ transform:translate3d(0,0,0)!important;
+ z-index:80!important;
+ background:rgba(21,17,28,.94)!important;
+ backdrop-filter:none!important;
+ touch-action:manipulation;
+}
+body.in-room #room .chat-panel #message-input{min-width:0!important;flex:1 1 0!important;max-width:100%!important;font-size:16px!important;line-height:1.25!important;touch-action:manipulation;}
+body.in-room #room #room-chat-panel{padding-bottom:calc(57px + var(--chat-ime-offset,0px))!important}
+body.in-room #room #chat-form>*{flex-shrink:0}
+body.in-room #room #chat-form #message-input{flex-shrink:1}
+body.in-room #room .chat-panel .chat-new-messages{bottom:calc(66px + var(--chat-ime-offset,0px))!important}
+/* The pinned player is never rescaled while the keyboard appears. */
+body.in-room.xparty-ime-lock #watch-stage{contain:layout paint!important;}
+body.in-room.xparty-ime-lock #room #watch-stage{height:var(--ime-watch-height)!important;min-height:var(--ime-watch-height)!important;max-height:var(--ime-watch-height)!important;aspect-ratio:auto!important;}
+/* Remove *entire* marketing section without touching room-creation handlers. */
+#lobby>.intro,#lobby .hero-brand,#lobby .dedication{display:none!important}
+#lobby:not([hidden]){min-height:0!important;height:auto!important;justify-content:flex-start!important;padding-top:12px!important;}
+#lobby:not([hidden])>.entry-card{visibility:visible!important;opacity:1!important;position:relative!important;transform:none!important;margin:0!important;}
+#lobby[hidden],#room[hidden]{display:none!important}
+/* The capture/share control sits above the composer and cannot block keyboard typing. */
+body.in-room.room-keyboard-open #xparty-share-trigger{display:none!important}
+/* A fixed composer is more reliable than bottom-padding on OEM IMEs:
+   no page scroll, no watch-stage relayout, no hidden input. */
+body.in-room.room-keyboard-open #room #room-chat-panel{padding-bottom:57px!important;}
+body.in-room.room-keyboard-open #room .chat-panel #chat-form{
+ position:fixed!important;left:0!important;right:0!important;
+ top:auto!important;bottom:var(--xparty-ime-bottom,0px)!important;
+ width:100vw!important;max-width:100vw!important;z-index:999!important;
+ padding-left:calc(6px + env(safe-area-inset-left))!important;
+ padding-right:calc(6px + env(safe-area-inset-right))!important;
+ background:rgba(26,21,32,.98)!important;
+}
+body.in-room.room-keyboard-open #room .chat-panel .chat-new-messages{bottom:calc(72px + var(--xparty-ime-bottom,0px))!important}
