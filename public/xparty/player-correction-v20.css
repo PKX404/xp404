@@ -1,0 +1,73 @@
+/* Restore Test 15 four-button sizing/order, preserve the network-ping label and key slot.
+   This file intentionally does not touch #chat-form or the playback functions. */
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row>.xparty-player-toolstrip{
+ display:flex!important;position:relative!important;inset:auto!important;
+ flex:0 0 auto!important;width:auto!important;max-width:calc(100% - 100px)!important;
+ margin:0 0 0 auto!important;padding:0!important;order:3!important;
+ justify-content:flex-end!important;align-items:center!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family{
+ display:flex!important;align-items:center!important;gap:clamp(1px,.7vw,5px)!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button{
+ flex:0 0 clamp(33px,9.3vw,42px)!important;
+ width:clamp(33px,9.3vw,42px)!important;
+ min-width:0!important;min-height:0!important;
+ height:clamp(33px,9.3vw,42px)!important;
+ padding:clamp(4px,1vw,7px)!important;
+ border:1px solid #ffffff40!important;border-radius:50%!important;
+ background:#10101c77!important;box-shadow:none!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button svg,
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button::before{
+ width:clamp(20px,6vw,26px)!important;height:clamp(20px,6vw,26px)!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button:active{
+ background:#ffffff24!important;transform:scale(1.04)!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-time-stack{
+ display:inline-flex!important;flex-direction:column!important;align-items:flex-start!important;
+ order:1!important;flex:0 1 auto!important;min-width:0!important;overflow:visible!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-time-stack #xparty-net-ping:not([hidden]),
+body.in-room #room #xparty-net-ping:not([hidden]){
+ display:inline-flex!important;visibility:visible!important;position:static!important;
+ margin:0!important;padding:0!important;opacity:1!important;
+ background:none!important;border:0!important;box-shadow:none!important;
+ line-height:1.3!important;white-space:nowrap!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row #time{
+ display:inline!important;visibility:visible!important;
+ font-size:10px!important;line-height:1.25!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row>.playback-actions{
+ flex:0 1 auto!important;min-width:0!important;order:2!important;
+}
+/* Key and neighboring Settings glyphs are same visual dimensions. Preserve header grid/order. */
+body.in-room #room>.mobile-room-header>.room-key::before,
+body.in-room #room>.mobile-room-header>[aria-label="Settings"]::before{
+ width:clamp(24px,7.2vw,29px)!important;
+ height:clamp(24px,7.2vw,29px)!important;
+ min-width:clamp(24px,7.2vw,29px)!important;
+ min-height:clamp(24px,7.2vw,29px)!important;
+ background-size:contain!important;
+}
+@media(max-width:390px){
+ body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button{
+  flex-basis:clamp(33px,9.3vw,42px)!important;width:clamp(33px,9.3vw,42px)!important;
+  height:clamp(33px,9.3vw,42px)!important;
+ }
+ body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-time-stack #xparty-net-ping:not([hidden]){
+  display:inline-flex!important;font-size:9px!important;
+ }
+}
+@media(max-width:350px){
+ body.in-room #room #player-shell .player-bar.playback-refined .playback-row{gap:1px!important}
+ body.in-room #room #player-shell .player-bar.playback-refined .playback-row #play{
+  flex:0 0 33px!important;width:33px!important;height:33px!important;
+ }
+}
+/* YouTube iframes cannot obscure the four controls: keep the visible bar accessible. */
+body.in-room.xp-playing-youtube #room #player-shell .player-bar.playback-refined{
+ opacity:1!important;visibility:visible!important;pointer-events:auto!important;
+}

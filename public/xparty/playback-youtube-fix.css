@@ -1,0 +1,84 @@
+/* PT17 playback control repair. Keep existing play/seek/volume/scaling/menu/like handlers. */
+/* Four primary controls sit on the BOTTOM RIGHT of playback (volume, settings, scaling, heart). */
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row{
+ display:flex!important;align-items:center!important;justify-content:flex-start!important;
+ gap:clamp(2px,1vw,6px)!important;width:100%!important;min-width:0!important;
+ height:clamp(36px,10.5vw,45px)!important;flex-wrap:nowrap!important;overflow:visible!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row>.xparty-player-toolstrip{
+ position:relative!important;inset:auto!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;
+ display:flex!important;visibility:visible!important;align-items:center!important;justify-content:flex-end!important;
+ width:auto!important;max-width:none!important;min-width:0!important;height:100%!important;
+ flex:0 0 auto!important;margin:0 0 0 auto!important;padding:0!important;
+ transform:none!important;order:3!important;gap:0!important;z-index:48!important;pointer-events:auto!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family{
+ display:flex!important;justify-content:flex-end!important;align-items:center!important;gap:clamp(1px,.75vw,4px)!important;
+ padding:0!important;border:0!important;border-radius:0!important;background:none!important;box-shadow:none!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button{
+ display:grid!important;place-items:center!important;
+ flex:0 0 clamp(30px,9vw,39px)!important;width:clamp(30px,9vw,39px)!important;
+ height:clamp(30px,9vw,39px)!important;min-width:0!important;min-height:0!important;
+ border-radius:50%!important;border:1px solid #ffffff26!important;padding:5px!important;
+ background:#100d19a3!important;color:white!important;box-sizing:border-box!important;
+ opacity:1!important;visibility:visible!important;pointer-events:auto!important;
+ transition:background-color .1s,transform .1s!important;touch-action:manipulation!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button:is(:active,.xp-pressed){
+ background:#ffffff35!important;transform:scale(1.08)!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button :is(svg){width:21px!important;height:21px!important}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row #play{order:0!important;flex:0 0 36px!important;width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;padding:7px!important;margin-left:0!important}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-time-stack,
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row #time{order:1!important;flex:0 1 auto!important;min-width:0!important;font-size:10px!important}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row .playback-actions{order:2!important}
+/* YouTube iframes intercept pointermove: don't rely on 2.8s shell hover timer to display the bar. */
+body.in-room.xp-playing-youtube #room #player-shell .player-bar.playback-refined,
+body.in-room.xp-playing-youtube #room #player-shell.controls-hidden .player-bar.playback-refined{
+ display:flex!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;z-index:80!important;
+ background:linear-gradient(0deg,#0b0819dd 0%,#0b0819b3 55%,transparent 100%)!important;
+}
+body.in-room.xp-playing-youtube #room #player-shell .player-bar.playback-refined .playback-row,
+body.in-room.xp-playing-youtube #room #player-shell.controls-hidden .player-bar.playback-refined .playback-row,
+body.in-room.xp-playing-youtube #room #player-shell.controls-hidden .player-bar.playback-refined .playback-row>.xparty-player-toolstrip{
+ display:flex!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important;
+}
+body.in-room.xp-playing-youtube #room #player-shell.controls-hidden .player-bar.playback-refined #seek{
+ opacity:1!important;visibility:visible!important;pointer-events:auto!important;
+}
+/* Fix old blanket hide rule when the YouTube recommendation drawer is in the DOM. */
+body.in-room.xp-playing-youtube:has(#youtube-suggestions-panel:not([hidden])) #room #player-shell .playback-row>.xparty-player-toolstrip{
+ opacity:1!important;visibility:visible!important;pointer-events:auto!important;
+}
+/* Keep YouTube iframe layer below touchable web UI while preserving the player itself. */
+body.in-room.xp-playing-youtube #room #player-shell #watch-stage{z-index:0!important}
+body.in-room.xp-playing-youtube #room #player-shell #youtube-wrap{z-index:0!important}
+body.in-room.xp-playing-youtube #room #player-shell .player-bar.playback-refined button{touch-action:manipulation!important}
+/* Settings/volume menus must not disappear while interacting with them. */
+body.in-room:has(#playback-options[open]) #room #player-shell .player-bar.playback-refined,
+body.in-room:has(#playback-options[open]) #room #player-shell .playback-row,
+body.in-room #room #player-shell:has(.xparty-balance-sheet:not([hidden])) .playback-row{
+ opacity:1!important;visibility:visible!important;pointer-events:auto!important;
+}
+@media(max-width:390px){
+ body.in-room #room #player-shell .player-bar.playback-refined{padding:5px 4px 4px!important}
+ body.in-room #room #player-shell .player-bar.playback-refined .playback-row{gap:2px!important}
+ body.in-room #room #player-shell .player-bar.playback-refined .playback-row .xparty-player-tool-family>button{flex-basis:30px!important;width:30px!important;height:30px!important}
+ body.in-room #room #player-shell .player-bar.playback-refined .playback-row #time{font-size:9px!important}
+ body.in-room #room #player-shell .playback-row .xparty-time-stack #xparty-net-ping{display:none!important}
+}
+@media(max-width:300px){body.in-room #room #player-shell .player-bar.playback-refined .playback-row #time{display:none!important}}
+@media(prefers-reduced-motion:reduce){body.in-room #room #player-shell .player-bar.playback-refined .xparty-player-tool-family>button{transition:none!important}}
+
+/* Maintain 4-tool group at the right, even after source/visibility changes. */
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row>.xparty-player-toolstrip{
+ margin-left:auto!important;margin-right:0!important;order:3!important;justify-content:flex-end!important;
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row>.playback-actions{
+  order:2!important; flex:0 1 auto!important; min-width:0!important; overflow:visible!important;
+}
+@media(max-width:430px){
+ body.in-room #room #player-shell .player-bar.playback-refined .playback-row>.playback-actions{display:none!important;}
+}
+body.in-room #room #player-shell .player-bar.playback-refined .playback-row>.xparty-player-toolstrip>.xparty-player-tool-family{flex-wrap:nowrap!important;}
