@@ -43,6 +43,8 @@ export function createXparty(options={}) {
  const accountAuth=createAccountAuth({url:process.env.SUPABASE_URL,publicKey:publicAuthKey,fetcher:options.accountFetch});
  const statePath=options.statePath??process.env.STATE_PATH;let saveTimer;
  const allowed=new Set((process.env.ALLOWED_ORIGINS||'https://pkx404.github.io,http://localhost:8787,http://127.0.0.1:8787').split(',').map(x=>x.trim()));
+ // The production HTTPS origin is required for WebSockets after Render free-tier cold starts.
+ allowed.add('https://xp404.onrender.com');
  if(process.env.RENDER_EXTERNAL_URL)allowed.add(process.env.RENDER_EXTERNAL_URL);
  const originOK=req=>allowed.has(req.headers.origin);
  // Android file:// pages have an opaque "null" Origin; opt in only for the mobile API and WS.
