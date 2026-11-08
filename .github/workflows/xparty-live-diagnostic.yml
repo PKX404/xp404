@@ -1,0 +1,20 @@
+name: Diagnose XParty live room connections
+on:
+  push:
+    branches: [fix/xparty-live-room-reconnect-20261108]
+    paths:
+      - 'tests/live-endpoint-probe.mjs'
+      - '.github/workflows/xparty-live-diagnostic.yml'
+  workflow_dispatch:
+jobs:
+  probe-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - name: Check Render live HTTP, WebSocket origin and room creation
+        run: node tests/live-endpoint-probe.mjs
