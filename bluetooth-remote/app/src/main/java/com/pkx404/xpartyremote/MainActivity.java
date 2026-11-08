@@ -30,6 +30,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.SeekBar;
 import java.util.Arrays;
 import java.util.Set;
 
@@ -37,9 +38,9 @@ import java.util.Set;
 public final class MainActivity extends Activity {
   private static final int REQUEST_BT=10;
   private static final int REQUEST_ENABLE=11;
-  private static final int BG=Color.rgb(10,12,25);
-  private static final int PANEL=Color.rgb(29,30,48);
-  private static final int ACCENT=Color.rgb(157,123,254);
+  private static final int BG=Color.rgb(7,19,38);
+  private static final int PANEL=Color.rgb(11,36,80);
+  private static final int ACCENT=Color.rgb(15,107,255);
   private static final byte[] KEY_UP=new byte[8];
   private final Handler handler=new Handler(Looper.getMainLooper());
   private BluetoothAdapter adapter;
@@ -82,7 +83,7 @@ public final class MainActivity extends Activity {
   private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
   private GradientDrawable shape(int color,int round){
     GradientDrawable d=new GradientDrawable();
-    d.setColor(color);d.setCornerRadius(dp(round));d.setStroke(dp(1),0xFF48425F);return d;
+    d.setColor(color);d.setCornerRadius(dp(round));d.setStroke(dp(1),0xFF1C5795);return d;
   }
   private LinearLayout stack(){
     LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;
@@ -99,7 +100,7 @@ public final class MainActivity extends Activity {
     b.setTypeface(null,1);b.setGravity(Gravity.CENTER);b.setMinHeight(dp(50));
     b.setPadding(dp(6),dp(10),dp(6),dp(10));
     b.setBackground(shape(PANEL,14));
-    b.setForeground(new RippleDrawable(ColorStateList.valueOf(0x55CBB6FF),null,shape(0xFFFFFFFF,14)));
+    b.setForeground(new RippleDrawable(ColorStateList.valueOf(0x5545C7FF),null,shape(0xFFFFFFFF,14)));
     b.setContentDescription(caption);b.setOnClickListener(v->r.run());return b;
   }
   private void buttonRow(LinearLayout parent,String[] titles,Runnable[] callbacks){
@@ -125,91 +126,54 @@ public final class MainActivity extends Activity {
     TextView name=label("XPARTY",19,Color.WHITE);
     name.setTypeface(null,1);name.setLetterSpacing(.07f);
     captions.addView(name);
-    captions.addView(label("REMOTE  /  BLUETOOTH",11,0xFFAAA2CB));
+    captions.addView(label("REMOTE  /  2.0  ·  NATIVE",11,0xFF9DCDF2));
     header.addView(captions,capLp);
     header.addView(button("SETTINGS",()->openSettings()),new LinearLayout.LayoutParams(dp(92),dp(50)));
     add(root,header,15);
-    status=label(statusMessage,13,0xFFE4D7FF);
+    status=label(statusMessage,13,0xFFE7F5FF);
     status.setPadding(dp(13),dp(13),dp(13),dp(13));
-    status.setBackground(shape(0xFF29263D,15));
+    status.setBackground(shape(0xFF0E315C,15));
     status.setOnClickListener(v->openSettings());
     status.setContentDescription("Bluetooth connection status. Open connection settings");
     add(root,status,10);
-    add(root,label("TOUCHPAD  ·  ONE FINGER POINTER / TWO FINGER SCROLL",11,0xFFC3B0FF),7);
-    FrameLayout pad=new FrameLayout(this);
-    GradientDrawable padBg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xFF292844,0xFF19253B,0xFF342445});
-    padBg.setCornerRadius(dp(22));padBg.setStroke(dp(1),0xFF8568B8);
-    pad.setBackground(padBg);pad.setContentDescription("One-finger touchpad and two-finger scroll gesture.");
-    TextView guide=label("ONE FINGER: MOVE & TAP\nTWO FINGERS: SCROLL",14,0xFF8589AC);
-    guide.setGravity(Gravity.CENTER);pad.addView(guide,new FrameLayout.LayoutParams(-1,-1));
-    pad.setOnTouchListener(new View.OnTouchListener(){
-      float px,py,startX,startY,midY,remainder;
-      boolean moved,twoFinger;
-      @Override public boolean onTouch(View v,MotionEvent e){
-        int count=e.getPointerCount();
-        switch(e.getActionMasked()){
-          case MotionEvent.ACTION_DOWN:
-            v.getParent().requestDisallowInterceptTouchEvent(true);
-            px=startX=e.getX();py=startY=e.getY();
-            remainder=0;moved=false;twoFinger=false;return true;
-          case MotionEvent.ACTION_POINTER_DOWN:
-            if(count>=2){twoFinger=true;moved=true;midY=(e.getY(0)+e.getY(1))*.5f;}
-            return true;
-          case MotionEvent.ACTION_MOVE:
-            if(count>=2){
-              float nextY=(e.getY(0)+e.getY(1))*.5f;
-              remainder+=nextY-midY;midY=nextY;
-              int steps=(int)(remainder/dp(15));
-              if(steps!=0){
-                mouse(0,0,0,clamp(-steps));
-                remainder-=steps*dp(15);
-              }
-              twoFinger=true;moved=true;
-            }else if(!twoFinger){
-              float dx=e.getX()-px,dy=e.getY()-py;
-              if(Math.abs(e.getX()-startX)+Math.abs(e.getY()-startY)>dp(7))moved=true;
-              int x=clamp(Math.round(dx*1.7f)),y=clamp(Math.round(dy*1.7f));
-              if(x!=0||y!=0)mouse(0,x,y,0);
-              px=e.getX();py=e.getY();
-            }
-            return true;
-          case MotionEvent.ACTION_POINTER_UP:
-            twoFinger=true;moved=true;return true;
-          case MotionEvent.ACTION_UP:
-            if(!moved&&!twoFinger)click(1);
-            v.performClick();return true;
-          case MotionEvent.ACTION_CANCEL:
-            return true;
-        }
-        return true;
-      }
+    add(root,label("ELECTRIC BLUE TOUCHPAD",12,0xFF5ECFFF),7);
+    // Native XML touch surface with custom two-finger HID wheel handling.
+    RemoteTouchpadView pad=(RemoteTouchpadView)getLayoutInflater().inflate(
+      R.layout.touchpad_panel,root,false);
+    pad.configure(
+      getPreferences(MODE_PRIVATE).getInt("pointer_sensitivity",45),
+      getPreferences(MODE_PRIVATE).getInt("scroll_sensitivity",50));
+    pad.setInputListener(new RemoteTouchpadView.InputListener(){
+      @Override public void move(int x,int y){mouse(0,x,y,0);}
+      @Override public void scroll(int ticks){mouse(0,0,0,ticks);}
+      @Override public void click(){MainActivity.this.click(1);}
     });
-    add(root,pad,10);
-    pad.getLayoutParams().height=dp(188);
+    add(root,pad,12);
+    pad.getLayoutParams().height=dp(238);
 
     buttonRow(root,new String[]{"Left click","Right click","Back"},
       new Runnable[]{()->click(1),()->click(2),()->key(41)});
-    add(root,label("NAVIGATION / CHANNEL LIST",12,0xFFBB9EFC),8);
+    add(root,label("DIRECTIONAL CONTROLS",12,0xFF5ECFFF),8);
     buttonRow(root,new String[]{"▲ Up","▼ Down","↵ Select"},
       new Runnable[]{()->key(82),()->key(81),()->key(40)});
     buttonRow(root,new String[]{"◀ Left","▶ Right","Tab"},
       new Runnable[]{()->key(80),()->key(79),()->key(43)});
-    add(root,label("SEARCH LIVE TV ON THE TABLET",12,0xFFBB9EFC),7);
+    add(root,label("SEARCH LIVE TV & VIDEOS",12,0xFF5ECFFF),7);
     textToSend=new EditText(this);
     textToSend.setSingleLine(true);textToSend.setHint("Type channel name (e.g. Zee Cinema)");
-    textToSend.setTextColor(Color.WHITE);textToSend.setHintTextColor(0xFF8589AC);
+    textToSend.setTextColor(Color.WHITE);textToSend.setHintTextColor(0xFFA8C6E8);
     textToSend.setTextSize(15);textToSend.setPadding(dp(15),dp(12),dp(15),dp(12));
     textToSend.setBackground(shape(PANEL,14));add(root,textToSend,8);
     buttonRow(root,new String[]{"Send text","Enter","⌫ Delete"},
       new Runnable[]{()->typeText(textToSend.getText().toString()),()->key(40),()->key(42)});
-    add(root,label("PLAYBACK / SOUND",12,0xFFBB9EFC),7);
+    add(root,label("PLAYBACK & SOUND",12,0xFF5ECFFF),7);
     buttonRow(root,new String[]{"PREVIOUS","PLAY / PAUSE","NEXT"},
       new Runnable[]{()->consumer(0xB6),()->consumer(0xCD),()->consumer(0xB5)});
     buttonRow(root,new String[]{"Volume −","Mute","Volume +"},
       new Runnable[]{()->consumer(0xEA),()->consumer(0xE2),()->consumer(0xE9)});
     buttonRow(root,new String[]{"SPACE","FULLSCREEN","ESC"},
       new Runnable[]{()->key(44),()->key(9),()->key(41)});
-    add(root,label("Tip: Select the search field on your tablet, then send text. Bluetooth pairing and switching live in Settings.",12,0xFF9496B2),2);
+    add(root,label("Pair and switch tablets in Settings. Channel search works when the tablet's search field is focused.",12,0xFFA7C4E6),2);
   }
 
   private void openSettings(){
@@ -226,32 +190,52 @@ public final class MainActivity extends Activity {
     LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(0,-2,1);hp.leftMargin=dp(12);
     TextView title=label("CONNECTIVITY",19,Color.WHITE);title.setTypeface(null,1);
     heading.addView(title);
-    heading.addView(label("XPARTY REMOTE  /  SETTINGS",11,0xFFACA3CE));
+    heading.addView(label("XPARTY REMOTE  /  2.0",11,0xFF9DCDF2));
     header.addView(heading,hp);
     header.addView(button("BACK",()->render()),new LinearLayout.LayoutParams(dp(75),dp(50)));
     add(root,header,16);
-    status=label(statusMessage,13,0xFFEEE2FF);
+    status=label(statusMessage,13,0xFFE7F5FF);
     status.setPadding(dp(15),dp(16),dp(15),dp(16));
-    status.setBackground(shape(0xFF29243F,15));
+    status.setBackground(shape(0xFF0E315C,15));
     add(root,status,18);
-    add(root,label("BLUETOOTH CONNECTION",12,0xFFC8B4FF),10);
+    add(root,label("BLUETOOTH CONNECTION",12,0xFF5ECFFF),10);
     buttonRow(root,new String[]{"ACTIVATE REMOTE","DISCOVERABLE"},
       new Runnable[]{this::activate,this::discoverable});
     buttonRow(root,new String[]{"REFRESH DEVICES","DISCONNECT"},
       new Runnable[]{this::showPaired,this::disconnect});
-    add(root,label("YOUR PAIRED DEVICES",12,0xFFC8B4FF),9);
+    add(root,label("YOUR PAIRED DEVICES",12,0xFF5ECFFF),9);
     devices=stack();add(root,devices,12);
     showPaired();
-    add(root,label("PAIRING GUIDE",12,0xFFC8B4FF),9);
-    TextView guide=label("1. Enable Bluetooth on phone and tablet.\n2. Activate remote, then make phone discoverable.\n3. From the tablet Bluetooth settings, pair with this phone.\n4. Refresh paired tablets here and connect.\n5. Return to remote controls.",13,0xFFDDD7EE);
+    add(root,label("PAIRING GUIDE",12,0xFF5ECFFF),9);
+    TextView guide=label("1. Enable Bluetooth on phone and tablet.\n2. Activate remote, then make phone discoverable.\n3. From the tablet Bluetooth settings, pair with this phone.\n4. Refresh paired tablets here and connect.\n5. Return to remote controls.",13,0xFFE2F3FF);
     guide.setPadding(dp(14),dp(16),dp(14),dp(16));
     guide.setBackground(shape(PANEL,14));guide.setLineSpacing(dp(4),1.0f);
     add(root,guide,18);
-    add(root,label("GESTURES",12,0xFFC8B4FF),9);
-    add(root,label("One finger moves the pointer. Tap to select.\nTwo fingers swipe to scroll on the tablet.\nVolume and playback keys depend on tablet support.",13,0xFFBCB6D1),0);
+    add(root,label("TOUCHPAD TUNING",12,0xFF5ECFFF),9);
+    addSensitivity(root,"POINTER SENSITIVITY","pointer_sensitivity",45);
+    addSensitivity(root,"SCROLL SENSITIVITY","scroll_sensitivity",50);
+    add(root,label("GESTURES",12,0xFF5ECFFF),9);
+    add(root,label("One finger moves the pointer. Tap to select.\nTwo fingers swipe to scroll on the tablet.\nVolume and playback keys depend on tablet support.",13,0xFFAFCDEB),0);
   }
   @Override public void onBackPressed(){
     if(settingsShown)render();else super.onBackPressed();
+  }
+  private void addSensitivity(LinearLayout root,String label,String key,int initial){
+    int current=getPreferences(MODE_PRIVATE).getInt(key,initial);
+    TextView value=label(label+"  ·  "+current+"%",12,0xFFE2F3FF);
+    add(root,value,3);
+    SeekBar slider=new SeekBar(this);
+    slider.setMax(100);slider.setProgress(current);slider.setProgressTintList(ColorStateList.valueOf(ACCENT));
+    slider.setThumbTintList(ColorStateList.valueOf(0xFF5ECFFF));
+    slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+      @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){
+        value.setText(label+"  ·  "+progress+"%");
+        if(fromUser)getPreferences(MODE_PRIVATE).edit().putInt(key,progress).apply();
+      }
+      @Override public void onStartTrackingTouch(SeekBar bar){}
+      @Override public void onStopTrackingTouch(SeekBar bar){}
+    });
+    add(root,slider,12);
   }
   private static int clamp(int x){return Math.max(-127,Math.min(127,x));}
   private void status(String message){statusMessage=message;runOnUiThread(()->{if(status!=null)status.setText(message);});}
