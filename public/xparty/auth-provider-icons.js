@@ -1,0 +1,8 @@
+// Small bundled vector marks; no icon font or remote image request.
+const marks={
+ google:'<path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z"/><path fill="#34A853" d="M12 22c2.7 0 4.96-.89 6.62-2.41l-3.24-2.51c-.9.6-2.05.97-3.38.97-2.61 0-4.83-1.76-5.62-4.12H3.04v2.59A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.38 13.93a6 6 0 0 1 0-3.86V7.48H3.04a10 10 0 0 0 0 9.04l3.34-2.59Z"/><path fill="#EA4335" d="M12 5.95c1.47 0 2.79.51 3.82 1.51l2.87-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.96 5.48l3.34 2.59C7.17 7.71 9.39 5.95 12 5.95Z"/>',
+ facebook:'<path fill="currentColor" d="M14.4 22v-9h3l.5-3.5h-3.5V7.2c0-1 .3-1.7 1.7-1.7H18V2.3c-.3-.1-1.5-.2-2.8-.2-2.8 0-4.7 1.7-4.7 4.9v2.5H7.4V13h3.1v9Z"/>',
+ twitter:'<path fill="currentColor" d="M18.9 2H22l-6.8 7.8 8 12.2H17l-4.9-7.4L5.6 22H2.4l8.1-9.2L2 2h6.4l4.4 6.6L18.9 2ZM17.8 20h1.7L7.2 4H5.4L17.8 20Z"/>',
+ apple:'<path fill="currentColor" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.33.07 2.25.75 3.03.8 1.16-.24 2.27-.94 3.51-.85 1.49.12 2.61.71 3.35 1.77-3.07 1.84-2.34 5.89.48 7.02-.56 1.48-1.29 2.95-2.38 4.23ZM12.03 7.25C11.88 5.05 13.67 3.24 15.73 3.06c.28 2.54-2.31 4.44-3.7 4.19Z"/>'
+};
+export function providerMark(provider){const mark=document.createElement('span');mark.setAttribute('aria-hidden','true');if(marks[provider.id]){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width','25');svg.setAttribute('height','25');svg.innerHTML=marks[provider.id];mark.append(svg);}else mark.textContent=provider.short;return mark;}

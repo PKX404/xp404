@@ -25,7 +25,7 @@ export function initAmbient({getContext,frameBridge,panel=document.getElementByI
  const motion=matchMedia('(prefers-reduced-motion: reduce)');
  const layer=document.createElement('div');layer.className='room-ambient-layer';layer.setAttribute('aria-hidden','true');panel.prepend(layer);
  const renderer=createImmersiveRenderer(layer,{onContextChange:()=>{failed=false;hasFrame=false;update();}}),fallback=document.createElement('canvas');fallback.width=12;fallback.height=8;const ctx=fallback.getContext('2d',{willReadFrequently:true});
- let key=null,image=null,failed=false,destroyed=false,hasFrame=false,idleTimer=null,frameVideo=null,pump=null,lastFallbackAt=-Infinity,palette=null,suspended=false,boundVideo=null,externalSequence=null;
+ let key=null,image=null,failed=false,destroyed=false,hasFrame=false,lastSampleAt=0,idleTimer=null,frameVideo=null,pump=null,lastFallbackAt=-Infinity,palette=null,suspended=false,boundVideo=null,externalSequence=null;
  function visible(){return !suspended&&!document.hidden&&!panel.hidden&&panel.getClientRects().length>0;}
  function animated(){const c=getContext()||{};return ambientActive({hidden:document.hidden,reduced:motion.matches,room:c.room,playing:c.playing??c.room?.playback?.playing,visible:visible()});}
  function stopFrames(){pump?.stop();pump=null;frameVideo=null;}
@@ -34,6 +34,7 @@ export function initAmbient({getContext,frameBridge,panel=document.getElementByI
  function sample(video,metadata){
   if(failed||destroyed||!visible())return;
   const start=performance.now();
+  if(hasFrame&&start-lastSampleAt<85)return;lastSampleAt=start;
   try{
    if(renderer.render(video)){hasFrame=true;layer.dataset.mode='video';layer.dataset.frameOrigin=metadata?.origin||'decoder';onMode('covered');}
    else if(!renderer.available&&ctx&&start-lastFallbackAt>=100){lastFallbackAt=start;palette=readPalette(video);hasFrame=true;fluid();}
@@ -51,9 +52,9 @@ export function initAmbient({getContext,frameBridge,panel=document.getElementByI
   // The player supplies its frame source. Rendering does not depend on a provider list.
   bindVideo(c.video||null);
   frameBridge?.watchEmbedded(source,{enabled:on&&!c.nativeActive,playing:animated()});
-  panel.classList.toggle('room-immersive-on',on);document.body.classList.toggle('room-immersive-on',on);
+  const mounted=!!c.room&&!panel.hidden;panel.classList.toggle('room-immersive-on',mounted);document.body.classList.toggle('room-immersive-on',mounted);
   if(!on){stopFrames();if(!c.room||panel.hidden){clear();onMode('home');}return;}
-  if(c.nativeActive){stopFrames();renderer.clear();hasFrame=false;layer.dataset.mode='native';onMode('covered');if(!document.hidden)idleTimer=setTimeout(update,1000);return;}
+  if(c.nativeActive){stopFrames();if(layer.dataset.mode!=='native')renderer.clear();hasFrame=false;layer.dataset.mode='native';onMode('covered');if(!document.hidden)idleTimer=setTimeout(update,1000);return;}
   const nextKey=source?.id||source?.videoId||source?.url||'empty-room';
   if(key!==nextKey){clear();key=nextKey;fluid();
    if(source?.type==='youtube'&&source.videoId&&ctx){const expected=key;image=new Image();image.crossOrigin='anonymous';image.onload=()=>{if(destroyed||key!==expected)return;try{palette=readPalette(image);if(visible()&&!hasFrame)fluid();}catch{}};image.src='https://i.ytimg.com/vi/'+encodeURIComponent(source.videoId)+'/hqdefault.jpg';}

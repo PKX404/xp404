@@ -39,3 +39,44 @@ body.native-media-active #room #file-player{visibility:hidden!important}
 body.native-media-active .site-fluid-layer,body.native-media-active .room-ambient-layer{visibility:hidden!important}
 
 body.native-media-active #youtube-wrap{visibility:hidden!important}
+
+/* Android Media3/ExoPlayer draws behind the WebView. A background on *any*
+   stage ancestor can fully conceal the moving native surface while audio
+   continues. Clear only the player aperture, leaving chat styling intact. */
+body.native-media-active #room .room-grid,
+body.native-media-active #room .watch-column,
+body.native-media-active #room #player-shell,
+body.native-media-active #room #watch-stage,
+body.native-media-active #room #watch-stage #file-player,
+body.native-media-active #room #watch-stage #youtube-wrap,
+body.native-media-active #room #watch-stage #vimeo-wrap{
+ background:transparent!important;background-image:none!important;
+ backdrop-filter:none!important;box-shadow:none!important;
+}
+body.native-media-active #room #watch-stage::before,
+body.native-media-active #room #watch-stage::after,
+body.native-media-active #room #player-shell::before,
+body.native-media-active #room #player-shell::after{content:none!important;display:none!important}
+body.native-media-active #room #watch-stage #empty-player{visibility:hidden!important;pointer-events:none!important}
+body.native-media-active #room #watch-stage #empty-player[hidden]{display:none!important}
+
+/* 1.0.3 ROOT-CAUSE FIX: style.css paints :root with --bg (#0b0d12).
+   Android's WebView is TRANSPARENT, and the native GLSurfaceView is attached
+   behind it. Clearing #watch-stage is ineffective while the root itself
+   still paints an opaque color over the full video surface. Keep opacity
+   unchanged for chat and all room menus. */
+html.native-video-through,html.native-video-through:root{
+ background:transparent!important;
+ background-color:transparent!important;
+ background-image:none!important;
+}
+html.native-video-through body,
+html.native-video-through body.in-room,
+html.native-video-through body #room,
+html.native-video-through body #room .room-grid,
+html.native-video-through body #room .watch-column,
+html.native-video-through body #room #player-shell,
+html.native-video-through body #room #watch-stage{
+ background:transparent!important;
+ background-image:none!important;
+}
