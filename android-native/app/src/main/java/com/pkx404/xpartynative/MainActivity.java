@@ -277,15 +277,25 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private android.animation.ValueAnimator homeAnimator;
   private LinearLayout exploreRoomList;
   private String pendingHomeSheet=null;
+  private View homeOverlay=null;
   private int homeTab=0;
 
   private void showLobby(){
     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-    roomActive=false;room=null;source=null;sourceId="";sourceType="";roomCode="";
+    boolean overlayRoom=roomActive&&roomNativeRoot!=null&&socket.isConnected();
+    if(overlayRoom&&homeOverlay!=null)return;
+    if(!overlayRoom){roomActive=false;room=null;source=null;sourceId="";sourceType="";roomCode="";}
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     LinearLayout home=column();
     home.setBackgroundColor(0xFF0D0B1F);
-    setContentView(home);
+    if(overlayRoom){
+      homeOverlay=home;
+      FrameLayout content=findViewById(android.R.id.content);
+      content.addView(home,new FrameLayout.LayoutParams(-1,-1));
+    }else{
+      homeOverlay=null;
+      setContentView(home);
+    }
 
     LinearLayout head=new LinearLayout(this);
     head.setPadding(dp(17),dp(5),dp(14),dp(5));
@@ -397,6 +407,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     pendingHomeSheet=type;
     startRoom("create");
   }
+  private void returnToRoom(){
+    if(homeOverlay==null||!roomActive)return;
+    if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
+    ViewGroup parent=(ViewGroup)homeOverlay.getParent();
+    if(parent!=null)parent.removeView(homeOverlay);
+    homeOverlay=null;
+    if(immersive!=null)immersive.refresh();
+    revealPlaybackControls();
+  }
   private void renderHomeNotice(String title,String details){
     if(screen==null)return;
     screen.removeAllViews();
@@ -432,6 +451,29 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     LinearLayout body=column();body.setPadding(dp(0),dp(12),dp(0),dp(12));
     scroller.addView(body);
     screen.addView(scroller,new FrameLayout.LayoutParams(-1,-1));
+    // Active room navigation is an overlay: the actual video/room remains alive.
+    if(roomActive&&homeOverlay!=null){
+      LinearLayout card=column();card.setPadding(dp(16),dp(18),dp(16),dp(15));
+      card.setBackground(shape(0xFF161626,22));
+      TextView active=text("You have an active Watch Party",14,WHITE,false);
+      active.setGravity(Gravity.CENTER);
+      add(card,active,12);
+      LinearLayout actions=new LinearLayout(this);
+      Button back=button("Return to room",this::returnToRoom,true);
+      actions.addView(back,new LinearLayout.LayoutParams(0,dp(50),1));
+      Button leave=button("Leave room",()->{
+        new AlertDialog.Builder(this).setTitle("Leave watch party?")
+          .setMessage("Everyone else will remain connected unless you end the room as host.")
+          .setPositiveButton("Leave",(dialog,which)->leaveRoom())
+          .setNegativeButton("Cancel",null).show();
+      },false);
+      LinearLayout.LayoutParams leaveLp=new LinearLayout.LayoutParams(0,dp(50),1);
+      leaveLp.leftMargin=dp(8);actions.addView(leave,leaveLp);
+      add(card,actions,0);
+      LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(-1,-2);
+      cardLp.leftMargin=dp(14);cardLp.rightMargin=dp(14);cardLp.bottomMargin=dp(13);
+      body.addView(card,cardLp);
+    }
     // Same top typography and navigation hierarchy as XParty v31.6.
     TextView kicker=text("YOUR PEOPLE. YOUR PLAYLIST.",11,0xFFD8BFFC,true);
     kicker.setLetterSpacing(.18f);
@@ -665,7 +707,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     android.widget.ImageView brand=new android.widget.ImageView(this);
     brand.setImageResource(R.drawable.xparty_wordmark_exact);
     brand.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-    brand.setContentDescription("XParty original wordmark");
+    brand.setContentDescription("XParty wordmark · return to home");
+    brand.setOnClickListener(v->showLobby());
     brand.setPadding(dp(2),dp(5),dp(2),dp(5));
     roomHeader.addView(brand,new LinearLayout.LayoutParams(0,dp(58),2.30f));
 
@@ -1506,6 +1549,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void leaveRoom(){
     if(!roomActive)return;
     socket.disconnect(true);
+    roomActive=false;
+    if(homeOverlay!=null){
+      ViewGroup overlayParent=(ViewGroup)homeOverlay.getParent();
+      if(overlayParent!=null)overlayParent.removeView(homeOverlay);
+      homeOverlay=null;
+    }
     if(calls!=null){calls.stop();calls=null;}
     if(immersive!=null){immersive.stop();immersive=null;}
     if(playbackSheet!=null)playbackSheet.dismiss();
@@ -1586,6 +1635,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
   }
   @Override public void onBackPressed(){
+    if(homeOverlay!=null){returnToRoom();return;}
     if(fullscreenNative){toggleNativeFullscreen();return;}
     if(roomActive){
       new AlertDialog.Builder(this).setTitle("Leave the watch room?")
