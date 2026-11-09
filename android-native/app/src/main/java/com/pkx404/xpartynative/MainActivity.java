@@ -245,68 +245,349 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if("resume-failed".equals(type)||"ended".equals(type)||"kicked".equals(type)){socket.disconnect(false);showLobby();}
     }
   }
+  private XPControl xpIcon(String name,Runnable onPress){
+    XPControl icon=new XPControl(this,name);icon.setOnClickListener(v->onPress.run());return icon;
+  }
+  private void iconIn(LinearLayout container,XPControl icon,int width,int height){
+    container.addView(icon,new LinearLayout.LayoutParams(dp(width),dp(height)));
+  }
+  private void headerIcon(LinearLayout bar,String kind,Runnable onPress,float weight){
+    XPControl icon=xpIcon(kind,onPress);
+    bar.addView(icon,new LinearLayout.LayoutParams(0,dp(58),weight));
+  }
+  private GradientDrawable blend(int top,int bottom,int radius){
+    GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{top,bottom});
+    d.setCornerRadius(dp(radius));return d;
+  }
   private void showRoom(){
-    roomActive=true;
-    layout("XPARTY","LIVE WATCH ROOM");
-    ScrollView scroll=scrollPage();scroll.setFillViewport(false);
-    roomBody=column();roomBody.setPadding(dp(14),dp(7),dp(14),dp(20));scroll.addView(roomBody);
-    LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
-    roomTitle=text("ROOM • CONNECTING",16,WHITE,true);
-    top.addView(roomTitle,new LinearLayout.LayoutParams(0,-2,1));
-    top.addView(button("COPY",()->{
-      ((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE))
-        .setPrimaryClip(android.content.ClipData.newPlainText("Room code",roomCode));
-      toast("Room code copied");
-    },false),new LinearLayout.LayoutParams(dp(77),dp(44)));
-    add(roomBody,top,7);
-    people=text("Participants: 1",12,MUTED,false);add(roomBody,people,10);
+    roomActive=true;imeShown=false;fullscreenNative=false;showChat=true;
+    roomNativeRoot=column();
+    roomNativeRoot.setBackgroundColor(0xFF0B0D1C);
+    setContentView(roomNativeRoot);
 
-    // The video player is a fixed native surface; keyboard changes do not recreate it.
-    playerFrame=new FrameLayout(this);playerFrame.setBackground(shape(0xFF000000,18));
+    // The balanced, edge-to-edge XParty header is fully native.
+    roomHeader=new LinearLayout(this);roomHeader.setGravity(Gravity.CENTER_VERTICAL);
+    roomHeader.setPadding(dp(6),0,dp(6),0);
+    roomHeader.setBackground(blend(0xFF201A23,0xFF121829,0));
+    headerIcon(roomHeader,"exit",()->leaveRoom(),1f);
+    headerIcon(roomHeader,"settings",this::showPlaybackSettings,1f);
+    headerIcon(roomHeader,"search",this::openSourceChooser,1f);
+
+    TextView brand=text("XPARTY",23,WHITE,true);
+    brand.setTypeface(Typeface.create("sans-serif-black",Typeface.BOLD));
+    brand.setGravity(Gravity.CENTER);
+    brand.setLetterSpacing(-.07f);
+    brand.setContentDescription("XParty");
+    roomHeader.addView(brand,new LinearLayout.LayoutParams(0,dp(58),2.30f));
+
+    headerIcon(roomHeader,"playsearch",this::openSourceChooser,1f);
+    headerIcon(roomHeader,"share",this::shareRoom,1f);
+    headerIcon(roomHeader,"people",this::openParticipants,1f);
+    roomNativeRoot.addView(roomHeader,new LinearLayout.LayoutParams(-1,dp(58)));
+
+    roomStage=column();roomStage.setBackgroundColor(0xFF11172F);
+    roomNativeRoot.addView(roomStage,new LinearLayout.LayoutParams(-1,-2));
+    playerFrame=new FrameLayout(this);
+    playerFrame.setBackgroundColor(Color.BLACK);
     playerView=new PlayerView(this);
     playerView.setUseController(false);
-    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+    playerView.setResizeMode(playerFit);
     playerView.setPlayer(player);
     playerFrame.addView(playerView,new FrameLayout.LayoutParams(-1,-1));
-    youtube=new WebView(this);youtube.setBackgroundColor(Color.BLACK);
+    youtube=new WebView(this);
+    youtube.setBackgroundColor(Color.BLACK);
     youtube.getSettings().setJavaScriptEnabled(true);
     youtube.getSettings().setMediaPlaybackRequiresUserGesture(true);
     youtube.setWebChromeClient(new WebChromeClient());
     youtube.setVisibility(View.GONE);
     playerFrame.addView(youtube,new FrameLayout.LayoutParams(-1,-1));
-    add(roomBody,playerFrame,10);
-    playerFrame.getLayoutParams().height=dp(214);
-    videoState=text("Choose a video • Live TV, YouTube, or MP4",12,MUTED,false);add(roomBody,videoState,7);
-    playerLabel=text("NO VIDEO SELECTED",13,WHITE,true);add(roomBody,playerLabel,11);
 
-    LinearLayout transport=new LinearLayout(this);
-    playButton=button("▶ PLAY",()->togglePlayback(),true);
-    transport.addView(playButton,new LinearLayout.LayoutParams(0,dp(49),1));
-    Button sourceButton=button("SOURCES",()->openSourceChooser(),false);
-    LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(49),1);p.leftMargin=dp(8);
-    transport.addView(sourceButton,p);
-    Button sync=button("↻ RESYNC",()->send("resync"),false);
-    p=new LinearLayout.LayoutParams(0,dp(49),1);p.leftMargin=dp(8);transport.addView(sync,p);
-    add(roomBody,transport,10);
+    XPControl fullscreen=xpIcon("fullscreen",this::toggleNativeFullscreen);
+    FrameLayout.LayoutParams fullParams=new FrameLayout.LayoutParams(dp(44),dp(44),Gravity.TOP|Gravity.LEFT);
+    fullParams.leftMargin=dp(5);fullParams.topMargin=dp(5);
+    playerFrame.addView(fullscreen,fullParams);
 
-    add(roomBody,text("CHAT WITH EVERYONE",12,PURPLE,true),8);
-    chatScroll=new ScrollView(this);chatScroll.setFillViewport(false);
-    chatScroll.setBackground(shape(CARD,15));
-    chatItems=column();chatItems.setPadding(dp(10),dp(9),dp(10),dp(9));
+    videoPill=text("Waiting for video",11,0xFFD8DBEA,true);
+    videoPill.setPadding(dp(9),dp(6),dp(9),dp(6));
+    videoPill.setGravity(Gravity.CENTER);
+    videoPill.setBackground(shape(0xD511182A,13));
+    FrameLayout.LayoutParams pillParams=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.RIGHT);
+    pillParams.topMargin=dp(12);pillParams.rightMargin=dp(12);
+    playerFrame.addView(videoPill,pillParams);
+    videoState=videoPill;
+    roomStage.addView(playerFrame,new LinearLayout.LayoutParams(-1,-2));
+    int displayWidth=getResources().getDisplayMetrics().widthPixels;
+    savedVideoHeight=Math.round(displayWidth*9f/16f);
+    playerFrame.getLayoutParams().height=savedVideoHeight;
+
+    progress=new SeekBar(this);
+    progress.setMax(1000);progress.setProgress(0);
+    progress.setProgressTintList(ColorStateList.valueOf(0xFFD9CCFF));
+    progress.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF625B87));
+    progress.setThumbTintList(ColorStateList.valueOf(0xFFFFFFFF));
+    progress.setPadding(dp(5),0,dp(5),0);
+    roomStage.addView(progress,new LinearLayout.LayoutParams(-1,dp(19)));
+    progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+      @Override public void onProgressChanged(SeekBar sb,int value,boolean fromUser){}
+      @Override public void onStartTrackingTouch(SeekBar sb){}
+      @Override public void onStopTrackingTouch(SeekBar sb){
+        if(source==null||!"direct".equals(sourceType)){toast("This source does not support seeking.");return;}
+        double target=player.getDuration()>0?player.getDuration()*sb.getProgress()/1000000.0:0;
+        try {
+          JSONObject msg=new JSONObject().put("type","playback").put("sourceId",sourceId)
+            .put("playing",playback!=null&&playback.optBoolean("playing"))
+            .put("position",target).put("intent","seek");
+          socket.send(msg);
+        }catch(Exception ignored){}
+      }
+    });
+
+    roomControls=new LinearLayout(this);roomControls.setGravity(Gravity.CENTER_VERTICAL);
+    roomControls.setPadding(dp(7),0,dp(7),0);
+    roomControls.setBackground(blend(0xFF151933,0xFF1E1935,0));
+    FrameLayout playSlot=new FrameLayout(this);
+    playIcon=xpIcon("play",this::togglePlayback);
+    pauseIcon=xpIcon("pause",this::togglePlayback);
+    playSlot.addView(playIcon,new FrameLayout.LayoutParams(-1,-1));
+    playSlot.addView(pauseIcon,new FrameLayout.LayoutParams(-1,-1));
+    pauseIcon.setVisibility(View.GONE);
+    roomControls.addView(playSlot,new LinearLayout.LayoutParams(dp(45),dp(52)));
+    TextView live=text("●  LIVE",12,WHITE,true);
+    live.setGravity(Gravity.CENTER_VERTICAL);live.setTextColor(0xFFF5F1FF);
+    roomControls.addView(live,new LinearLayout.LayoutParams(-2,dp(52)));
+    // Native white vector buttons: same hitbox, identical alignment.
+    View spacer=new View(this);roomControls.addView(spacer,new LinearLayout.LayoutParams(0,1,1));
+    likeIcon=xpIcon("heart",this::toggleVideoLike);
+    iconIn(roomControls,likeIcon,44,52);
+    iconIn(roomControls,xpIcon("scale",this::cycleVideoScaling),44,52);
+    iconIn(roomControls,xpIcon("settings",this::showPlaybackSettings),44,52);
+    iconIn(roomControls,xpIcon("volume",this::showVolume),44,52);
+    roomStage.addView(roomControls,new LinearLayout.LayoutParams(-1,dp(52)));
+
+    // Gradient room panel with native split call/chat affordances.
+    roomPane=column();
+    roomPane.setBackground(blend(0xFF251D53,0xFF1B0D36,0));
+    roomNativeRoot.addView(roomPane,new LinearLayout.LayoutParams(-1,0,1));
+    LinearLayout tabs=new LinearLayout(this);
+    tabs.setGravity(Gravity.CENTER_VERTICAL);
+    tabCall=text("Video call",15,WHITE,true);
+    tabCall.setGravity(Gravity.CENTER);
+    tabCall.setOnClickListener(v->showRoomTab(false));
+    tabs.addView(tabCall,new LinearLayout.LayoutParams(0,dp(58),1));
+    tabChat=text("Chat",15,WHITE,true);
+    tabChat.setGravity(Gravity.CENTER);
+    tabChat.setOnClickListener(v->showRoomTab(true));
+    tabs.addView(tabChat,new LinearLayout.LayoutParams(0,dp(58),1));
+    roomPane.addView(tabs);
+
+    hostNotice=new LinearLayout(this);hostNotice.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+    hostNotice.setPadding(dp(12),dp(6),dp(18),dp(5));
+    hostStatus=text("Host joined the room",13,0xFFE6DCF9,false);
+    hostStatus.setBackground(shape(0xFF2D234F,18));
+    hostStatus.setPadding(dp(10),dp(5),dp(10),dp(5));
+    hostNotice.addView(hostStatus,new LinearLayout.LayoutParams(-2,-2));
+    XPControl crown=xpIcon("crown",this::openParticipants);crown.tint(0xFFE2BF6F);
+    iconIn(hostNotice,crown,39,42);
+    TextView avatar=text("H",15,WHITE,true);avatar.setGravity(Gravity.CENTER);
+    avatar.setBackground(shape(0xFF685880,44));
+    hostNotice.addView(avatar,new LinearLayout.LayoutParams(dp(42),dp(42)));
+    roomPane.addView(hostNotice,new LinearLayout.LayoutParams(-1,dp(73)));
+
+    LinearLayout watching=new LinearLayout(this);watching.setGravity(Gravity.CENTER_VERTICAL);
+    watching.setPadding(dp(13),dp(2),dp(11),dp(2));
+    XPControl currentSource=xpIcon("play",this::openSourceChooser);
+    currentSource.tint(0xFFEAE2FF);
+    iconIn(watching,currentSource,42,51);
+    playerLabel=text("Now watching · Choose a video",14,WHITE,true);
+    playerLabel.setGravity(Gravity.CENTER_VERTICAL);
+    watching.addView(playerLabel,new LinearLayout.LayoutParams(0,dp(52),1));
+    XPControl heart=xpIcon("heart",this::toggleVideoLike);
+    iconIn(watching,heart,44,50);
+    XPControl next=xpIcon("next",()->{
+      if(isHost)send("next");else toast("Only the host can skip the video.");
+    });
+    iconIn(watching,next,44,50);
+    roomPane.addView(watching,new LinearLayout.LayoutParams(-1,dp(66)));
+
+    // Messages belong to the room panel, not another large floating card.
+    chatScroll=new ScrollView(this);
+    chatScroll.setFillViewport(true);
+    chatScroll.setVerticalScrollBarEnabled(false);
+    chatItems=column();chatItems.setPadding(dp(15),dp(5),dp(14),dp(12));
     chatScroll.addView(chatItems);
-    add(roomBody,chatScroll,10);chatScroll.getLayoutParams().height=dp(184);
-    LinearLayout composer=new LinearLayout(this);composer.setGravity(Gravity.CENTER_VERTICAL);
-    chatInput=entry("Message everyone");
-    composer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(50),1));
-    Button send=button("SEND",()->{
-      String value=chatInput.getText().toString().trim();
-      if(value.isEmpty())return;
-      sendChat(value);chatInput.setText("");
-    },true);
-    p=new LinearLayout.LayoutParams(dp(80),dp(50));p.leftMargin=dp(8);composer.addView(send,p);
-    add(roomBody,composer,12);
-    TextView hint=text("Native room and chat are active. Native video calling and advanced v31.6 controls are still being migrated.",11,MUTED,false);
-    add(roomBody,hint,0);
+    roomPane.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1));
+
+    // Video-call tab uses a visible, explicit migration notice: never fake a connection.
+    chatScroll.setVisibility(View.VISIBLE);
+
+    chatComposer=new LinearLayout(this);
+    chatComposer.setGravity(Gravity.CENTER_VERTICAL);
+    chatComposer.setPadding(dp(5),dp(6),dp(5),dp(6));
+    chatComposer.setBackgroundColor(0xFF1A1424);
+    XPControl mic=xpIcon("mic_off",()->toast("Native voice/video calling is not migrated yet."));
+    mic.tint(0xFFEDE3FF);micIcon=mic;
+    iconIn(chatComposer,mic,48,54);
+    chatInput=entry("Message");
+    chatInput.setTextSize(14);
+    chatInput.setPadding(dp(8),dp(6),dp(6),dp(6));
+    chatInput.setBackgroundColor(Color.TRANSPARENT);
+    chatComposer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(50),1));
+    XPControl mention=xpIcon("at",()->chatInput.getText().insert(chatInput.getSelectionStart(),"@"));
+    mentionIcon=mention;iconIn(chatComposer,mention,40,52);
+    XPControl emoji=xpIcon("smile",this::showEmojiMenu);
+    emojiIcon=emoji;iconIn(chatComposer,emoji,40,52);
+    XPControl camera=xpIcon("camera",this::showChatAttachments);
+    cameraIcon=camera;iconIn(chatComposer,camera,40,52);
+    XPControl send=xpIcon("send",()->{
+      String v=chatInput.getText().toString().trim();
+      if(!v.isEmpty()){sendChat(v);chatInput.setText("");}
+    });
+    iconIn(chatComposer,send,44,52);
+    XPControl plus=xpIcon("plus",this::showChatAttachments);
+    plusIcon=plus;iconIn(chatComposer,plus,44,52);
+    roomNativeRoot.addView(chatComposer,new LinearLayout.LayoutParams(-1,dp(65)));
+
+    TextView footer=text("A PKX404 PRODUCT",10,0xFF857991,true);
+    footer.setGravity(Gravity.CENTER);footer.setLetterSpacing(.15f);
+    footer.setBackgroundColor(0xFF1C1228);
+    roomNativeRoot.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
+    connection=footer; // Connection status also accessible via host/participant panels.
+    updatePlayIcon(false);
+    roomNativeRoot.getViewTreeObserver().addOnGlobalLayoutListener(()->{
+      if(roomNativeRoot==null||!roomActive)return;
+      Rect visible=new Rect();roomNativeRoot.getWindowVisibleDisplayFrame(visible);
+      int total=roomNativeRoot.getRootView().getHeight(),hidden=total-visible.bottom;
+      boolean shown=hidden>dp(175);
+      if(shown!=imeShown){imeShown=shown;setTypingLayout(shown);}
+    });
+  }
+  private void setTypingLayout(boolean typing){
+    if(roomHeader==null||chatComposer==null)return;
+    roomHeader.setVisibility(typing?View.GONE:View.VISIBLE);
+    if(micIcon!=null)micIcon.setVisibility(typing?View.GONE:View.VISIBLE);
+    if(mentionIcon!=null)mentionIcon.setVisibility(typing?View.GONE:View.VISIBLE);
+    if(cameraIcon!=null)cameraIcon.setVisibility(typing?View.GONE:View.VISIBLE);
+    if(plusIcon!=null)plusIcon.setVisibility(typing?View.GONE:View.VISIBLE);
+    if(chatScroll!=null&&typing)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));
+  }
+  private void updatePlayIcon(boolean playing){
+    if(playIcon!=null)playIcon.setVisibility(playing?View.GONE:View.VISIBLE);
+    if(pauseIcon!=null)pauseIcon.setVisibility(playing?View.VISIBLE:View.GONE);
+  }
+  private void showRoomTab(boolean chat){
+    showChat=chat;
+    if(tabChat!=null)tabChat.setTextColor(chat?WHITE:0xFFB4A6CB);
+    if(tabCall!=null)tabCall.setTextColor(chat?0xFFB4A6CB:WHITE);
+    if(chatScroll!=null)chatScroll.setVisibility(chat?View.VISIBLE:View.INVISIBLE);
+    if(!chat)toast("Native video calling is still being migrated. Room chat remains connected.");
+  }
+  private void toggleVideoLike(){
+    if(sourceId==null||sourceId.isEmpty()){toast("Play a video to like it.");return;}
+    liked=!liked;
+    if(likeIcon!=null)likeIcon.active(liked);
+    try{socket.send(new JSONObject().put("type","video-like").put("sourceId",sourceId).put("liked",liked));}
+    catch(Exception ignored){}
+  }
+  private void cycleVideoScaling(){
+    playerFit=playerFit==AspectRatioFrameLayout.RESIZE_MODE_FIT
+        ?AspectRatioFrameLayout.RESIZE_MODE_ZOOM:AspectRatioFrameLayout.RESIZE_MODE_FIT;
+    if(playerView!=null)playerView.setResizeMode(playerFit);
+    toast(playerFit==AspectRatioFrameLayout.RESIZE_MODE_FIT?"Video: fit":"Video: fill");
+  }
+  private void showVolume(){
+    AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
+    SeekBar bar=new SeekBar(this);bar.setMax(100);
+    int max=Math.max(1,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+    bar.setProgress(100*audio.getStreamVolume(AudioManager.STREAM_MUSIC)/max);
+    bar.setPadding(dp(20),dp(10),dp(20),dp(10));
+    bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+      @Override public void onProgressChanged(SeekBar b,int n,boolean user){
+        if(user)audio.setStreamVolume(AudioManager.STREAM_MUSIC,n*max/100,0);
+      }
+      @Override public void onStartTrackingTouch(SeekBar b){}
+      @Override public void onStopTrackingTouch(SeekBar b){}
+    });
+    new AlertDialog.Builder(this).setTitle("Playback volume").setView(bar)
+      .setPositiveButton("Done",null).show();
+  }
+  private void showPlaybackSettings(){
+    new AlertDialog.Builder(this).setTitle("Playback settings")
+      .setItems(new String[]{"Video scaling: fit / fill","Playback volume","Select new video","Connection and room info"},
+        (d,which)->{
+          if(which==0)cycleVideoScaling();
+          if(which==1)showVolume();
+          if(which==2)openSourceChooser();
+          if(which==3)new AlertDialog.Builder(this).setTitle("XParty room status")
+            .setMessage("Room code: "+roomCode+"\nLive server: xp404.onrender.com\nPlayer: native Media3\nCall: migration pending")
+            .setPositiveButton("Close",null).show();
+        }).show();
+  }
+  private void toggleNativeFullscreen(){
+    fullscreenNative=!fullscreenNative;
+    if(fullscreenNative){
+      getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+      if(roomHeader!=null)roomHeader.setVisibility(View.GONE);
+      if(roomPane!=null)roomPane.setVisibility(View.GONE);
+      if(chatComposer!=null)chatComposer.setVisibility(View.GONE);
+      if(playerFrame!=null){
+        playerFrame.getLayoutParams().height=getResources().getDisplayMetrics().heightPixels-dp(160);
+        playerFrame.requestLayout();
+      }
+    }else{
+      getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+      if(roomHeader!=null)roomHeader.setVisibility(View.VISIBLE);
+      if(roomPane!=null)roomPane.setVisibility(View.VISIBLE);
+      if(chatComposer!=null)chatComposer.setVisibility(View.VISIBLE);
+      if(playerFrame!=null){playerFrame.getLayoutParams().height=savedVideoHeight;playerFrame.requestLayout();}
+    }
+  }
+  private void shareRoom(){
+    if(roomCode==null||roomCode.isEmpty()){toast("Create a room first.");return;}
+    Intent sendIntent=new Intent(Intent.ACTION_SEND);
+    sendIntent.setType("text/plain");
+    sendIntent.putExtra(Intent.EXTRA_TEXT,"Join my XParty room: "+roomCode+"\nhttps://xp404.onrender.com");
+    startActivity(Intent.createChooser(sendIntent,"Invite to XParty"));
+  }
+  private void openParticipants(){
+    if(room==null)return;
+    JSONArray participants=room.optJSONArray("people");
+    if(participants==null)return;
+    String[] names=new String[participants.length()];
+    for(int i=0;i<participants.length();i++){
+      JSONObject item=participants.optJSONObject(i);
+      names[i]=(myId.equals(item.optString("id"))?"YOU · ":"")
+        +item.optString("name","Member")
+        +(item.optString("id").equals(room.optString("hostId"))?"  ♛ HOST":"")
+        +(item.optBoolean("online")?"  ●":"  ◌");
+    }
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Participants · "+names.length)
+      .setItems(names,(d,index)->{
+        JSONObject member=participants.optJSONObject(index);
+        if(!isHost||member==null||myId.equals(member.optString("id")))return;
+        final String id=member.optString("id");
+        new AlertDialog.Builder(this).setTitle(member.optString("name"))
+          .setItems(new String[]{"Make host","Remove from room"},(confirm,which)->{
+            try{socket.send(new JSONObject().put("type",which==0?"transfer-host":"kick").put("target",id));}
+            catch(Exception ignored){}
+          }).show();
+      }).setPositiveButton("Close",null).show();
+    if(dialog.getWindow()!=null){
+      dialog.getWindow().setLayout(Math.round(getResources().getDisplayMetrics().widthPixels*.72f),-2);
+    }
+  }
+  private void showEmojiMenu(){
+    String[] emoji={"😀","😂","❤️","👍","🔥","🎉","😮","👏"};
+    new AlertDialog.Builder(this).setTitle("Emoji").setItems(emoji,(d,index)->{
+      int position=Math.max(0,chatInput.getSelectionStart());
+      chatInput.getText().insert(position,emoji[index]);
+      chatInput.requestFocus();
+    }).show();
+  }
+  private void showChatAttachments(){
+    new AlertDialog.Builder(this).setTitle("Chat attachments")
+      .setItems(new String[]{"Gallery","Camera","Choose file"},(d,which)->{
+        toast("Native room attachment upload is not supported in this preview.");
+      }).show();
   }
   private void renderMessage(JSONObject data){
     if(data==null||chatItems==null)return;
