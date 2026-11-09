@@ -96,6 +96,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   };
   private NativeArtwork artwork;
   private NativeSourceSheet sourceSheet;
+  private NativePlaybackSheet playbackSheet;
+  private NativeImmersiveBackdrop immersive;
   private NativeCallController calls;
   private FrameLayout callPanel;
   private TextView callStatusText;
@@ -123,6 +125,18 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public void notice(String info){toast(info);}
     },"https://xparty-native-room.onrender.com");
     player=new ExoPlayer.Builder(this).build();
+    playbackSheet=new NativePlaybackSheet(this,player,new NativePlaybackSheet.Actions(){
+      @Override public void playback(){togglePlayback();}
+      @Override public void scale(){cycleVideoScaling();}
+      @Override public void fullscreen(){toggleNativeFullscreen();}
+      @Override public void like(){toggleVideoLike();}
+      @Override public void resync(){send("resync");}
+      @Override public void openSource(){openSourceChooser();}
+      @Override public void immersive(boolean enabled){
+        if(immersive!=null)immersive.setEnabled(enabled);
+      }
+      @Override public void notice(String text){toast(text);}
+    });
     player.addListener(new Player.Listener(){
       @Override public void onRenderedFirstFrame(){
         renderedVideo=true;
@@ -455,7 +469,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
 
     // Gradient room panel with native split call/chat affordances.
     roomPane=column();
-    roomPane.setBackground(blend(0xFF251D53,0xFF1B0D36,0));
+    if(immersive!=null){immersive.stop();immersive=null;}
+    immersive=new NativeImmersiveBackdrop(roomPane,playerView);
+    immersive.setEnabled(getPreferences(MODE_PRIVATE).getBoolean("immersive_background",true));
+    immersive.start();
     roomNativeRoot.addView(roomPane,new LinearLayout.LayoutParams(-1,0,1));
     LinearLayout tabs=new LinearLayout(this);
     tabs.setGravity(Gravity.CENTER_VERTICAL);
@@ -689,16 +706,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     toast("Room code copied");
   }
   private void showPlaybackSettings(){
-    new AlertDialog.Builder(this).setTitle("Playback settings")
-      .setItems(new String[]{"Video scaling: fit / fill","Playback volume","Select new video","Connection and room info"},
-        (d,which)->{
-          if(which==0)cycleVideoScaling();
-          if(which==1)showVolume();
-          if(which==2)openSourceChooser();
-          if(which==3)new AlertDialog.Builder(this).setTitle("XParty room status")
-            .setMessage("Room code: "+roomCode+"\nLive server: xp404.onrender.com\nPlayer: native Media3\nCall: migration pending")
-            .setPositiveButton("Close",null).show();
-        }).show();
+    if(playbackSheet==null)return;
+    playbackSheet.show(sourceType,source==null?"No video selected":source.optString("title","Video"),
+      playback!=null&&playback.optBoolean("playing",false));
   }
   private void toggleNativeFullscreen(){
     fullscreenNative=!fullscreenNative;
@@ -995,6 +1005,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!roomActive)return;
     socket.disconnect(true);
     if(calls!=null){calls.stop();calls=null;}
+    if(immersive!=null){immersive.stop();immersive=null;}
+    if(playbackSheet!=null)playbackSheet.dismiss();
     player.stop();
     if(youtube!=null)youtube.loadUrl("about:blank");
     status("Left room");
@@ -1073,6 +1085,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     handler.removeCallbacks(progressTicker);
     socket.disconnect(false);
     if(calls!=null){calls.stop();calls=null;}
+    if(immersive!=null){immersive.stop();immersive=null;}
+    if(playbackSheet!=null)playbackSheet.dismiss();
     if(sourceSheet!=null)sourceSheet.dismiss();
     directory.shutdown();
     if(artwork!=null)artwork.shutdown();
