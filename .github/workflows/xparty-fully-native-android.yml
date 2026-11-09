@@ -62,16 +62,16 @@ jobs:
             fi
             if [ -f output/window.xml ]; then
               python3 - <<'PY' > output/tap.txt
-import re, xml.etree.ElementTree as E
-root=E.parse('output/window.xml').getroot()
-for element in root.iter('node'):
-    text=element.attrib.get('text','')
-    if 'Create Room' in text or 'CREATE A ROOM' in text:
-        nums=[int(x) for x in re.findall(r'\d+',element.attrib.get('bounds',''))]
-        if len(nums)==4:
-            print((nums[0]+nums[2])//2,(nums[1]+nums[3])//2)
-            break
-PY
+            import re, xml.etree.ElementTree as E
+            root=E.parse('output/window.xml').getroot()
+            for element in root.iter('node'):
+                name=element.attrib.get('text','')
+                if 'Create Room' in name or 'CREATE A ROOM' in name:
+                    coords=[int(n) for n in re.findall(r'\\d+',element.attrib.get('bounds',''))]
+                    if len(coords)==4:
+                        print((coords[0]+coords[2])//2,(coords[1]+coords[3])//2)
+                        break
+            PY
               if read -r x y < output/tap.txt && [ -n "${x:-}" ] && [ -n "${y:-}" ]; then
                 adb shell input tap "$x" "$y"
                 sleep 8
