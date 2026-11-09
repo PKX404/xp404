@@ -36,6 +36,7 @@ import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.PopupMenu;
 import android.view.ViewTreeObserver;
+import android.view.MotionEvent;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -71,6 +72,26 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private String nativeReadySource="";
   private long mediaReadyAt=0;
   private boolean nativeRecoveryUsed=false;
+  private double youtubeDurationSeconds=0;
+  private final Runnable hidePlaybackUi=()->{
+    if(source==null)return;
+    if(roomControls!=null)roomControls.setVisibility(View.GONE);
+    if(progress!=null)progress.setVisibility(View.GONE);
+  };
+  private void revealPlaybackControls(){
+    if(!roomActive||source==null)return;
+    if(roomControls!=null)roomControls.setVisibility(View.VISIBLE);
+    if(progress!=null)progress.setVisibility(View.VISIBLE);
+    if(videoPill!=null)videoPill.setVisibility(View.VISIBLE);
+    if(fullscreenControl!=null)fullscreenControl.setVisibility(View.VISIBLE);
+    handler.removeCallbacks(hidePlaybackUi);
+    handler.postDelayed(hidePlaybackUi,6200);
+  }
+  private void resetPlaybackControls(){
+    handler.removeCallbacks(hidePlaybackUi);
+    if(roomControls!=null)roomControls.setVisibility(View.GONE);
+    if(progress!=null)progress.setVisibility(View.GONE);
+  }
   private FrameLayout playerFrame,screen;
   private LinearLayout app,roomBody,chatItems;
   private TextView connection,roomTitle,playerLabel,people,videoState;
@@ -151,7 +172,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     player.addListener(new Player.Listener(){
       @Override public void onRenderedFirstFrame(){
         renderedVideo=true;
-        runOnUiThread(()->{if(videoState!=null&&!"youtube".equals(sourceType))videoState.setText("Picture ready");});
+        runOnUiThread(()->{
+          if(videoState!=null&&!"youtube".equals(sourceType))videoState.setText("Picture ready");
+          if(immersive!=null)immersive.refresh();
+        });
       }
       @Override public void onVideoSizeChanged(VideoSize size){
         if(size.width>0&&videoState!=null)videoState.setText("Video "+size.width+"×"+size.height);
@@ -530,10 +554,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     roomNativeRoot.addView(roomStage,new LinearLayout.LayoutParams(-1,-2));
     playerFrame=new FrameLayout(this);
     playerFrame.setBackgroundColor(Color.BLACK);
+    playerFrame.setOnClickListener(v->revealPlaybackControls());
     playerView=new PlayerView(this);
     playerView.setUseController(false);
     playerView.setResizeMode(playerFit);
     playerView.setPlayer(player);
+    playerView.setOnTouchListener((v,event)->{
+      if(event.getActionMasked()==MotionEvent.ACTION_DOWN)revealPlaybackControls();
+      return false;
+    });
     playerFrame.addView(playerView,new FrameLayout.LayoutParams(-1,-1));
     youtube=new WebView(this);
     youtube.setBackgroundColor(Color.BLACK);
@@ -541,6 +570,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     youtube.getSettings().setMediaPlaybackRequiresUserGesture(true);
     youtube.setWebChromeClient(new WebChromeClient());
     youtube.addJavascriptInterface(new YoutubeBridge(),"XpartyYT");
+    youtube.setOnTouchListener((v,event)->{
+      if(event.getActionMasked()==MotionEvent.ACTION_DOWN)revealPlaybackControls();
+      return false;
+    });
     youtube.setVisibility(View.GONE);
     playerFrame.addView(youtube,new FrameLayout.LayoutParams(-1,-1));
 
@@ -578,14 +611,22 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public void onProgressChanged(SeekBar sb,int value,boolean fromUser){}
       @Override public void onStartTrackingTouch(SeekBar sb){}
       @Override public void onStopTrackingTouch(SeekBar sb){
-        if(source==null||!"direct".equals(sourceType)){toast("This source does not support seeking.");return;}
-        double target=player.getDuration()>0?player.getDuration()*sb.getProgress()/1000000.0:0;
-        try {
-          JSONObject msg=new JSONObject().put("type","playback").put("sourceId",sourceId)
-            .put("playing",playback!=null&&playback.optBoolean("playing"))
-            .put("position",target).put("intent","seek");
-          socket.send(msg);
-        }catch(Exception ignored){}
+        if(source==null){toast("Choose a video first.");return;}
+        double target;
+        if("youtube".equals(sourceType)){
+          if(!youtubeReady||youtubeDurationSeconds<=0){toast("YouTube seek is unavailable.");return;}
+          target=youtubeDurationSeconds*sb.getProgress()/1000.0;
+          youtubeSyncQuietUntil=SystemClock.uptimeMillis()+1250;
+          youtube.evaluateJavascript("window.xpartySeek("+Math.max(0,target)+")",null);
+        }else{
+          if(!player.isCurrentMediaItemSeekable()||player.getDuration()<=0){
+            toast("This live channel does not allow seeking.");return;
+          }
+          target=player.getDuration()*sb.getProgress()/1000000.0;
+          player.seekTo((long)(target*1000));
+        }
+        sendNativePlayback(playback!=null&&playback.optBoolean("playing"),target,"seek");
+        revealPlaybackControls();
       }
     });
 
@@ -617,7 +658,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     // Gradient room panel with native split call/chat affordances.
     roomPane=column();
     if(immersive!=null){immersive.stop();immersive=null;}
-    immersive=new NativeImmersiveBackdrop(roomPane,playerView);
+    immersive=new NativeImmersiveBackdrop(this,roomPane,playerView,youtube);
     immersive.setEnabled(getPreferences(MODE_PRIVATE).getBoolean("immersive_background",true));
     immersive.start();
     roomNativeRoot.addView(roomPane,new LinearLayout.LayoutParams(-1,0,1));
@@ -1151,6 +1192,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         youtubeReady=true;
         videoState.setText("YouTube · ready");
         sendReady("YouTube ready");
+        if(immersive!=null)immersive.refresh();
         followPlayback();
       });
     }
@@ -1165,6 +1207,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         boolean current=playback!=null&&playback.optBoolean("playing");
         if(playing!=current||Math.abs((playback==null?0:playback.optDouble("position",0))-seconds)>3){
           sendNativePlayback(playing,seconds,playing?"play":"pause");
+        }
+      });
+    }
+    @JavascriptInterface public void progress(double seconds,double duration){
+      runOnUiThread(()->{
+        if(!roomActive||!"youtube".equals(sourceType)||progress==null)return;
+        youtubeDurationSeconds=Math.max(0,duration);
+        if(duration>0&&!progress.isPressed()){
+          progress.setProgress((int)Math.max(0,Math.min(1000,1000*seconds/duration)));
         }
       });
     }
@@ -1196,6 +1247,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(player==null)return;
     player.stop();player.clearMediaItems();
     renderedVideo=false;youtubeReady=false;nativeReadySource="";nativeRecoveryUsed=false;
+    youtubeDurationSeconds=0;
+    resetPlaybackControls();
     mediaReadyAt=SystemClock.uptimeMillis();
     youtube.stopLoading();youtube.loadUrl("about:blank");youtube.setVisibility(View.GONE);
     playerView.setVisibility(View.VISIBLE);
@@ -1203,11 +1256,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       sourceType="";
       videoState.setText("Choose a video");
       playerLabel.setText("Now watching · Select a video");
-      if(roomControls!=null)roomControls.setVisibility(View.GONE);
-      if(progress!=null)progress.setVisibility(View.GONE);
+      if(immersive!=null)immersive.setSource("",false);
       return;
     }
     sourceType=source.optString("type","");
+    if(immersive!=null)immersive.setSource(sourceType,true);
     getPreferences(MODE_PRIVATE).edit().putString("last_source",sourceType).apply();
     sourceUrl=source.optString("url","");
     if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● LIVE":
@@ -1217,10 +1270,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")
       +source.optString("title","Video"));
     boolean isYouTube="youtube".equals(sourceType);
-    if(roomControls!=null)roomControls.setVisibility(isYouTube?View.GONE:View.VISIBLE);
-    if(progress!=null)progress.setVisibility(isYouTube?View.GONE:View.VISIBLE);
-    if(fullscreenControl!=null)fullscreenControl.setVisibility(isYouTube?View.GONE:View.VISIBLE);
-    if(videoPill!=null)videoPill.setVisibility(isYouTube?View.GONE:View.VISIBLE);
+    // v0.3 hid ALL playback controls for YouTube. Keep the same overlay for all sources.
+    revealPlaybackControls();
     videoState.setText("Preparing video…");
     if(isYouTube){
       youtubeId=source.optString("videoId","");
@@ -1265,6 +1316,13 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             if(playing)ytPlayer.playVideo();else ytPlayer.pauseVideo();
           };
           window.xpartyTime=function(){return ytPlayer?ytPlayer.getCurrentTime()||0:0;};
+          window.xpartySeek=function(seconds){
+            if(ytPlayer)ytPlayer.seekTo(Math.max(0,seconds),true);
+          };
+          setInterval(function(){
+            if(!ytPlayer)return;
+            try{XpartyYT.progress(ytPlayer.getCurrentTime()||0,ytPlayer.getDuration()||0);}catch(e){}
+          },850);
         </script></body></html>
         """.replace("__VIDEO_ID__",youtubeId);
       youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",html,"text/html","UTF-8",null);
@@ -1326,6 +1384,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(calls!=null){calls.stop();calls=null;}
     if(immersive!=null){immersive.stop();immersive=null;}
     if(playbackSheet!=null)playbackSheet.dismiss();
+    handler.removeCallbacks(hidePlaybackUi);
     player.stop();
     if(youtube!=null)youtube.loadUrl("about:blank");
     status("Left room");
@@ -1415,6 +1474,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   @Override protected void onDestroy(){
     closing=true;
     handler.removeCallbacks(progressTicker);
+    handler.removeCallbacks(hidePlaybackUi);
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     socket.disconnect(false);
     if(calls!=null){calls.stop();calls=null;}
