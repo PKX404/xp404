@@ -58,7 +58,7 @@ import java.util.regex.Pattern;
 public final class MainActivity extends Activity implements RoomSocket.Events {
   private static final int BG=0xFF090E1C, CARD=0xFF151B31, CARD2=0xFF1D2846;
   private static final int PURPLE=0xFF9878FF, BLUE=0xFF4F9FFF, WHITE=0xFFF6F6FF, MUTED=0xFFB6BED7;
-  private static final int REQUEST_FILE=73;
+  private static final int REQUEST_FILE=73, REQUEST_CHAT_GALLERY=74, REQUEST_CHAT_FILE=75, REQUEST_CHAT_CAMERA=76;
   private final Handler handler=new Handler(Looper.getMainLooper());
   private final ChannelCatalog directory=new ChannelCatalog();
   private RoomSocket socket;
@@ -104,6 +104,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   };
   private NativeArtwork artwork;
   private NativeSourceSheet sourceSheet;
+  private NativeAttachments attachments;
+  private TextView attachmentStatus;
   private NativePlaybackSheet playbackSheet;
   private NativeImmersiveBackdrop immersive;
   private NativeCallController calls;
@@ -124,6 +126,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     nickname=getPreferences(MODE_PRIVATE).getString("nickname","Guest");
     socket=new RoomSocket(this);
     artwork=new NativeArtwork();
+    attachments=new NativeAttachments(this,"https://xparty-native-room.onrender.com");
     sourceSheet=new NativeSourceSheet(this,directory,artwork,new NativeSourceSheet.Actions(){
       @Override public void selected(JSONObject selected){sendSource(selected);}
       @Override public void pickLocal(){chooseLocal();}
@@ -595,6 +598,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     iconIn(chatComposer,send,44,52);
     XPControl plus=xpIcon("plus",this::showChatAttachments);
     plusIcon=plus;iconIn(chatComposer,plus,44,52);
+    attachmentStatus=text("",12,0xFFF7EEFF,false);
+    attachmentStatus.setPadding(dp(14),dp(5),dp(14),dp(6));
+    attachmentStatus.setBackgroundColor(0xFF2E2248);
+    attachmentStatus.setVisibility(View.GONE);
+    roomNativeRoot.addView(attachmentStatus,new LinearLayout.LayoutParams(-1,-2));
     roomNativeRoot.addView(chatComposer,new LinearLayout.LayoutParams(-1,dp(65)));
 
     TextView footer=text("A PKX404 PRODUCT",10,0xFF857991,true);
@@ -828,11 +836,61 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }).show();
   }
   private void showChatAttachments(){
-    new AlertDialog.Builder(this).setTitle("Chat attachments")
-      .setItems(new String[]{"Gallery","Camera","Choose file"},(d,which)->{
-        toast("Native room attachment upload is not supported in this preview.");
+    if(!roomActive){toast("Create or join a room first.");return;}
+    new AlertDialog.Builder(this).setTitle("Share in XParty chat")
+      .setItems(new String[]{"Attachment","Gallery","Camera","Extra"},(d,which)->{
+        if(which==0)openChatPicker("*/*",REQUEST_CHAT_FILE);
+        else if(which==1)openChatPicker("image/*",REQUEST_CHAT_GALLERY);
+        else if(which==2){
+          try{
+            Intent intent=new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+            if(intent.resolveActivity(getPackageManager())!=null)
+              startActivityForResult(intent,REQUEST_CHAT_CAMERA);
+            else toast("No camera application is available.");
+          }catch(Exception e){toast("Cannot open camera.");}
+        }else{
+          new AlertDialog.Builder(this).setTitle("More sharing options")
+            .setItems(new String[]{"Share video","Share image","Share document"},(extra,n)->{
+              openChatPicker(n==0?"video/*":n==1?"image/*":"*/*",REQUEST_CHAT_FILE);
+            }).show();
+        }
       }).show();
   }
+  private void openChatPicker(String mime,int request){
+    Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType(mime);
+    startActivityForResult(pick,request);
+  }
+  private void setAttachmentStatus(String text){
+    if(attachmentStatus==null)return;
+    attachmentStatus.setText(text);
+    attachmentStatus.setVisibility(text==null||text.isEmpty()?View.GONE:View.VISIBLE);
+  }
+  private final NativeAttachments.Listener attachmentListener=new NativeAttachments.Listener(){
+    @Override public void status(String text){setAttachmentStatus(text);}
+    @Override public void uploaded(String id,String name){
+      setAttachmentStatus("Uploaded "+name+" · sending to room…");
+      try{
+        JSONObject chat=new JSONObject().put("type","chat").put("attachmentId",id)
+          .put("clientId",java.util.UUID.randomUUID().toString());
+        String accompanying=chatInput==null?"":chatInput.getText().toString().trim();
+        if(!accompanying.isEmpty())chat.put("text",accompanying);
+        if(replyToId!=null&&!replyToId.isEmpty())chat.put("replyTo",replyToId);
+        socket.send(chat);
+        if(chatInput!=null)chatInput.setText("");
+        replyToId=null;
+      }catch(Exception e){toast("Upload completed but chat message could not be sent.");}
+      handler.postDelayed(()->setAttachmentStatus(""),1800);
+    }
+    @Override public void downloaded(String path){
+      setAttachmentStatus("");
+      toast("Saved to "+path);
+    }
+    @Override public void error(String error){
+      setAttachmentStatus("");
+      toast(error);
+    }
+  };
   private void renderMessage(JSONObject data){
     if(data==null||chatItems==null)return;
     final String id=data.optString("id","");
@@ -873,6 +931,13 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       chatBubbles.put(id,bubble);
       final JSONObject message=data;
       bubble.setOnLongClickListener(v->{showChatActions(message);return true;});
+      if(attachment!=null){
+        String attachmentId=attachment.optString("id");
+        String attachmentName=attachment.optString("name","Attachment");
+        bubble.setOnClickListener(v->{
+          if(attachments!=null)attachments.download(attachmentId,attachmentName,token,attachmentListener);
+        });
+      }
       if(!self){
         try {
           JSONArray ids=new JSONArray().put(id);
@@ -1187,6 +1252,19 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   @Override protected void onActivityResult(int request,int result,Intent data){
     super.onActivityResult(request,result,data);
+    if(result!=RESULT_OK)return;
+    if((request==REQUEST_CHAT_FILE||request==REQUEST_CHAT_GALLERY)&&data!=null&&data.getData()!=null){
+      if(!roomActive){toast("Join a room to share files.");return;}
+      attachments.upload(data.getData(),token,attachmentListener);
+      return;
+    }
+    if(request==REQUEST_CHAT_CAMERA){
+      android.graphics.Bitmap snapshot=data!=null&&data.getExtras()!=null
+        ?(android.graphics.Bitmap)data.getExtras().get("data"):null;
+      if(snapshot!=null&&roomActive)attachments.uploadCamera(snapshot,token,attachmentListener);
+      else toast("Camera did not return a picture.");
+      return;
+    }
     if(request==REQUEST_FILE&&result==RESULT_OK&&data!=null&&data.getData()!=null){
       if(!roomActive){toast("Join a room to play the file locally.");return;}
       Uri uri=data.getData();
@@ -1218,6 +1296,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(playbackSheet!=null)playbackSheet.dismiss();
     if(sourceSheet!=null)sourceSheet.dismiss();
     directory.shutdown();
+    if(attachments!=null)attachments.shutdown();
     if(artwork!=null)artwork.shutdown();
     if(youtube!=null){youtube.stopLoading();youtube.destroy();youtube=null;}
     if(player!=null){player.release();player=null;}
