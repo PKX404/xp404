@@ -66,6 +66,7 @@ final class NativeSourceSheet {
   private final List<ChannelCatalog.Channel> channels=new ArrayList<>();
   private final List<JSONObject> ytItems=new ArrayList<>();
   private int categoryRequest=0,youtubeRequest=0,shownChannels=28,selectedTabIndex=1;
+  private String loadedCategory="";
   private Runnable youtubeDebounce;
 
   NativeSourceSheet(Activity activity,ChannelCatalog directory,NativeArtwork artwork,Actions actions,String backend){
@@ -125,7 +126,7 @@ final class NativeSourceSheet {
     }
     if(!exists)out.put(source);
     prefs.edit().putString("favorite_sources",out.toString()).apply();
-    showSaved();
+    if("saved".equals(currentTab))showSaved();
   }
   private void choose(JSONObject source){
     prefs.edit().putString("last_source",source.optString("type","")).apply();
@@ -281,7 +282,8 @@ final class NativeSourceSheet {
       @Override public void afterTextChanged(Editable s){}
     });
     if("Saved".equals(category)){renderIPTV();return;}
-    if(!channels.isEmpty()&&keepSearch){renderIPTV();return;}
+    if(!channels.isEmpty()&&keepSearch&&loadedCategory.equals(category)){renderIPTV();return;}
+    channels.clear();loadedCategory=category;
     int request=++categoryRequest;
     TextView loading=label("Loading live channels…",14,MUTED,false);add(providerView,loading,12);
     String target="All".equals(category)?"in":category.toLowerCase(Locale.ROOT);
