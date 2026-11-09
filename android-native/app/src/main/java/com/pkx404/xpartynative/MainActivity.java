@@ -308,7 +308,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     headerIcon(roomHeader,"search",this::openSourceChooser,1f);
 
     android.widget.ImageView brand=new android.widget.ImageView(this);
-    brand.setImageResource(R.drawable.xparty_wordmark);
+    brand.setImageResource(R.drawable.xparty_wordmark_exact);
     brand.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
     brand.setContentDescription("XParty original wordmark");
     brand.setPadding(dp(2),dp(5),dp(2),dp(5));
