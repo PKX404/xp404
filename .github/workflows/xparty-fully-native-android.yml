@@ -1,8 +1,7 @@
-name: Build XParty Native v0.3.1 APK
+name: Build XParty Native v0.4 optimized APKs
 on:
   push:
-    branches:
-      - feature/xparty-native-playback-immersive-icon-20261109
+    branches: [feature/xparty-native-visual-performance-v04-20261110]
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-fully-native-android.yml'
@@ -10,7 +9,7 @@ on:
 jobs:
   android-native:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -22,14 +21,60 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - name: Build native Android APK
+      - name: Build signed and minified native APKs for each processor
         working-directory: android-native
-        run: gradle --no-daemon :app:assembleDebug
-      - name: Check APK exists
-        run: test -s android-native/app/build/outputs/apk/debug/app-debug.apk
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
+      - name: Verify size and ABI availability
+        shell: bash
+        run: |
+          set -e
+          ls -lh android-native/app/build/outputs/apk/release/*.apk
+          test -s android-native/app/build/outputs/apk/release/app-universal-release.apk
+          test -s android-native/app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          test -s android-native/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: XParty-Native-v0.3.1-Playback-Immersive-APK
-          path: android-native/app/build/outputs/apk/debug/app-debug.apk
+          name: XParty-Native-v0.4-Optimized-Release-APKs
+          path: android-native/app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: error
+  startup-smoke:
+    needs: android-native
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: XParty-Native-v0.4-Optimized-Release-APKs
+          path: output
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            set -e
+            adb install -r output/app-universal-release.apk
+            adb logcat -c
+            adb shell am start -W -n com.pkx404.xpartynative/.MainActivity
+            sleep 6
+            adb shell pidof com.pkx404.xpartynative
+            adb exec-out screencap -p > output/native-v0.4-home.png
+            adb shell uiautomator dump /sdcard/v04.xml >/dev/null 2>&1 || true
+            adb pull /sdcard/v04.xml output/native-v0.4-window.xml >/dev/null 2>&1 || true
+            adb shell am force-stop com.pkx404.xpartynative
+            adb shell am start -W -n com.pkx404.xpartynative/.MainActivity
+            sleep 2
+            adb shell pidof com.pkx404.xpartynative
+            echo "XParty Native v0.4 optimized release launched twice"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: XParty-Native-v0.4-Home-Screenshot
+          path: output/native-v0.4-*
+          retention-days: 7
