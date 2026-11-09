@@ -8,7 +8,6 @@ import android.content.ClipboardManager;
 import android.content.res.ColorStateList;
 import android.media.AudioManager;
 import android.graphics.Rect;
-import android.graphics.Typeface;
 import android.view.inputmethod.InputMethodManager;
 import android.content.Context;
 import android.graphics.Color;
@@ -176,6 +175,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     screen.addView(s,new FrameLayout.LayoutParams(-1,-1));return s;
   }
   private void showLobby(){
+    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
     roomActive=false;room=null;source=null;sourceId="";sourceType="";roomCode="";
     layout("XPARTY","TOGETHER, FROM ANYWHERE");
     ScrollView scroll=scrollPage();
@@ -392,6 +392,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     avatar.setBackground(shape(0xFF685880,44));
     hostNotice.addView(avatar,new LinearLayout.LayoutParams(dp(42),dp(42)));
     roomPane.addView(hostNotice,new LinearLayout.LayoutParams(-1,dp(73)));
+    connection=text("Room connected",10,0xFFD9C8F5,false);
+    connection.setPadding(dp(10),0,dp(8),0);
+    hostNotice.addView(connection,0,new LinearLayout.LayoutParams(0,dp(40),1));
 
     LinearLayout watching=new LinearLayout(this);watching.setGravity(Gravity.CENTER_VERTICAL);
     watching.setPadding(dp(13),dp(2),dp(11),dp(2));
@@ -451,7 +454,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     footer.setGravity(Gravity.CENTER);footer.setLetterSpacing(.15f);
     footer.setBackgroundColor(0xFF1C1228);
     roomNativeRoot.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
-    connection=footer; // Connection status also accessible via host/participant panels.
+    // Connection state remains in the participant header; branded footer stays fixed.
     updatePlayIcon(false);
     roomNativeRoot.getViewTreeObserver().addOnGlobalLayoutListener(()->{
       if(roomNativeRoot==null||!roomActive)return;
@@ -613,6 +616,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void updateRoom(JSONObject data){
     room=data;roomCode=data.optString("code",roomCode);isHost=myId.equals(data.optString("hostId"));
     if(roomTitle!=null)roomTitle.setText("ROOM  ·  "+roomCode+(isHost?"  ★":""));
+    if(hostStatus!=null)hostStatus.setText((isHost?"Host":"Guest")+" joined the room");
     JSONArray members=data.optJSONArray("people");int count=0;
     if(members!=null)for(int i=0;i<members.length();i++)if(members.optJSONObject(i).optBoolean("online"))count++;
     if(people!=null)people.setText(count+" online  ·  "+(isHost?"You're the host":"Watching together"));
@@ -630,10 +634,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     player.stop();player.clearMediaItems();renderedVideo=false;
     youtube.stopLoading();youtube.loadUrl("about:blank");youtube.setVisibility(View.GONE);
     playerView.setVisibility(View.VISIBLE);
-    if(source==null){sourceType="";videoState.setText("Choose a video");playerLabel.setText("NO VIDEO SELECTED");return;}
+    if(source==null){sourceType="";videoState.setText("Choose a video");playerLabel.setText("Now watching · Select a video");return;}
     sourceType=source.optString("type","");
     sourceUrl=source.optString("url","");
-    playerLabel.setText(source.optString("title","Now playing"));
+    playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")+source.optString("title","Video"));
     videoState.setText("Preparing video…");
     if("youtube".equals(sourceType)){
       youtubeId=source.optString("videoId","");
@@ -665,6 +669,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     boolean playing=playback.optBoolean("playing",false);
     if(playing!=player.isPlaying())player.setPlayWhenReady(playing);
     if(playButton!=null)playButton.setText(playing?"Ⅱ PAUSE":"▶ PLAY");
+    updatePlayIcon(playing);
     if("direct".equals(sourceType)&&player.getDuration()>0){
       long origin=playback.optLong("updatedAt",System.currentTimeMillis());
       double position=playback.optDouble("position",0);
