@@ -181,6 +181,7 @@ final class NativeSourceSheet {
          Math.round(activity.getResources().getDisplayMetrics().heightPixels*.83f));
     }
     if("iptv".equals(initial))showIPTV(false);
+    else if("quick".equals(initial))showQuick();
     else if("youtube".equals(initial))showYoutube(false);
     else showProviders();
   }
