@@ -82,6 +82,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private boolean liked=false,imeShown=false,fullscreenNative=false,showChat=true;
   private int playerFit=AspectRatioFrameLayout.RESIZE_MODE_FIT;
   private int savedVideoHeight=0;
+  private NativeArtwork artwork;
+  private android.widget.ImageView nativeChannelLogo;
 
   @Override public void onCreate(Bundle saved){
     super.onCreate(saved);
@@ -90,6 +92,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     nickname=getPreferences(MODE_PRIVATE).getString("nickname","Guest");
     socket=new RoomSocket(this);
+    artwork=new NativeArtwork();
     player=new ExoPlayer.Builder(this).build();
     player.addListener(new Player.Listener(){
       @Override public void onRenderedFirstFrame(){
@@ -408,9 +411,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
 
     LinearLayout watching=new LinearLayout(this);watching.setGravity(Gravity.CENTER_VERTICAL);
     watching.setPadding(dp(13),dp(2),dp(11),dp(2));
+    FrameLayout artworkSlot=new FrameLayout(this);
     XPControl currentSource=xpIcon("play",this::openSourceChooser);
     currentSource.tint(0xFFEAE2FF);
-    iconIn(watching,currentSource,42,51);
+    artworkSlot.addView(currentSource,new FrameLayout.LayoutParams(-1,-1));
+    nativeChannelLogo=new android.widget.ImageView(this);
+    nativeChannelLogo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+    nativeChannelLogo.setPadding(dp(3),dp(5),dp(3),dp(5));
+    nativeChannelLogo.setVisibility(View.GONE);
+    artworkSlot.addView(nativeChannelLogo,new FrameLayout.LayoutParams(-1,-1));
+    watching.addView(artworkSlot,new LinearLayout.LayoutParams(dp(48),dp(52)));
     playerLabel=text("Now watching · Choose a video",14,WHITE,true);
     playerLabel.setGravity(Gravity.CENTER_VERTICAL);
     watching.addView(playerLabel,new LinearLayout.LayoutParams(0,dp(52),1));
@@ -719,6 +729,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(source==null){sourceType="";videoState.setText("Choose a video");playerLabel.setText("Now watching · Select a video");return;}
     sourceType=source.optString("type","");
     sourceUrl=source.optString("url","");
+    if(artwork!=null&&nativeChannelLogo!=null)artwork.show(source.optString("logo",""),nativeChannelLogo);
     playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")+source.optString("title","Video"));
     videoState.setText("Preparing video…");
     if("youtube".equals(sourceType)){
@@ -847,7 +858,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     list.setOnItemClickListener((p,v,index,id)->{
       String picked=options.get(index);
       for(ChannelCatalog.Channel c:channels)if(c.title.equals(picked)){
-        try{sendSource(new JSONObject().put("type","iptv").put("url",c.url).put("title",c.title));}
+        try{sendSource(new JSONObject().put("type","iptv").put("url",c.url).put("title",c.title).put("logo",c.logo));}
         catch(Exception ignored){}
         break;
       }
@@ -904,6 +915,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     closing=true;
     socket.disconnect(false);
     directory.shutdown();
+    if(artwork!=null)artwork.shutdown();
     if(youtube!=null){youtube.stopLoading();youtube.destroy();youtube=null;}
     if(player!=null){player.release();player=null;}
     super.onDestroy();
