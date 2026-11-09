@@ -25,7 +25,7 @@ final class NativeArtwork {
   void show(String url,ImageView target){
     final int request=++requestId;
     synchronized(generations){generations.put(target,request);}
-    target.setImageDrawable(null);target.setVisibility(View.GONE);
+    target.setImageDrawable(null);target.setVisibility(View.INVISIBLE);
     if(url==null||!url.startsWith("https://")||url.length()>2048)return;
     Bitmap present=cache.get(url);
     if(present!=null){target.setImageBitmap(present);target.setVisibility(View.VISIBLE);return;}
