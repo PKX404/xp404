@@ -32,3 +32,40 @@ jobs:
           path: bluetooth-remote/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
           if-no-files-found: error
+
+  android-launch-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download built remote APK
+        uses: actions/download-artifact@v4
+        with:
+          name: XParty-Remote-Electric-Blue-v2.0.1-CrashFix-debug
+          path: dist
+      - name: Enable hardware acceleration
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Boot Android emulator and check launch
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            set -eu
+            adb install -r dist/app-debug.apk
+            adb logcat -c
+            adb shell am start -W -n com.pkx404.xpartyremote/.MainActivity
+            sleep 6
+            adb shell pidof com.pkx404.xpartyremote
+            adb shell am force-stop com.pkx404.xpartyremote
+            adb shell am start -W -n com.pkx404.xpartyremote/.MainActivity
+            sleep 3
+            adb shell pidof com.pkx404.xpartyremote
+            echo "XParty Remote v2.0.1 launched and remained running twice"
