@@ -193,17 +193,22 @@ final class NativeSourceSheet {
     currentTab="all";clear();
     String[] labels={"Live IPTV","YouTube","YouTube Browse","Netflix","Prime Video","Twitch",
       "SoundCloud","Vimeo","Google Drive","Video link","Your files"};
-    String[] symbols={"▣","▶","▶","N","prime","♜","☁","V","▲","↗","▤"};
-    int[] colors={0xFF4CD5AA,0xFFFF222F,0xFFFF3347,0xFFF32337,0xFF20B6C9,0xFFAA70FF,
-      0xFFF3832B,0xFF1FD0E6,0xFF40D77D,0xFF6ECAFF,0xFFECC99D};
+    int[] logos={R.drawable.xp_brand_tv,R.drawable.xp_brand_youtube,
+      R.drawable.xp_brand_youtube_browse,R.drawable.xp_brand_netflix,R.drawable.xp_brand_prime,
+      R.drawable.xp_brand_twitch,R.drawable.xp_brand_soundcloud,R.drawable.xp_brand_vimeo,
+      R.drawable.xp_brand_drive,R.drawable.xp_brand_link,R.drawable.xp_brand_files};
     LinearLayout row=null;
     for(int i=0;i<labels.length;i++){
       final int index=i;
       if(i%4==0){row=new LinearLayout(activity);row.setOrientation(LinearLayout.HORIZONTAL);add(body,row,dp(16));}
       LinearLayout tile=new LinearLayout(activity);tile.setOrientation(LinearLayout.VERTICAL);
       tile.setGravity(Gravity.CENTER);tile.setPadding(dp(1),dp(14),dp(1),dp(11));
-      TextView icon=label(symbols[i],i==4?11:30,colors[i],true);icon.setGravity(Gravity.CENTER);
-      tile.addView(icon,new LinearLayout.LayoutParams(-1,dp(64)));
+      ImageView icon=new ImageView(activity);
+      icon.setImageResource(logos[i]);
+      icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+      icon.setContentDescription(labels[i]+" source logo");
+      icon.setPadding(dp(8),dp(9),dp(8),dp(10));
+      tile.addView(icon,new LinearLayout.LayoutParams(-1,dp(67)));
       TextView txt=label(labels[i],12,WHITE,true);txt.setGravity(Gravity.CENTER);txt.setMaxLines(2);
       tile.addView(txt,new LinearLayout.LayoutParams(-1,dp(42)));
       tile.setBackground(rounded(0xFF191527,13));tile.setOnClickListener(v->selectService(index));
@@ -457,6 +462,16 @@ final class NativeSourceSheet {
     Matcher match=Pattern.compile("(?:youtu\\.be/|[?&]v=|/shorts/|/embed/)([A-Za-z0-9_-]{11})").matcher(url);
     return match.find()?match.group(1):null;
   }
+  private boolean playFromYoutubeUrl(String url){
+    String id=videoId(url);
+    if(id==null)return false;
+    try{
+      JSONObject source=new JSONObject().put("type","youtube")
+        .put("videoId",id).put("title","YouTube video");
+      choose(source);
+      return true;
+    }catch(Exception ignored){return false;}
+  }
   private void showYouTubeBrowse(){
     // Genuine YouTube browsing stays on the provider page; watch links are passed
     // to XParty's existing room signaling, with no video extraction or ad bypass.
@@ -471,17 +486,26 @@ final class NativeSourceSheet {
     web.setBackgroundColor(Color.BLACK);
     web.getSettings().setJavaScriptEnabled(true);
     web.getSettings().setDomStorageEnabled(true);
+    web.getSettings().setSupportMultipleWindows(true);
     web.getSettings().setMediaPlaybackRequiresUserGesture(true);
-    web.setWebViewClient(new WebViewClient(){
-      private boolean select(String url){
-        String id=videoId(url);
-        if(id==null)return false;
-        try{JSONObject source=new JSONObject().put("type","youtube")
-          .put("videoId",id).put("title","YouTube video");
-          choose(source);
-        }catch(Exception ignored){}
+    web.setWebChromeClient(new android.webkit.WebChromeClient(){
+      @Override public boolean onCreateWindow(WebView view,boolean dialog,boolean userGesture,
+          android.os.Message result){
+        WebView popup=new WebView(activity);
+        popup.setWebViewClient(new WebViewClient(){
+          @Override public boolean shouldOverrideUrlLoading(WebView child,WebResourceRequest request){
+            String url=request.getUrl().toString();
+            if(playFromYoutubeUrl(url))return true;
+            return true; // Never launch an external browser from the source sheet.
+          }
+        });
+        ((WebView.WebViewTransport)result.obj).setWebView(popup);
+        result.sendToTarget();
         return true;
       }
+    });
+    web.setWebViewClient(new WebViewClient(){
+      private boolean select(String url){return playFromYoutubeUrl(url);}
       @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest req){
         String url=req.getUrl().toString();
         if(select(url))return true;
