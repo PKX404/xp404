@@ -162,7 +162,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public void scale(){cycleVideoScaling();}
       @Override public void fullscreen(){toggleNativeFullscreen();}
       @Override public void like(){toggleVideoLike();}
-      @Override public void resync(){send("resync");}
+      @Override public void resync(){
+        if(source==null){toast("Choose a video first.");return;}
+        if("youtube".equals(sourceType))followPlayback();
+        else if("iptv".equals(sourceType)||"direct".equals(sourceType)){
+          player.prepare();
+          followPlayback();
+        }
+        if(immersive!=null)immersive.refresh();
+        revealPlaybackControls();
+      }
       @Override public void openSource(){openSourceChooser();}
       @Override public void immersive(boolean enabled){
         if(immersive!=null)immersive.setEnabled(enabled);
@@ -916,9 +925,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
     }else{
       getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-      if(roomHeader!=null)roomHeader.setVisibility(View.VISIBLE);
+      if(roomHeader!=null)roomHeader.setVisibility(imeShown?View.GONE:View.VISIBLE);
       if(roomPane!=null)roomPane.setVisibility(View.VISIBLE);
-      if(chatComposer!=null)chatComposer.setVisibility(View.VISIBLE);
+      if(chatComposer!=null)chatComposer.setVisibility(showChat?View.VISIBLE:View.GONE);
       if(playerFrame!=null){playerFrame.getLayoutParams().height=savedVideoHeight;playerFrame.requestLayout();}
     }
   }
@@ -926,7 +935,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(roomCode==null||roomCode.isEmpty()){toast("Create a room first.");return;}
     Intent sendIntent=new Intent(Intent.ACTION_SEND);
     sendIntent.setType("text/plain");
-    sendIntent.putExtra(Intent.EXTRA_TEXT,"Join my XParty room: "+roomCode+"\nhttps://xp404.onrender.com");
+    sendIntent.putExtra(Intent.EXTRA_TEXT,"Join my XParty Native watch room: "+roomCode
+      +"\nOpen the XParty Native Android app and enter this code.");
     startActivity(Intent.createChooser(sendIntent,"Invite to XParty"));
   }
   private void openParticipants(){
