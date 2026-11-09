@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <style name="XPartyTheme" parent="android:style/Theme.Material.NoActionBar">
+   <item name="android:colorAccent">#B19BEE</item>
+   <item name="android:windowBackground">#0B0C20</item>
+   <item name="android:statusBarColor">#0A0D1A</item>
+   <item name="android:navigationBarColor">#0A0D1A</item>
+   <item name="android:windowLightStatusBar">false</item>
+   <item name="android:windowLightNavigationBar">false</item>
+   <item name="android:alertDialogTheme">@style/XPartyDialog</item>
+ </style>
+ <style name="XPartyDialog" parent="android:style/Theme.Material.Dialog.Alert">
+   <item name="android:windowBackground">@drawable/native_dialog_background</item>
+   <item name="android:colorAccent">#B39CF5</item>
+   <item name="android:textColorPrimary">#F8F7FF</item>
+   <item name="android:textColorSecondary">#BFB6D6</item>
+ </style>
+</resources>
