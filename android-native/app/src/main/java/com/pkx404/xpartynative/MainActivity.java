@@ -273,11 +273,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     headerIcon(roomHeader,"settings",this::showPlaybackSettings,1f);
     headerIcon(roomHeader,"search",this::openSourceChooser,1f);
 
-    TextView brand=text("XPARTY",23,WHITE,true);
-    brand.setTypeface(Typeface.create("sans-serif-black",Typeface.BOLD));
-    brand.setGravity(Gravity.CENTER);
-    brand.setLetterSpacing(-.07f);
-    brand.setContentDescription("XParty");
+    android.widget.ImageView brand=new android.widget.ImageView(this);
+    brand.setImageResource(R.drawable.xparty_wordmark);
+    brand.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+    brand.setContentDescription("XParty original wordmark");
+    brand.setPadding(dp(2),dp(5),dp(2),dp(5));
     roomHeader.addView(brand,new LinearLayout.LayoutParams(0,dp(58),2.30f));
 
     headerIcon(roomHeader,"playsearch",this::openSourceChooser,1f);
