@@ -2,7 +2,7 @@ name: Build XParty Bluetooth Remote
 on:
   workflow_dispatch:
   push:
-    branches: [release/xparty-remote-v2-electric-blue-20261108]
+    branches: [fix/xparty-remote-v2.0.1-launch-crash-20261109]
     paths:
       - 'bluetooth-remote/**'
       - '.github/workflows/xparty-bluetooth-remote.yml'
@@ -28,7 +28,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: XParty-Remote-Electric-Blue-v2.0.0-debug
+          name: XParty-Remote-Electric-Blue-v2.0.1-CrashFix-debug
           path: bluetooth-remote/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
           if-no-files-found: error
