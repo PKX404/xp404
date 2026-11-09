@@ -574,6 +574,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         for(int i=0;i<history.length();i++)renderMessage(history.optJSONObject(i));
       }
       status("Connected to room "+roomCode);
+      if(pendingHomeSheet!=null){
+        String requested=pendingHomeSheet;pendingHomeSheet=null;
+        handler.post(()->{if(roomActive&&sourceSheet!=null)sourceSheet.open(requested,token,"");});
+      }
     }else if("state".equals(type)){
       JSONObject next=event.optJSONObject("room");if(next!=null)updateRoom(next);
     }else if("playback".equals(type)||"anchor".equals(type)){
