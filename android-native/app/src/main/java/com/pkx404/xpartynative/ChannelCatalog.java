@@ -15,8 +15,10 @@ import java.util.concurrent.Executors;
 /** Simple native IPTV-org category browser using publicly listed HLS channels. */
 final class ChannelCatalog {
   static final class Channel {
-    final String title,url;
-    Channel(String title,String url){this.title=title;this.url=url;}
+    final String title,url,logo;
+    Channel(String title,String url,String logo){
+      this.title=title;this.url=url;this.logo=logo;
+    }
   }
   interface Result {void loaded(List<Channel> channels,String error);}
   private final Handler ui=new Handler(Looper.getMainLooper());
@@ -34,16 +36,19 @@ final class ChannelCatalog {
         con.setRequestProperty("User-Agent","XPartyNative/0.1");
         if(con.getResponseCode()!=200)throw new Exception("Channel list HTTP "+con.getResponseCode());
         try(BufferedReader br=new BufferedReader(new InputStreamReader(con.getInputStream()))){
-          String name=null,line;int size=0;
+          String name=null,logo=null,line;int size=0;
           while((line=br.readLine())!=null&&++size<22000&&channels.size()<750){
             if(line.length()>2500)continue;
             if(line.startsWith("#EXTINF")){
               int idx=line.lastIndexOf(',');
               name=idx>=0?line.substring(idx+1).trim():"Live channel";
               if(name.length()>65)name=name.substring(0,65);
+              java.util.regex.Matcher match=java.util.regex.Pattern.compile("tvg-logo=\\\"([^\\\"]+)\\\"").matcher(line);
+              logo=match.find()?match.group(1):"";
+              if(!logo.startsWith("https://"))logo="";
             }else if(name!=null&&line.startsWith("https://")&&line.toLowerCase(Locale.ROOT).matches("https://[^ ]+\\.m3u8(?:\\?.*)?")){
-              channels.add(new Channel(name,line.trim()));
-              name=null;
+              channels.add(new Channel(name,line.trim(),logo));
+              name=null;logo=null;
             }else if(!line.startsWith("#"))name=null;
           }
         }
