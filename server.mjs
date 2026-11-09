@@ -97,6 +97,13 @@ export function createXparty(options={}) {
   if(await owner.handle(req,res,url,json,ip(req)))return;
   if(await handleCompanionDownload(req,res,url))return;
   if(url.pathname==='/health')return json(200,{ok:true,service:'Xparty',version:'0.10.0'});
+  if(process.env.NATIVE_BACKEND_ONLY==='1'&&!url.pathname.startsWith('/api/')){
+    return json(url.pathname==='/'?200:404,{
+      service:'XParty Native room backend',
+      platform:'Native Android app',
+      info:'This address is a backend, not a second website. Install XParty APK to use it.'
+    });
+  }
   if(url.pathname==='/api/rooms/public'){if(req.method!=='GET')return json(405,{error:'Method not allowed'});if(!rate('directory:'+ip(req),60,60000))return json(429,{error:'Please wait before refreshing.'});return json(200,{rooms:publicRooms(rooms,{online,occupied,query:url.searchParams.get('q')||''})});}
   if(url.pathname==='/api/accounts/config')return json(200,{enabled:accountAuth.enabled,url:publicAuthKey?process.env.SUPABASE_URL||null:null,publicKey:publicAuthKey,phoneEnabled:process.env.SUPABASE_PHONE_ENABLED==='true'});
   if(url.pathname==='/api/accounts/me'){
