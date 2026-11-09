@@ -95,6 +95,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
   };
   private NativeArtwork artwork;
+  private NativeSourceSheet sourceSheet;
   private android.widget.ImageView nativeChannelLogo;
   private final java.util.Map<String,JSONObject> knownChats=new java.util.HashMap<>();
   private final java.util.Map<String,TextView> chatBubbles=new java.util.HashMap<>();
@@ -109,6 +110,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     nickname=getPreferences(MODE_PRIVATE).getString("nickname","Guest");
     socket=new RoomSocket(this);
     artwork=new NativeArtwork();
+    sourceSheet=new NativeSourceSheet(this,directory,artwork,new NativeSourceSheet.Actions(){
+      @Override public void selected(JSONObject selected){sendSource(selected);}
+      @Override public void pickLocal(){chooseLocal();}
+      @Override public void enterLink(String kind){
+        promptVideo("youtube".equals(kind)?"YouTube link":"HTTPS video link",kind);
+      }
+      @Override public void notice(String info){toast(info);}
+    },"https://xparty-native-room.onrender.com");
     player=new ExoPlayer.Builder(this).build();
     player.addListener(new Player.Listener(){
       @Override public void onRenderedFirstFrame(){
@@ -866,6 +875,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(roomControls!=null)roomControls.setVisibility(View.VISIBLE);
     if(progress!=null)progress.setVisibility(View.VISIBLE);
     sourceType=source.optString("type","");
+    if(!sourceType.isEmpty())getPreferences(MODE_PRIVATE).edit().putString("last_source",sourceType).apply();
     sourceUrl=source.optString("url","");
     if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● LIVE":
       "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
@@ -931,14 +941,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void toast(String message){Toast.makeText(this,message,Toast.LENGTH_SHORT).show();}
 
   private void openSourceChooser(){
-    new AlertDialog.Builder(this).setTitle("Choose a source")
-      .setItems(new String[]{"Live TV channels","YouTube link","Direct MP4 / HLS link","Local file (this device only)"},
-      (dialog,which)->{
-        if(which==0)openChannels();
-        else if(which==1)promptVideo("YouTube URL or video ID","youtube");
-        else if(which==2)promptVideo("HTTPS .m3u8 / .mp4 URL","direct");
-        else chooseLocal();
-      }).show();
+    if(!roomActive){toast("Create or join a room first.");return;}
+    if(sourceSheet!=null)sourceSheet.open(sourceType,token,source==null?"":source.optString("title"));
   }
   private void promptVideo(String title,String type){
     EditText field=entry("Paste a URL");
@@ -970,58 +974,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     try{socket.send(new JSONObject().put("type","source").put("source",data));}catch(Exception ignored){}
   }
   private void openChannels(){
-    if(!roomActive){toast("Create a room first");return;}
-    LinearLayout popup=column();popup.setPadding(dp(12),dp(9),dp(12),dp(9));
-    EditText filter=entry("Search channel name");
-    add(popup,filter,8);
-    ListView list=new ListView(this);
-    ArrayList<String> options=new ArrayList<>();
-    ArrayList<ChannelCatalog.Channel> channels=new ArrayList<>();
-    ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_list_item_1,options);
-    list.setAdapter(adapter);list.setDividerHeight(dp(1));
-    popup.addView(list,new LinearLayout.LayoutParams(-1,dp(350)));
-    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Live TV · Native HLS")
-      .setView(popup).setNegativeButton("Close",null)
-      .setNeutralButton("Category",null).create();
-    final Runnable refresh=()->{
-      String term=filter.getText().toString().toLowerCase(Locale.ROOT);
-      options.clear();
-      for(ChannelCatalog.Channel c:channels)
-        if(c.title.toLowerCase(Locale.ROOT).contains(term))options.add(c.title);
-      adapter.notifyDataSetChanged();
-    };
-    filter.addTextChangedListener(new android.text.TextWatcher(){
-      @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
-      @Override public void onTextChanged(CharSequence s,int start,int before,int count){refresh.run();}
-      @Override public void afterTextChanged(android.text.Editable e){}
-    });
-    list.setOnItemClickListener((p,v,index,id)->{
-      String picked=options.get(index);
-      for(ChannelCatalog.Channel c:channels)if(c.title.equals(picked)){
-        try{sendSource(new JSONObject().put("type","iptv").put("url",c.url).put("title",c.title).put("logo",c.logo));}
-        catch(Exception ignored){}
-        break;
-      }
-      dialog.dismiss();
-    });
-    dialog.setOnShowListener(x->dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->
-      new AlertDialog.Builder(this).setTitle("TV category")
-        .setItems(new String[]{"India","Entertainment","Movies","News","Sports","Kids"},
-          (d,selected)->loadChannels(new String[]{"in","entertainment","movies","news","sports","kids"}[selected],channels,options,adapter,refresh))
-        .show()
-    ));
-    dialog.show();
-    loadChannels("in",channels,options,adapter,refresh);
-  }
-  private void loadChannels(String category,List<ChannelCatalog.Channel> channels,List<String> options,
-                            ArrayAdapter<String> adapter,Runnable refresh){
-    options.clear();options.add("Loading channels…");adapter.notifyDataSetChanged();
-    directory.load(category,(values,error)->{
-      if(isFinishing())return;
-      channels.clear();channels.addAll(values);
-      refresh.run();
-      if(values.isEmpty())toast(error!=null?error:"No channels found for this category.");
-    });
+    if(!roomActive){toast("Create or join a room first.");return;}
+    if(sourceSheet!=null)sourceSheet.open("iptv",token,"Live TV");
   }
   private void chooseLocal(){
     Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -1056,6 +1010,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     closing=true;
     handler.removeCallbacks(progressTicker);
     socket.disconnect(false);
+    if(sourceSheet!=null)sourceSheet.dismiss();
     directory.shutdown();
     if(artwork!=null)artwork.shutdown();
     if(youtube!=null){youtube.stopLoading();youtube.destroy();youtube=null;}
