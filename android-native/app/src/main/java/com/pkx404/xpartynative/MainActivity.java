@@ -276,116 +276,229 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   private android.animation.ValueAnimator homeAnimator;
   private LinearLayout exploreRoomList;
+  private android.animation.ValueAnimator homeAnimator;
+  private LinearLayout exploreRoomList;
+  private String pendingHomeSheet=null;
+  private int homeTab=0;
+
   private void showLobby(){
     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
     roomActive=false;room=null;source=null;sourceId="";sourceType="";roomCode="";
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     LinearLayout home=column();
-    final GradientDrawable fluid=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-      new int[]{0xFF090C18,0xFF21133B,0xFF100D1E});
-    home.setBackground(fluid);setContentView(home);
-    homeAnimator=android.animation.ValueAnimator.ofArgb(0xFF241541,0xFF112953,0xFF2C153B);
-    homeAnimator.setDuration(4400);
-    homeAnimator.setRepeatMode(android.animation.ValueAnimator.REVERSE);
-    homeAnimator.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-    homeAnimator.addUpdateListener(frame->{
-      fluid.setColors(new int[]{0xFF090C18,(Integer)frame.getAnimatedValue(),0xFF100D1E});
-      home.invalidate();
-    });
-    homeAnimator.start();
+    home.setBackgroundColor(0xFF0D0B1F);
+    setContentView(home);
 
-    LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);
-    head.setPadding(dp(14),dp(9),dp(14),dp(4));
+    LinearLayout head=new LinearLayout(this);
+    head.setPadding(dp(17),dp(5),dp(14),dp(5));
+    head.setGravity(Gravity.CENTER_VERTICAL);
     android.widget.ImageView brand=new android.widget.ImageView(this);
     brand.setImageResource(R.drawable.xparty_wordmark_exact);
-    brand.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-    brand.setContentDescription("XParty");
-    head.addView(brand,new LinearLayout.LayoutParams(0,dp(61),1));
-    home.addView(head,new LinearLayout.LayoutParams(-1,dp(70)));
+    brand.setScaleType(android.widget.ImageView.ScaleType.FIT_START);
+    brand.setContentDescription("XParty logo");
+    head.addView(brand,new LinearLayout.LayoutParams(0,dp(55),1));
+    XPControl settings=xpIcon("settings",()->showHomeSettings());
+    iconIn(head,settings,43,47);
+    XPControl info=xpIcon("info",()->new AlertDialog.Builder(this)
+      .setTitle("XParty Native")
+      .setMessage("Watch Live TV, YouTube and videos together, with native room controls and chat.")
+      .setPositiveButton("Close",null).show());
+    iconIn(head,info,43,47);
+    home.addView(head,new LinearLayout.LayoutParams(-1,dp(72)));
 
     LinearLayout navigation=new LinearLayout(this);
-    navigation.setGravity(Gravity.CENTER);navigation.setPadding(dp(9),0,dp(9),0);
-    String[] nav={"Explore","Friends","Messages","Profile"};
-    for(int i=0;i<nav.length;i++){
+    navigation.setGravity(Gravity.CENTER_VERTICAL);
+    navigation.setPadding(dp(9),dp(3),dp(9),dp(4));
+    String[] tabs={"Explore","Friends","Messages","Profile"};
+    String[] kinds={"home","people","messages","profile"};
+    for(int i=0;i<tabs.length;i++){
       final int tab=i;
-      TextView button=text(nav[i],13,i==0?WHITE:0xFFB7ACC9,true);
-      button.setGravity(Gravity.CENTER);button.setBackground(shape(0x801D1730,16));
-      button.setOnClickListener(v->{
-        for(int x=0;x<navigation.getChildCount();x++){
-          TextView item=(TextView)navigation.getChildAt(x);
-          item.setTextColor(x==tab?WHITE:0xFFB7ACC9);
-        }
-        if(tab==0)renderExploreContent();
-        else if(tab==3)showProfileHome();
-        else renderHomeNotice(tab==1?"Friends":"Messages",
-          "Your account-linked "+(tab==1?"friends":"private messages")+" will appear here when native sign-in is connected.");
-      });
-      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);
-      if(i>0)lp.leftMargin=dp(6);navigation.addView(button,lp);
+      LinearLayout tile=column();tile.setGravity(Gravity.CENTER);
+      tile.setBackground(shape(i==0?0xFF29223F:0xFF141126,16));
+      XPControl icon=xpIcon(kinds[i],()->onHomeTab(tab,navigation));
+      icon.tint(i==0?0xFFE8D4FF:0xFFB6ACC9);
+      LinearLayout.LayoutParams ilp=new LinearLayout.LayoutParams(dp(31),dp(35));ilp.gravity=Gravity.CENTER_HORIZONTAL;
+      tile.addView(icon,ilp);
+      TextView label=text(tabs[i],12,i==0?WHITE:0xFFB6ACC9,true);
+      label.setGravity(Gravity.CENTER);tile.addView(label);
+      tile.setOnClickListener(v->onHomeTab(tab,navigation));
+      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(76),1);
+      if(i>0)lp.leftMargin=dp(7);
+      navigation.addView(tile,lp);
     }
-    home.addView(navigation,new LinearLayout.LayoutParams(-1,dp(51)));
+    home.addView(navigation,new LinearLayout.LayoutParams(-1,dp(83)));
 
+    View divider=new View(this);divider.setBackgroundColor(0xFF29213F);
+    home.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
     screen=new FrameLayout(this);
     home.addView(screen,new LinearLayout.LayoutParams(-1,0,1));
+
     LinearLayout footer=column();
-    footer.setPadding(dp(14),dp(7),dp(14),dp(7));
-    footer.setBackground(shape(0xE0161027,17));
-    nameInput=entry("Your XParty display name");nameInput.setText(nickname);
-    nameInput.setTextSize(13);add(footer,nameInput,8);
+    footer.setPadding(dp(15),dp(8),dp(15),dp(8));
+    footer.setBackground(shape(0xEE181326,18));
+    nameInput=entry("Nickname");nameInput.setText(nickname);
+    nameInput.setVisibility(View.GONE);
     joinInput=entry("7-character room code");
     joinInput.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});
-    LinearLayout actionRow=new LinearLayout(this);
-    TextView create=text("+  Create Room",15,WHITE,true);create.setGravity(Gravity.CENTER);
-    create.setBackground(shape(PURPLE,14));create.setOnClickListener(v->startRoom("create"));
-    actionRow.addView(create,new LinearLayout.LayoutParams(0,dp(49),1));
-    TextView join=text("↳  Join Room",15,WHITE,true);join.setGravity(Gravity.CENTER);
-    join.setBackground(shape(0xFF302647,14));join.setOnClickListener(v->{
+    LinearLayout bottom=new LinearLayout(this);bottom.setGravity(Gravity.CENTER_VERTICAL);
+    TextView create=text("＋  Create room",15,0xFF191328,true);
+    create.setGravity(Gravity.CENTER);create.setBackground(shape(0xFFD4BDFB,15));
+    create.setOnClickListener(v->startRoom("create"));
+    bottom.addView(create,new LinearLayout.LayoutParams(0,dp(56),1));
+    TextView join=text("⇥  Join room",15,WHITE,true);
+    join.setGravity(Gravity.CENTER);join.setBackground(shape(0xFF272038,15));
+    join.setOnClickListener(v->{
       joinInput=entry("Enter 7-character room code");
       joinInput.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});
-      new AlertDialog.Builder(this).setTitle("Join an XParty room")
-        .setView(joinInput).setNegativeButton("Cancel",null)
-        .setPositiveButton("Join",(dialog,which)->startRoom("join")).show();
+      LinearLayout wrap=column();wrap.setPadding(dp(18),dp(6),dp(18),dp(5));
+      wrap.addView(joinInput);
+      new AlertDialog.Builder(this).setTitle("Join a watch room")
+        .setView(wrap).setNegativeButton("Cancel",null)
+        .setPositiveButton("Join",(dialog,w)->startRoom("join")).show();
     });
-    LinearLayout.LayoutParams joinLp=new LinearLayout.LayoutParams(0,dp(49),1);
-    joinLp.leftMargin=dp(9);actionRow.addView(join,joinLp);
-    add(footer,actionRow,3);
+    LinearLayout.LayoutParams jp=new LinearLayout.LayoutParams(0,dp(56),1);
+    jp.leftMargin=dp(9);bottom.addView(join,jp);
+    footer.addView(bottom);
     home.addView(footer,new LinearLayout.LayoutParams(-1,-2));
-    connection=text("XParty Native · xparty-native-room.onrender.com",11,MUTED,false);
+
+    connection=text("",10,0xFFBFB1D5,false);
     connection.setGravity(Gravity.CENTER);
-    connection.setPadding(dp(4),dp(7),dp(4),dp(9));
-    home.addView(connection,new LinearLayout.LayoutParams(-1,-2));
+    connection.setVisibility(View.GONE);
+    home.addView(connection,new LinearLayout.LayoutParams(-1,dp(1)));
     renderExploreContent();
   }
-  private void renderHomeNotice(String label,String body){
+  private void onHomeTab(int tab,LinearLayout navigation){
+    homeTab=tab;
+    for(int i=0;i<navigation.getChildCount();i++){
+      LinearLayout item=(LinearLayout)navigation.getChildAt(i);
+      item.setBackground(shape(i==tab?0xFF29223F:0xFF141126,16));
+      for(int k=0;k<item.getChildCount();k++){
+        View child=item.getChildAt(k);
+        if(child instanceof TextView)((TextView)child).setTextColor(i==tab?WHITE:0xFFB6ACC9);
+        if(child instanceof XPControl)((XPControl)child).tint(i==tab?0xFFE8D4FF:0xFFB6ACC9);
+      }
+    }
+    if(tab==0)renderExploreContent();
+    else if(tab==3)showProfileHome();
+    else renderHomeNotice(tab==1?"Friends":"Messages",
+      "Your XParty "+(tab==1?"friends":"direct messages")+" will appear here when signed-in accounts are enabled.");
+  }
+  private void showHomeSettings(){
+    String[] options={"Change display name","Sources","Information"};
+    new AlertDialog.Builder(this).setTitle("XParty settings")
+      .setItems(options,(d,i)->{
+        if(i==0)showProfileHome();
+        if(i==1)openHomeSourceSheet("all");
+        if(i==2)new AlertDialog.Builder(this).setTitle("XParty")
+          .setMessage("Android-native watch-party app. Room synchronization runs through the XParty Native backend.")
+          .setPositiveButton("Close",null).show();
+      }).show();
+  }
+  private void openHomeSourceSheet(String type){
+    if(roomActive){sourceSheet.open(type,token,"");return;}
+    pendingHomeSheet=type;
+    startRoom("create");
+  }
+  private void renderHomeNotice(String title,String details){
     if(screen==null)return;
     screen.removeAllViews();
-    LinearLayout column=column();column.setPadding(dp(22),dp(30),dp(22),dp(12));
-    add(column,text(label,23,WHITE,true),14);
-    add(column,text(body,13,MUTED,false),16);
-    screen.addView(column,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
+    LinearLayout body=column();body.setPadding(dp(24),dp(32),dp(24),dp(14));
+    add(body,text(title,24,WHITE,true),14);
+    add(body,text(details,13,MUTED,false),12);
+    screen.addView(body,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
   }
   private void showProfileHome(){
-    renderHomeNotice("Your XParty profile","Edit your nickname below. You can also enter rooms as a guest.");
-    TextView hint=text("Sign-in integration is still in the native migration.",12,MUTED,false);
-    hint.setPadding(dp(22),dp(130),dp(15),0);
-    screen.addView(hint);
+    renderHomeNotice("Your XParty profile","You can watch as a guest.");
+    TextView change=button("Change display name",()->{
+      EditText field=entry("Name");field.setText(nickname);
+      new AlertDialog.Builder(this).setTitle("Display name")
+        .setView(field).setNegativeButton("Cancel",null)
+        .setPositiveButton("Save",(d,w)->{
+          nickname=field.getText().toString().trim();
+          if(nickname.isEmpty())nickname="Guest";
+          nickname=nickname.substring(0,Math.min(24,nickname.length()));
+          nameInput.setText(nickname);
+          getPreferences(MODE_PRIVATE).edit().putString("nickname",nickname).apply();
+          toast("Saved as "+nickname);
+        }).show();
+    },false);
+    FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(48),Gravity.TOP);
+    p.topMargin=dp(145);p.leftMargin=dp(20);p.rightMargin=dp(20);
+    screen.addView(change,p);
   }
   private void renderExploreContent(){
     if(screen==null)return;
     screen.removeAllViews();
-    ScrollView scroll=new ScrollView(this);
-    scroll.setFillViewport(false);scroll.setVerticalScrollBarEnabled(false);
-    LinearLayout content=column();content.setPadding(dp(17),dp(20),dp(17),dp(17));
-    scroll.addView(content);screen.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
-    add(content,text("Watch together, anywhere.",24,WHITE,true),6);
-    add(content,text("Find your people. Share your favorite Live TV, YouTube and videos in one room.",13,MUTED,false),21);
-    add(content,text("EXPLORE PUBLIC ROOMS",12,PURPLE,true),11);
-    exploreRoomList=column();add(content,exploreRoomList,8);
-    add(exploreRoomList,text("Finding active watch rooms…",13,MUTED,false),10);
+    ScrollView scroller=new ScrollView(this);
+    scroller.setFillViewport(false);scroller.setVerticalScrollBarEnabled(false);
+    LinearLayout body=column();body.setPadding(dp(0),dp(12),dp(0),dp(12));
+    scroller.addView(body);
+    screen.addView(scroller,new FrameLayout.LayoutParams(-1,-1));
+    // Same top typography and navigation hierarchy as XParty v31.6.
+    TextView kicker=text("YOUR PEOPLE. YOUR PLAYLIST.",11,0xFFD8BFFC,true);
+    kicker.setLetterSpacing(.18f);
+    kicker.setPadding(dp(16),dp(22),dp(12),dp(11));add(body,kicker,3);
+    TextView headline=text("Watch together.",30,WHITE,true);
+    headline.setTypeface(Typeface.create("sans-serif-black",Typeface.BOLD));
+    headline.setPadding(dp(16),0,dp(14),0);add(body,headline,11);
+    TextView subtitle=text("Pick a service. Start a room. Bring everyone along.",13,MUTED,false);
+    subtitle.setPadding(dp(16),0,dp(12),0);add(body,subtitle,22);
+    LinearLayout chips=new LinearLayout(this);chips.setPadding(dp(12),0,dp(12),0);
+    TextView quick=text("Quick Search",13,0xFF21142C,true);quick.setGravity(Gravity.CENTER);
+    quick.setBackground(shape(0xFFEFE5FF,29));
+    quick.setOnClickListener(v->openHomeSourceSheet("quick"));
+    chips.addView(quick,new LinearLayout.LayoutParams(0,dp(52),1));
+    TextView all=text("All sources",13,WHITE,true);all.setGravity(Gravity.CENTER);
+    all.setBackground(shape(0xFF322B40,29));
+    all.setOnClickListener(v->openHomeSourceSheet("all"));
+    LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(0,dp(52),1);
+    ap.leftMargin=dp(10);chips.addView(all,ap);
+    add(body,chips,20);
+
+    FrameLayout world=new FrameLayout(this);
+    world.setBackground(shape(0xFF020915,22));
+    world.setClipToOutline(true);
+    NativeWorldGlobeView globe=new NativeWorldGlobeView(this);
+    globe.setOnGlobeTap(()->openHomeSourceSheet("iptv"));
+    world.addView(globe,new FrameLayout.LayoutParams(-1,-1));
+    LinearLayout caption=column();
+    caption.setPadding(dp(18),dp(16),dp(4),0);
+    TextView live=text("LIVE FROM EVERYWHERE",11,0xFF79B7FF,true);
+    live.setLetterSpacing(.20f);add(caption,live,19);
+    TextView title=text("Your world.\nYour people.",23,WHITE,true);
+    title.setTypeface(Typeface.create("sans-serif-black",Typeface.BOLD));
+    add(caption,title,0);
+    FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(dp(195),-2,Gravity.TOP|Gravity.LEFT);
+    world.addView(caption,cp);
+    TextView country=text("India",12,0xFFC8D7F0,false);
+    FrameLayout.LayoutParams countryLp=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.LEFT);
+    countryLp.leftMargin=dp(19);countryLp.bottomMargin=dp(17);world.addView(country,countryLp);
+    TextView play=text("▶",26,0xFF0B2410,true);
+    play.setGravity(Gravity.CENTER);play.setBackground(shape(0xFF80FF4B,44));
+    play.setOnClickListener(v->openHomeSourceSheet("iptv"));
+    FrameLayout.LayoutParams playLp=new FrameLayout.LayoutParams(dp(52),dp(52),Gravity.BOTTOM|Gravity.RIGHT);
+    playLp.rightMargin=dp(18);playLp.bottomMargin=dp(14);world.addView(play,playLp);
+    LinearLayout.LayoutParams worldLp=new LinearLayout.LayoutParams(-1,dp(285));
+    worldLp.leftMargin=dp(7);worldLp.rightMargin=dp(7);worldLp.bottomMargin=dp(7);body.addView(world,worldLp);
+    LinearLayout stations=column();
+    stations.setPadding(dp(17),dp(20),dp(17),dp(16));
+    stations.setBackground(shape(0xFF080F1D,18));
+    TextView air=text("ON AIR",11,0xFF76B5FF,true);air.setLetterSpacing(.2f);
+    add(stations,air,12);
+    add(stations,text("Country                            India",13,MUTED,false),12);
+    row(stations,new String[]{"Live TV","Radio"},new Runnable[]{
+      ()->openHomeSourceSheet("iptv"),
+      ()->toast("Radio catalog is not yet available in this native build.")
+    });
+    TextView explore=text("Explore active watch rooms",13,WHITE,true);
+    explore.setPadding(0,dp(5),0,dp(7));add(stations,explore,5);
+    exploreRoomList=column();
+    add(stations,exploreRoomList,6);
+    add(exploreRoomList,text("Finding active watch rooms…",12,MUTED,false),6);
+    LinearLayout.LayoutParams stationLp=new LinearLayout.LayoutParams(-1,-2);
+    stationLp.leftMargin=dp(7);stationLp.rightMargin=dp(7);
+    body.addView(stations,stationLp);
     loadPublicRooms();
-    TextView tagline=text("A PKX404 PRODUCT",10,0xFF978BA8,true);
-    tagline.setGravity(Gravity.CENTER);tagline.setLetterSpacing(.15f);
-    add(content,tagline,4);
   }
   private void loadPublicRooms(){
     LinearLayout target=exploreRoomList;
