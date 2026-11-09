@@ -241,38 +241,162 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     ScrollView s=new ScrollView(this);s.setFillViewport(true);
     screen.addView(s,new FrameLayout.LayoutParams(-1,-1));return s;
   }
+  private android.animation.ValueAnimator homeAnimator;
+  private LinearLayout exploreRoomList;
   private void showLobby(){
     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
     roomActive=false;room=null;source=null;sourceId="";sourceType="";roomCode="";
-    layout("XPARTY","TOGETHER, FROM ANYWHERE");
-    ScrollView scroll=scrollPage();
-    LinearLayout body=column();body.setPadding(dp(18),dp(13),dp(18),dp(23));scroll.addView(body);
-    TextView top=text("Different places.\nSame moment.",30,WHITE,true);
-    top.setPadding(dp(3),dp(12),dp(3),dp(7));add(body,top,12);
-    TextView note=text("Watch together in real time. Native Android rooms, chat and Live TV with your existing xp404 backend.",14,MUTED,false);
-    add(body,note,20);
-    LinearLayout panel=column();panel.setPadding(dp(14),dp(18),dp(14),dp(15));
-    panel.setBackground(shape(CARD,20));
-    add(panel,text("YOUR ROOM AWAITS",12,PURPLE,true),12);
-    nameInput=entry("Your nickname");nameInput.setText(nickname);add(panel,nameInput,12);
-    add(panel,button("CREATE A ROOM",()->startRoom("create"),true),14);
-    add(panel,text("JOIN WITH A ROOM CODE",12,MUTED,true),8);
-    joinInput=entry("7-character room code");joinInput.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});
-    add(panel,joinInput,8);
-    add(panel,button("JOIN ROOM",()->startRoom("join"),false),5);
-    add(body,panel,22);
-    TextView provider=text("YOUR SOURCES",12,PURPLE,true);add(body,provider,8);
-    row(body,new String[]{"LIVE TV","YOUTUBE","LOCAL"},new Runnable[]{
-      ()->toast("Create or join a room to browse Live TV."),
-      ()->toast("Create or join a room to use YouTube."),
-      ()->chooseLocal()
+    if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
+    LinearLayout home=column();
+    final GradientDrawable fluid=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+      new int[]{0xFF090C18,0xFF21133B,0xFF100D1E});
+    home.setBackground(fluid);setContentView(home);
+    homeAnimator=android.animation.ValueAnimator.ofArgb(0xFF241541,0xFF112953,0xFF2C153B);
+    homeAnimator.setDuration(4400);
+    homeAnimator.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+    homeAnimator.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+    homeAnimator.addUpdateListener(frame->{
+      fluid.setColors(new int[]{0xFF090C18,(Integer)frame.getAnimatedValue(),0xFF100D1E});
+      home.invalidate();
     });
-    add(body,text("Native video uses Media3. YouTube requires the official embedded player. Video calls, accounts and some v31.6 features are still being migrated.",12,MUTED,false),16);
-    row(body,new String[]{"EXPLORE","FRIENDS","MESSAGES","PROFILE"},new Runnable[]{
-      ()->toast("Explore: create or join a room."),
-      ()->toast("Friends will be added in native migration."),
-      ()->toast("Join a room for live chat."),
-      ()->toast("Account screens are still in migration.")
+    homeAnimator.start();
+
+    LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);
+    head.setPadding(dp(14),dp(9),dp(14),dp(4));
+    android.widget.ImageView brand=new android.widget.ImageView(this);
+    brand.setImageResource(R.drawable.xparty_wordmark_exact);
+    brand.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+    brand.setContentDescription("XParty");
+    head.addView(brand,new LinearLayout.LayoutParams(0,dp(61),1));
+    home.addView(head,new LinearLayout.LayoutParams(-1,dp(70)));
+
+    LinearLayout navigation=new LinearLayout(this);
+    navigation.setGravity(Gravity.CENTER);navigation.setPadding(dp(9),0,dp(9),0);
+    String[] nav={"Explore","Friends","Messages","Profile"};
+    for(int i=0;i<nav.length;i++){
+      final int tab=i;
+      TextView button=text(nav[i],13,i==0?WHITE:0xFFB7ACC9,true);
+      button.setGravity(Gravity.CENTER);button.setBackground(shape(0x801D1730,16));
+      button.setOnClickListener(v->{
+        for(int x=0;x<navigation.getChildCount();x++){
+          TextView item=(TextView)navigation.getChildAt(x);
+          item.setTextColor(x==tab?WHITE:0xFFB7ACC9);
+        }
+        if(tab==0)renderExploreContent();
+        else if(tab==3)showProfileHome();
+        else renderHomeNotice(tab==1?"Friends":"Messages",
+          "Your account-linked "+(tab==1?"friends":"private messages")+" will appear here when native sign-in is connected.");
+      });
+      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);
+      if(i>0)lp.leftMargin=dp(6);navigation.addView(button,lp);
+    }
+    home.addView(navigation,new LinearLayout.LayoutParams(-1,dp(51)));
+
+    screen=new FrameLayout(this);
+    home.addView(screen,new LinearLayout.LayoutParams(-1,0,1));
+    LinearLayout footer=column();
+    footer.setPadding(dp(14),dp(7),dp(14),dp(7));
+    footer.setBackground(shape(0xE0161027,17));
+    nameInput=entry("Your XParty display name");nameInput.setText(nickname);
+    nameInput.setTextSize(13);add(footer,nameInput,8);
+    joinInput=entry("7-character room code");
+    joinInput.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});
+    LinearLayout actionRow=new LinearLayout(this);
+    TextView create=text("+  Create Room",15,WHITE,true);create.setGravity(Gravity.CENTER);
+    create.setBackground(shape(PURPLE,14));create.setOnClickListener(v->startRoom("create"));
+    actionRow.addView(create,new LinearLayout.LayoutParams(0,dp(49),1));
+    TextView join=text("↳  Join Room",15,WHITE,true);join.setGravity(Gravity.CENTER);
+    join.setBackground(shape(0xFF302647,14));join.setOnClickListener(v->{
+      joinInput=entry("Enter 7-character room code");
+      joinInput.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});
+      new AlertDialog.Builder(this).setTitle("Join an XParty room")
+        .setView(joinInput).setNegativeButton("Cancel",null)
+        .setPositiveButton("Join",(dialog,which)->startRoom("join")).show();
+    });
+    LinearLayout.LayoutParams joinLp=new LinearLayout.LayoutParams(0,dp(49),1);
+    joinLp.leftMargin=dp(9);actionRow.addView(join,joinLp);
+    add(footer,actionRow,3);
+    home.addView(footer,new LinearLayout.LayoutParams(-1,-2));
+    connection=text("XParty Native · xparty-native-room.onrender.com",11,MUTED,false);
+    connection.setGravity(Gravity.CENTER);
+    connection.setPadding(dp(4),dp(7),dp(4),dp(9));
+    home.addView(connection,new LinearLayout.LayoutParams(-1,-2));
+    renderExploreContent();
+  }
+  private void renderHomeNotice(String label,String body){
+    if(screen==null)return;
+    screen.removeAllViews();
+    LinearLayout column=column();column.setPadding(dp(22),dp(30),dp(22),dp(12));
+    add(column,text(label,23,WHITE,true),14);
+    add(column,text(body,13,MUTED,false),16);
+    screen.addView(column,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
+  }
+  private void showProfileHome(){
+    renderHomeNotice("Your XParty profile","Edit your nickname below. You can also enter rooms as a guest.");
+    TextView hint=text("Sign-in integration is still in the native migration.",12,MUTED,false);
+    hint.setPadding(dp(22),dp(130),dp(15),0);
+    screen.addView(hint);
+  }
+  private void renderExploreContent(){
+    if(screen==null)return;
+    screen.removeAllViews();
+    ScrollView scroll=new ScrollView(this);
+    scroll.setFillViewport(false);scroll.setVerticalScrollBarEnabled(false);
+    LinearLayout content=column();content.setPadding(dp(17),dp(20),dp(17),dp(17));
+    scroll.addView(content);screen.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+    add(content,text("Watch together, anywhere.",24,WHITE,true),6);
+    add(content,text("Find your people. Share your favorite Live TV, YouTube and videos in one room.",13,MUTED,false),21);
+    add(content,text("EXPLORE PUBLIC ROOMS",12,PURPLE,true),11);
+    exploreRoomList=column();add(content,exploreRoomList,8);
+    add(exploreRoomList,text("Finding active watch rooms…",13,MUTED,false),10);
+    loadPublicRooms();
+    TextView tagline=text("A PKX404 PRODUCT",10,0xFF978BA8,true);
+    tagline.setGravity(Gravity.CENTER);tagline.setLetterSpacing(.15f);
+    add(content,tagline,4);
+  }
+  private void loadPublicRooms(){
+    LinearLayout target=exploreRoomList;
+    if(target==null)return;
+    okhttp3.Request request=new okhttp3.Request.Builder()
+      .url("https://xparty-native-room.onrender.com/api/rooms/public").build();
+    new okhttp3.OkHttpClient().newCall(request).enqueue(new okhttp3.Callback(){
+      @Override public void onFailure(okhttp3.Call call,java.io.IOException error){
+        runOnUiThread(()->{
+          if(target.getParent()==null)return;
+          target.removeAllViews();
+          add(target,text("Room list unavailable. Create a room or try again later.",13,MUTED,false),9);
+        });
+      }
+      @Override public void onResponse(okhttp3.Call call,okhttp3.Response response)throws java.io.IOException{
+        String json;
+        try(okhttp3.Response complete=response){
+          json=complete.body()==null?"{}":complete.body().string();
+        }
+        runOnUiThread(()->{
+          if(target.getParent()==null)return;
+          target.removeAllViews();
+          try{
+            JSONArray rooms=new JSONObject(json).optJSONArray("rooms");
+            if(rooms==null||rooms.length()==0){
+              add(target,text("No public rooms right now. Create the first party!",13,MUTED,false),11);
+              return;
+            }
+            for(int i=0;i<rooms.length()&&i<15;i++){
+              JSONObject item=rooms.optJSONObject(i);if(item==null)continue;
+              String code=item.optString("code",""),name=item.optString("title","Watch Party");
+              int peopleCount=item.optInt("online",item.optInt("occupancy",0));
+              LinearLayout row=column();row.setPadding(dp(13),dp(12),dp(12),dp(12));
+              row.setBackground(shape(0xFF211B34,16));
+              add(row,text(name,15,WHITE,true),5);
+              add(row,text((peopleCount>0?peopleCount+" watching":"Public room")+" · "+code+" · Tap to join",12,MUTED,false),0);
+              row.setOnClickListener(v->{
+                joinInput.setText(code);startRoom("join");
+              });
+              add(target,row,9);
+            }
+          }catch(Exception ignored){add(target,text("Room discovery temporarily unavailable.",13,MUTED,false),11);}
+        });
+      }
     });
   }
   private void startRoom(String action){
@@ -376,6 +500,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     d.setCornerRadius(dp(radius));return d;
   }
   private void showRoom(){
+    if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     roomActive=true;imeShown=false;fullscreenNative=false;showChat=true;
     roomNativeRoot=column();
     roomNativeRoot.setBackgroundColor(0xFF0B0D1C);
@@ -1290,6 +1415,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   @Override protected void onDestroy(){
     closing=true;
     handler.removeCallbacks(progressTicker);
+    if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     socket.disconnect(false);
     if(calls!=null){calls.stop();calls=null;}
     if(immersive!=null){immersive.stop();immersive=null;}
