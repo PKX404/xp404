@@ -73,11 +73,6 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private long mediaReadyAt=0;
   private boolean nativeRecoveryUsed=false;
   private double youtubeDurationSeconds=0;
-  private final Runnable hidePlaybackUi=()->{
-    if(source==null)return;
-    if(roomControls!=null)roomControls.setVisibility(View.GONE);
-    if(progress!=null)progress.setVisibility(View.GONE);
-  };
   private void revealPlaybackControls(){
     if(!roomActive||source==null)return;
     if(roomControls!=null)roomControls.setVisibility(View.VISIBLE);
@@ -107,6 +102,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
   private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
   private SeekBar progress;
+  private final Runnable hidePlaybackUi=()->{
+    if(source==null)return;
+    if(roomControls!=null)roomControls.setVisibility(View.GONE);
+    if(progress!=null)progress.setVisibility(View.GONE);
+  };
   private View micIcon,mentionIcon,emojiIcon,cameraIcon,plusIcon;
   private boolean liked=false,imeShown=false,fullscreenNative=false,showChat=true;
   private int playerFit=AspectRatioFrameLayout.RESIZE_MODE_FIT;
