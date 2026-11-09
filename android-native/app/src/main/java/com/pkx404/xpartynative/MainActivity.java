@@ -360,7 +360,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     progress.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF625B87));
     progress.setThumbTintList(ColorStateList.valueOf(0xFFFFFFFF));
     progress.setPadding(dp(5),0,dp(5),0);
-    roomStage.addView(progress,new LinearLayout.LayoutParams(-1,dp(19)));
+    // Controls overlay the fixed 16:9 native video surface rather than adding
+    // extra height. This matches the v31.6 room geometry and avoids video resize.
+    FrameLayout.LayoutParams timeline=new FrameLayout.LayoutParams(-1,dp(19),Gravity.BOTTOM);
+    timeline.bottomMargin=dp(52);
+    playerFrame.addView(progress,timeline);
     progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
       @Override public void onProgressChanged(SeekBar sb,int value,boolean fromUser){}
       @Override public void onStartTrackingTouch(SeekBar sb){}
@@ -378,7 +382,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
 
     roomControls=new LinearLayout(this);roomControls.setGravity(Gravity.CENTER_VERTICAL);
     roomControls.setPadding(dp(7),0,dp(7),0);
-    roomControls.setBackground(blend(0xFF151933,0xFF1E1935,0));
+    roomControls.setBackground(blend(0xC6151933,0xF21E1935,0));
     FrameLayout playSlot=new FrameLayout(this);
     playIcon=xpIcon("play",this::togglePlayback);
     pauseIcon=xpIcon("pause",this::togglePlayback);
@@ -396,7 +400,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     iconIn(roomControls,xpIcon("scale",this::cycleVideoScaling),44,52);
     iconIn(roomControls,xpIcon("settings",this::showPlaybackSettings),44,52);
     iconIn(roomControls,xpIcon("volume",this::showVolume),44,52);
-    roomStage.addView(roomControls,new LinearLayout.LayoutParams(-1,dp(52)));
+    playerFrame.addView(roomControls,new FrameLayout.LayoutParams(-1,dp(52),Gravity.BOTTOM));
 
     // Gradient room panel with native split call/chat affordances.
     roomPane=column();
