@@ -70,6 +70,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private long youtubeSyncQuietUntil=0L;
   private String nativeReadySource="";
   private long mediaReadyAt=0;
+  private boolean nativeRecoveryUsed=false;
   private FrameLayout playerFrame,screen;
   private LinearLayout app,roomBody,chatItems;
   private TextView connection,roomTitle,playerLabel,people,videoState;
@@ -158,8 +159,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
       @Override public void onPlaybackStateChanged(int state){
         if(videoState==null||"youtube".equals(sourceType))return;
-        if(state==Player.STATE_BUFFERING)videoState.setText("Loading picture…");
-        else if(state==Player.STATE_READY&&renderedVideo)videoState.setText("Picture ready");
+        if(state==Player.STATE_BUFFERING){
+          videoState.setText("Loading picture…");
+        }else if(state==Player.STATE_READY){
+          sendReady("Ready");
+          if(renderedVideo)videoState.setText("Picture ready");
+          // Match original XParty: newly chosen IPTV starts for the host once ready.
+          if("iptv".equals(sourceType)&&isHost&&playback!=null
+             &&!playback.optBoolean("playing")&&!nativeRecoveryUsed){
+            sendNativePlayback(true,0,"play");
+          }
+        }
       }
     });
     showLobby();
@@ -995,7 +1005,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void loadSource(){
     if(player==null)return;
     player.stop();player.clearMediaItems();
-    renderedVideo=false;youtubeReady=false;nativeReadySource="";
+    renderedVideo=false;youtubeReady=false;nativeReadySource="";nativeRecoveryUsed=false;
     mediaReadyAt=SystemClock.uptimeMillis();
     youtube.stopLoading();youtube.loadUrl("about:blank");youtube.setVisibility(View.GONE);
     playerView.setVisibility(View.VISIBLE);
@@ -1105,11 +1115,19 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   private void togglePlayback(){
     if(source==null){toast("Choose a video first");return;}
-    if("youtube".equals(sourceType)){toast("Use the YouTube player controls in this preview.");return;}
-    boolean playing=playback!=null&&playback.optBoolean("playing");
-    try{JSONObject msg=new JSONObject().put("type","playback")
-      .put("sourceId",sourceId).put("playing",!playing).put("position",player.getCurrentPosition()/1000.0)
-      .put("intent",playing?"pause":"play");socket.send(msg);}catch(Exception ignored){}
+    boolean wasPlaying=playback!=null&&playback.optBoolean("playing",false);
+    if("youtube".equals(sourceType)){
+      if(!youtubeReady){toast("YouTube is loading. Tap Play inside its player.");return;}
+      youtube.evaluateJavascript("window.xpartyTime()",raw->{
+        double pos=0;
+        try{pos=Double.parseDouble(raw);}catch(Exception ignored){}
+        sendNativePlayback(!wasPlaying,pos,wasPlaying?"pause":"play");
+        youtubeSyncQuietUntil=SystemClock.uptimeMillis()+900;
+        youtube.evaluateJavascript("window.xpartyPlay("+!wasPlaying+")",null);
+      });
+      return;
+    }
+    sendNativePlayback(!wasPlaying,player.getCurrentPosition()/1000.0,wasPlaying?"pause":"play");
   }
   private void send(String event){try{socket.send(new JSONObject().put("type",event));}catch(Exception ignored){}}
   private void leaveRoom(){
