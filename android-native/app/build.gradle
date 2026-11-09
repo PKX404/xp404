@@ -6,8 +6,24 @@ android {
         applicationId 'com.pkx404.xpartynative'
         minSdk 26
         targetSdk 35
-        versionCode 4
-        versionName '0.3.1-native-playback-fix'
+        versionCode 40
+        versionName '0.4.0-native-visual-performance'
+    }
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            universalApk true
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
