@@ -1,0 +1,59 @@
+name: Build XParty Native Android preview
+on:
+  push:
+    branches: [feature/xparty-fully-native-migration-20261109]
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/xparty-fully-native-android.yml'
+  workflow_dispatch:
+jobs:
+  android-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build native Android app
+        working-directory: android-native
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: XParty-Native-Preview-v0.1-debug
+          path: android-native/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+          if-no-files-found: error
+  startup-smoke:
+    needs: android-native
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: XParty-Native-Preview-v0.1-debug
+          path: output
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            set -eu
+            adb install -r output/app-debug.apk
+            adb logcat -c
+            adb shell am start -W -n com.pkx404.xpartynative/.MainActivity
+            sleep 7
+            adb shell pidof com.pkx404.xpartynative
+            echo "Native XParty lobby stayed running"
