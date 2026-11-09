@@ -149,7 +149,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     artwork=new NativeArtwork();
     attachments=new NativeAttachments(this,"https://xparty-native-room.onrender.com");
     sourceSheet=new NativeSourceSheet(this,directory,artwork,new NativeSourceSheet.Actions(){
-      @Override public void selected(JSONObject selected){sendSource(selected);}
+      @Override public void selected(JSONObject selected){
+        sendSource(selected);
+        if(homeOverlay!=null)returnToRoom();
+      }
       @Override public void pickLocal(){chooseLocal();}
       @Override public void enterLink(String kind){
         promptVideo("youtube".equals(kind)?"YouTube link":"HTTPS video link",kind);
