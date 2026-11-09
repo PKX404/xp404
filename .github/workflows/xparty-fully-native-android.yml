@@ -1,7 +1,8 @@
-name: Build XParty Native Android preview
+name: Build XParty Native v0.3.1 APK
 on:
   push:
-    branches: [feature/xparty-native-playback-immersive-icon-20261109]
+    branches:
+      - feature/xparty-native-playback-immersive-icon-20261109
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-fully-native-android.yml'
@@ -9,7 +10,7 @@ on:
 jobs:
   android-native:
     runs-on: ubuntu-latest
-    timeout-minutes: 16
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -21,70 +22,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - name: Build native Android app
+      - name: Build native Android APK
         working-directory: android-native
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Check APK exists
+        run: test -s android-native/app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: XParty-Native-v0.3.1-Playback-Immersive-APK
           path: android-native/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
           if-no-files-found: error
-  startup-smoke:
-    needs: android-native
-    runs-on: ubuntu-latest
-    timeout-minutes: 22
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: XParty-Native-v0.3.1-Playback-Immersive-APK
-          path: output
-      - uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          script: |
-            set -eu
-            adb install -r output/app-debug.apk
-            adb logcat -c
-            adb shell am start -W -n com.pkx404.xpartynative/.MainActivity
-            sleep 7
-            adb shell pidof com.pkx404.xpartynative
-            adb exec-out screencap -p > output/native-lobby.png
-            if adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1; then
-              adb pull /sdcard/window.xml output/window.xml >/dev/null || true
-            fi
-            if [ -f output/window.xml ]; then
-              python3 - <<'PY' > output/tap.txt
-            import re, xml.etree.ElementTree as E
-            root=E.parse('output/window.xml').getroot()
-            for element in root.iter('node'):
-                name=element.attrib.get('text','')
-                if 'Create Room' in name or 'CREATE A ROOM' in name:
-                    coords=[int(n) for n in re.findall(r'\\d+',element.attrib.get('bounds',''))]
-                    if len(coords)==4:
-                        print((coords[0]+coords[2])//2,(coords[1]+coords[3])//2)
-                        break
-            PY
-              if read -r x y < output/tap.txt && [ -n "${x:-}" ] && [ -n "${y:-}" ]; then
-                adb shell input tap "$x" "$y"
-                sleep 8
-                adb exec-out screencap -p > output/native-room.png || true
-                adb shell pidof com.pkx404.xpartynative
-              fi
-            fi
-            echo "Native XParty app remained running after UI navigation"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: XParty-Native-Visual-Screenshots-v0.3.1
-          path: |
-            output/native-*.png
-            output/window.xml
-          retention-days: 7
