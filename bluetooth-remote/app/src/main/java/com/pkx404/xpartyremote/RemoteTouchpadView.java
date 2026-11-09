@@ -1,6 +1,7 @@
 package com.pkx404.xpartyremote;
 
 import android.content.Context;
+import android.util.AttributeSet;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
@@ -36,6 +37,22 @@ public final class RemoteTouchpadView extends View {
 
   public RemoteTouchpadView(Context context){
     super(context);
+    init();
+  }
+
+  // LayoutInflater calls this constructor when the touchpad is declared in XML.
+  // Without it Android throws InflateException during MainActivity.onCreate.
+  public RemoteTouchpadView(Context context, AttributeSet attrs){
+    super(context, attrs);
+    init();
+  }
+
+  public RemoteTouchpadView(Context context, AttributeSet attrs, int defStyleAttr){
+    super(context, attrs, defStyleAttr);
+    init();
+  }
+
+  private void init(){
     wheelStep=dp(17);
     corner=dp(25);
     setContentDescription("Blue touchpad. Move one finger to move cursor, tap to click, swipe two fingers to scroll.");
