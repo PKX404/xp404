@@ -96,6 +96,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   };
   private NativeArtwork artwork;
   private NativeSourceSheet sourceSheet;
+  private NativeCallController calls;
+  private FrameLayout callPanel;
+  private TextView callStatusText;
+  private JSONArray callIceServers;
   private android.widget.ImageView nativeChannelLogo;
   private final java.util.Map<String,JSONObject> knownChats=new java.util.HashMap<>();
   private final java.util.Map<String,TextView> chatBubbles=new java.util.HashMap<>();
@@ -254,6 +258,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     String type=event.optString("type");
     if("welcome".equals(type)){
       myId=event.optString("id");token=event.optString("token");
+      callIceServers=event.optJSONArray("iceServers");
+      if(calls!=null)calls.configureIce(callIceServers);
       JSONObject received=event.optJSONObject("room");
       if(received==null){toast("Unexpected room response");return;}
       if(!roomActive)showRoom();
@@ -271,6 +277,26 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         playback=event.optJSONObject("playback");
         followPlayback();
       }
+    }else if("signal".equals(type)){
+      NativeCallController c=ensureCalls();
+      if(c!=null)c.signal(event.optString("from"),event.optJSONObject("signal"));
+    }else if("video-call-incoming".equals(type)){
+      String caller=event.optString("name","Someone");
+      String requestId=event.optString("id");
+      new AlertDialog.Builder(this).setTitle("Incoming video call")
+        .setMessage(caller+" wants to start a video call. Your camera remains off until you enable it.")
+        .setPositiveButton("Accept",(d,w)->{
+          try{socket.send(new JSONObject().put("type","video-call-response")
+            .put("id",requestId).put("accept",true));}catch(Exception ignored){}
+          showRoomTab(false);
+        })
+        .setNegativeButton("Decline",(d,w)->{
+          try{socket.send(new JSONObject().put("type","video-call-response")
+            .put("id",requestId).put("accept",false));}catch(Exception ignored){}
+        }).show();
+    }else if("video-call-result".equals(type)){
+      if("accepted".equals(event.optString("status")))showRoomTab(false);
+      else toast("Video request: "+event.optString("status","ended"));
     }else if("chat".equals(type)){renderMessage(event);
     }else if("message-update".equals(type)){
       JSONObject changed=event.optJSONObject("message");
@@ -490,6 +516,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     knownChats.clear();chatBubbles.clear();replyToId=null;
     chatScroll.addView(chatItems);
     roomPane.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1));
+    callPanel=new FrameLayout(this);
+    callPanel.setBackgroundColor(0xFF12101E);
+    callPanel.setVisibility(View.GONE);
+    roomPane.addView(callPanel,new LinearLayout.LayoutParams(-1,0,1));
 
     // Video-call tab uses a visible, explicit migration notice: never fake a connection.
     chatScroll.setVisibility(View.VISIBLE);
@@ -498,7 +528,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatComposer.setGravity(Gravity.CENTER_VERTICAL);
     chatComposer.setPadding(dp(5),dp(6),dp(5),dp(6));
     chatComposer.setBackgroundColor(0xFF1A1424);
-    XPControl mic=xpIcon("mic_off",()->toast("Native voice/video calling is not migrated yet."));
+    XPControl mic=xpIcon("mic_off",this::toggleNativeMic);
     mic.tint(0xFFEDE3FF);micIcon=mic;
     iconIn(chatComposer,mic,48,54);
     chatInput=entry("Message");
@@ -558,12 +588,42 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(playIcon!=null)playIcon.setVisibility(playing?View.GONE:View.VISIBLE);
     if(pauseIcon!=null)pauseIcon.setVisibility(playing?View.VISIBLE:View.GONE);
   }
+  private NativeCallController ensureCalls(){
+    if(!roomActive||isFinishing()||callPanel==null)return null;
+    if(calls==null){
+      calls=new NativeCallController(this,new NativeCallController.Events(){
+        @Override public void signal(String person,JSONObject payload){
+          try{socket.send(new JSONObject().put("type","signal")
+            .put("to",person).put("signal",payload));}catch(Exception ignored){}
+        }
+        @Override public void sendMedia(boolean mic,boolean camera){
+          try{socket.send(new JSONObject().put("type","media")
+            .put("mic",mic).put("camera",camera));}catch(Exception ignored){}
+          if(micIcon instanceof XPControl)((XPControl)micIcon).active(mic);
+        }
+        @Override public void action(String type){send(type);}
+        @Override public void status(String value){
+          if(callStatusText!=null)callStatusText.setText(value);
+        }
+      });
+      calls.configureIce(callIceServers);
+      calls.attach(callPanel);
+    }
+    calls.syncRoom(room,myId);
+    return calls;
+  }
+  private void toggleNativeMic(){
+    NativeCallController c=ensureCalls();
+    if(c!=null)c.toggleMic();
+  }
   private void showRoomTab(boolean chat){
     showChat=chat;
     if(tabChat!=null)tabChat.setTextColor(chat?WHITE:0xFFB4A6CB);
     if(tabCall!=null)tabCall.setTextColor(chat?0xFFB4A6CB:WHITE);
-    if(chatScroll!=null)chatScroll.setVisibility(chat?View.VISIBLE:View.INVISIBLE);
-    if(!chat)toast("Native video calling is still being migrated. Room chat remains connected.");
+    if(!chat)ensureCalls();
+    if(chatScroll!=null)chatScroll.setVisibility(chat?View.VISIBLE:View.GONE);
+    if(callPanel!=null)callPanel.setVisibility(chat?View.GONE:View.VISIBLE);
+    if(chatComposer!=null)chatComposer.setVisibility(chat?View.VISIBLE:View.GONE);
   }
   private void toggleVideoLike(){
     if(sourceId==null||sourceId.isEmpty()){toast("Play a video to like it.");return;}
@@ -851,6 +911,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(members!=null)for(int i=0;i<members.length();i++)if(members.optJSONObject(i).optBoolean("online"))count++;
     if(people!=null)people.setText(count+" online  ·  "+(isHost?"You're the host":"Watching together"));
     if(memberBadge!=null)memberBadge.setText(count>9?"9+":String.valueOf(count));
+    if(calls!=null)calls.syncRoom(room,myId);
     playback=data.optJSONObject("playback");
     JSONObject next=data.optJSONObject("source");
     String newId=next==null?"":next.optString("id","");
@@ -933,6 +994,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void leaveRoom(){
     if(!roomActive)return;
     socket.disconnect(true);
+    if(calls!=null){calls.stop();calls=null;}
     player.stop();
     if(youtube!=null)youtube.loadUrl("about:blank");
     status("Left room");
@@ -1010,6 +1072,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     closing=true;
     handler.removeCallbacks(progressTicker);
     socket.disconnect(false);
+    if(calls!=null){calls.stop();calls=null;}
     if(sourceSheet!=null)sourceSheet.dismiss();
     directory.shutdown();
     if(artwork!=null)artwork.shutdown();
