@@ -82,6 +82,18 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private boolean liked=false,imeShown=false,fullscreenNative=false,showChat=true;
   private int playerFit=AspectRatioFrameLayout.RESIZE_MODE_FIT;
   private int savedVideoHeight=0;
+  private final Runnable progressTicker=new Runnable(){
+    @Override public void run(){
+      if(roomActive&&progress!=null&&player!=null&&"direct".equals(sourceType)){
+        long duration=player.getDuration();
+        if(duration>0&&duration!=androidx.media3.common.C.TIME_UNSET){
+          int value=(int)Math.max(0,Math.min(1000,player.getCurrentPosition()*1000.0/duration));
+          if(!progress.isPressed())progress.setProgress(value);
+        }
+      }
+      handler.postDelayed(this,700);
+    }
+  };
   private NativeArtwork artwork;
   private android.widget.ImageView nativeChannelLogo;
   private final java.util.Map<String,JSONObject> knownChats=new java.util.HashMap<>();
@@ -117,6 +129,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
     });
     showLobby();
+    handler.postDelayed(progressTicker,700);
   }
   private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
   private GradientDrawable shape(int color,int radius){
@@ -1041,6 +1054,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   @Override protected void onResume(){super.onResume();if(youtube!=null)youtube.onResume();}
   @Override protected void onDestroy(){
     closing=true;
+    handler.removeCallbacks(progressTicker);
     socket.disconnect(false);
     directory.shutdown();
     if(artwork!=null)artwork.shutdown();
