@@ -24,6 +24,8 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
+import android.webkit.JavascriptInterface;
+import android.os.SystemClock;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -63,6 +65,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private ExoPlayer player;
   private PlayerView playerView;
   private WebView youtube;
+  private XPControl fullscreenControl;
+  private boolean youtubeReady=false;
+  private long youtubeSyncQuietUntil=0L;
+  private String nativeReadySource="";
+  private long mediaReadyAt=0;
   private FrameLayout playerFrame,screen;
   private LinearLayout app,roomBody,chatItems;
   private TextView connection,roomTitle,playerLabel,people,videoState;
@@ -395,10 +402,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     youtube.getSettings().setJavaScriptEnabled(true);
     youtube.getSettings().setMediaPlaybackRequiresUserGesture(true);
     youtube.setWebChromeClient(new WebChromeClient());
+    youtube.addJavascriptInterface(new YoutubeBridge(),"XpartyYT");
     youtube.setVisibility(View.GONE);
     playerFrame.addView(youtube,new FrameLayout.LayoutParams(-1,-1));
 
     XPControl fullscreen=xpIcon("fullscreen",this::toggleNativeFullscreen);
+    fullscreenControl=fullscreen;
     FrameLayout.LayoutParams fullParams=new FrameLayout.LayoutParams(dp(44),dp(44),Gravity.TOP|Gravity.LEFT);
     fullParams.leftMargin=dp(5);fullParams.topMargin=dp(5);
     playerFrame.addView(fullscreen,fullParams);
@@ -931,63 +940,165 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
     followPlayback();
   }
+  /**
+   * Only the official YouTube IFrame API runs in WebView; all room controls,
+   * signaling, chat and IPTV decoding remain native Android components.
+   */
+  public final class YoutubeBridge {
+    @JavascriptInterface public void onReady(){
+      runOnUiThread(()->{
+        if(!roomActive||!"youtube".equals(sourceType)||source==null)return;
+        youtubeReady=true;
+        videoState.setText("YouTube · ready");
+        sendReady("YouTube ready");
+        followPlayback();
+      });
+    }
+    @JavascriptInterface public void state(int state,double seconds){
+      runOnUiThread(()->{
+        if(!roomActive||!"youtube".equals(sourceType)||!youtubeReady)return;
+        if(state!=1&&state!=2&&state!=0)return;
+        if(SystemClock.uptimeMillis()<youtubeSyncQuietUntil)return;
+        if(!isHost&&room!=null&&"HOST_ONLY".equals(room.optString("mode")))return;
+        if(!Double.isFinite(seconds))return;
+        boolean playing=state==1;
+        boolean current=playback!=null&&playback.optBoolean("playing");
+        if(playing!=current||Math.abs((playback==null?0:playback.optDouble("position",0))-seconds)>3){
+          sendNativePlayback(playing,seconds,playing?"play":"pause");
+        }
+      });
+    }
+    @JavascriptInterface public void error(int code){
+      runOnUiThread(()->{
+        if("youtube".equals(sourceType))videoState.setText("YouTube player error "+code+" · choose another video");
+      });
+    }
+    @JavascriptInterface public void blocked(){
+      runOnUiThread(()->{
+        if("youtube".equals(sourceType))toast("Tap Play in the YouTube player to allow playback.");
+      });
+    }
+  }
+  private void sendReady(String status){
+    if(sourceId==null||sourceId.isEmpty()||sourceId.equals(nativeReadySource))return;
+    nativeReadySource=sourceId;
+    try{socket.send(new JSONObject().put("type","ready").put("sourceId",sourceId)
+      .put("ready",true).put("status",status));}catch(Exception ignored){}
+  }
+  private void sendNativePlayback(boolean playing,double seconds,String intent){
+    if(source==null)return;
+    try{socket.send(new JSONObject()
+      .put("type","playback").put("sourceId",sourceId)
+      .put("playing",playing).put("position",Math.max(0,seconds))
+      .put("intent",intent));}catch(Exception ignored){}
+  }
   private void loadSource(){
     if(player==null)return;
-    player.stop();player.clearMediaItems();renderedVideo=false;
+    player.stop();player.clearMediaItems();
+    renderedVideo=false;youtubeReady=false;nativeReadySource="";
+    mediaReadyAt=SystemClock.uptimeMillis();
     youtube.stopLoading();youtube.loadUrl("about:blank");youtube.setVisibility(View.GONE);
     playerView.setVisibility(View.VISIBLE);
     if(source==null){
-      sourceType="";videoState.setText("Choose a video");
+      sourceType="";
+      videoState.setText("Choose a video");
       playerLabel.setText("Now watching · Select a video");
       if(roomControls!=null)roomControls.setVisibility(View.GONE);
       if(progress!=null)progress.setVisibility(View.GONE);
       return;
     }
-    if(roomControls!=null)roomControls.setVisibility(View.VISIBLE);
-    if(progress!=null)progress.setVisibility(View.VISIBLE);
     sourceType=source.optString("type","");
-    if(!sourceType.isEmpty())getPreferences(MODE_PRIVATE).edit().putString("last_source",sourceType).apply();
+    getPreferences(MODE_PRIVATE).edit().putString("last_source",sourceType).apply();
     sourceUrl=source.optString("url","");
     if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● LIVE":
       "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
-    if(artwork!=null&&nativeChannelLogo!=null)artwork.show(source.optString("logo",""),nativeChannelLogo);
-    playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")+source.optString("title","Video"));
+    if(artwork!=null&&nativeChannelLogo!=null)
+      artwork.show(source.optString("logo",""),nativeChannelLogo);
+    playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")
+      +source.optString("title","Video"));
+    boolean isYouTube="youtube".equals(sourceType);
+    if(roomControls!=null)roomControls.setVisibility(isYouTube?View.GONE:View.VISIBLE);
+    if(progress!=null)progress.setVisibility(isYouTube?View.GONE:View.VISIBLE);
+    if(fullscreenControl!=null)fullscreenControl.setVisibility(isYouTube?View.GONE:View.VISIBLE);
+    if(videoPill!=null)videoPill.setVisibility(isYouTube?View.GONE:View.VISIBLE);
     videoState.setText("Preparing video…");
-    if("youtube".equals(sourceType)){
+    if(isYouTube){
       youtubeId=source.optString("videoId","");
-      if(youtubeId.matches("[A-Za-z0-9_-]{11}")){
-        playerView.setVisibility(View.GONE);
-        youtube.setVisibility(View.VISIBLE);
-        // Official provider-owned embed; rest of the Activity is native Android.
-        String html="<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
-          +"<style>*{margin:0;padding:0}body,html,iframe{width:100%;height:100%;background:#000}"
-          +"iframe{border:0}</style></head><body>"
-          +"<iframe allow='autoplay;encrypted-media;fullscreen;picture-in-picture' allowfullscreen"
-          +" src='https://www.youtube.com/embed/"+youtubeId+"?playsinline=1&enablejsapi=1&origin=https%3A%2F%2Fxp404.onrender.com'"
-          +"></iframe></body></html>";
-        youtube.loadDataWithBaseURL("https://xp404.onrender.com/",html,"text/html","UTF-8",null);
-        videoState.setText("YouTube embedded player (provider controls)");
-      }else videoState.setText("Invalid YouTube video ID");
+      if(!youtubeId.matches("[A-Za-z0-9_-]{11}")){videoState.setText("Invalid YouTube video ID");return;}
+      playerView.setVisibility(View.GONE);
+      youtube.setVisibility(View.VISIBLE);
+      // Keep YouTube's own player and controls fully visible without overlaying it.
+      String html="""
+        <!doctype html><html><head>
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <style>
+          html,body,#player{margin:0;padding:0;background:#000;width:100%;height:100%;overflow:hidden}
+          iframe{display:block;position:absolute;inset:0;width:100%;height:100%;border:0}
+        </style></head><body>
+        <div id="player"></div>
+        <script src="https://www.youtube.com/iframe_api"></script>
+        <script>
+          let ytPlayer=null;
+          function onYouTubeIframeAPIReady(){
+            ytPlayer=new YT.Player('player',{
+              videoId:'__VIDEO_ID__',
+              playerVars:{playsinline:1,rel:0,enablejsapi:1,origin:'https://xparty-native-room.onrender.com'},
+              events:{
+                onReady:function(){XpartyYT.onReady();},
+                onError:function(e){XpartyYT.error(e.data);},
+                onAutoplayBlocked:function(){XpartyYT.blocked();},
+                onStateChange:function(e){
+                  try{XpartyYT.state(e.data,ytPlayer.getCurrentTime()||0);}catch(ex){}
+                }
+              }
+            });
+          }
+          window.xpartySync=function(playing,time){
+            if(!ytPlayer||typeof ytPlayer.getPlayerState!=='function')return;
+            const actual=ytPlayer.getCurrentTime()||0;
+            if(Math.abs(actual-time)>2.5)ytPlayer.seekTo(Math.max(0,time),true);
+            if(playing&&ytPlayer.getPlayerState()!==YT.PlayerState.PLAYING)ytPlayer.playVideo();
+            else if(!playing&&ytPlayer.getPlayerState()===YT.PlayerState.PLAYING)ytPlayer.pauseVideo();
+          };
+          window.xpartyPlay=function(playing){
+            if(!ytPlayer)return;
+            if(playing)ytPlayer.playVideo();else ytPlayer.pauseVideo();
+          };
+          window.xpartyTime=function(){return ytPlayer?ytPlayer.getCurrentTime()||0:0;};
+        </script></body></html>
+        """.replace("__VIDEO_ID__",youtubeId);
+      youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",html,"text/html","UTF-8",null);
     }else if("iptv".equals(sourceType)||"direct".equals(sourceType)){
       if(!sourceUrl.startsWith("https://")){videoState.setText("Unsupported media URL");return;}
-      MediaItem media=new MediaItem.Builder().setUri(sourceUrl).build();
-      player.setMediaItem(media);
+      player.setMediaItem(new MediaItem.Builder().setUri(sourceUrl).build());
       player.prepare();
-      videoState.setText("Loading native video…");
-    }else videoState.setText("This source is pending native migration.");
+      videoState.setText("Loading native picture…");
+    }else{
+      videoState.setText("This video source is not yet supported by the native player.");
+    }
   }
   private void followPlayback(){
     if(playback==null||source==null)return;
-    if("youtube".equals(sourceType))return; // Official provider UI owns its controls in preview.
-    if(!"iptv".equals(sourceType)&&!"direct".equals(sourceType))return;
     boolean playing=playback.optBoolean("playing",false);
-    if(playing!=player.isPlaying())player.setPlayWhenReady(playing);
-    if(playButton!=null)playButton.setText(playing?"Ⅱ PAUSE":"▶ PLAY");
+    if("youtube".equals(sourceType)){
+      updatePlayIcon(playing);
+      if(!youtubeReady)return;
+      double position=playback.optDouble("position",0);
+      if(playing){
+        long anchored=playback.optLong("updatedAt",System.currentTimeMillis());
+        position+=Math.max(0,(System.currentTimeMillis()-anchored)/1000.0);
+      }
+      youtubeSyncQuietUntil=SystemClock.uptimeMillis()+1400;
+      youtube.evaluateJavascript("window.xpartySync("+playing+","+Math.max(0,position)+")",null);
+      return;
+    }
+    if(!"iptv".equals(sourceType)&&!"direct".equals(sourceType))return;
+    if(playing!=player.getPlayWhenReady())player.setPlayWhenReady(playing);
     updatePlayIcon(playing);
     if("direct".equals(sourceType)&&player.getDuration()>0){
-      long origin=playback.optLong("updatedAt",System.currentTimeMillis());
+      long anchored=playback.optLong("updatedAt",System.currentTimeMillis());
       double position=playback.optDouble("position",0);
-      if(playing)position+=Math.max(0,(System.currentTimeMillis()-origin)/1000.0);
+      if(playing)position+=Math.max(0,(System.currentTimeMillis()-anchored)/1000.0);
       long target=(long)(position*1000);
       if(Math.abs(player.getCurrentPosition()-target)>2500)player.seekTo(target);
     }
