@@ -47,6 +47,7 @@ final class RoomSocket {
     if(closed||generation!=current)return;
     emitStatus(retryCount==0?"Connecting to live room…":"Reconnecting ("+retryCount+"/6)…");
     Request request=new Request.Builder().url(URL).header("Origin","https://xp404.onrender.com").build();
+    final java.util.concurrent.atomic.AtomicBoolean stopped=new java.util.concurrent.atomic.AtomicBoolean(false);
     socket=client.newWebSocket(request,new WebSocketListener(){
       @Override public void onOpen(WebSocket webSocket,Response response){
         if(closed||generation!=current){webSocket.close(1000,"Expired");return;}
@@ -65,10 +66,11 @@ final class RoomSocket {
         }catch(JSONException ignored){}
       }
       @Override public void onFailure(WebSocket webSocket,Throwable error,Response response){
-        failed(current,error.getMessage()==null?"Connection failed":error.getMessage());
+        if(stopped.compareAndSet(false,true))
+          failed(current,error.getMessage()==null?"Connection failed":error.getMessage());
       }
       @Override public void onClosed(WebSocket webSocket,int code,String reason){
-        failed(current,"Room connection ended");
+        if(stopped.compareAndSet(false,true))failed(current,"Room connection ended");
       }
     });
   }
