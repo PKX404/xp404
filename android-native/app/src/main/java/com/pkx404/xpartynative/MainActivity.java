@@ -76,7 +76,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private LinearLayout roomHeader,roomStage,roomPane,chatComposer,roomControls,roomNativeRoot,hostNotice;
   private FrameLayout videoContainer;
   private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
-  private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand;
+  private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge;
   private SeekBar progress;
   private View micIcon,mentionIcon,emojiIcon,cameraIcon,plusIcon;
   private boolean liked=false,imeShown=false,fullscreenNative=false,showChat=true;
@@ -253,7 +253,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   private void headerIcon(LinearLayout bar,String kind,Runnable onPress,float weight){
     XPControl icon=xpIcon(kind,onPress);
-    bar.addView(icon,new LinearLayout.LayoutParams(0,dp(58),weight));
+    if("people".equals(kind)){
+      FrameLayout slot=new FrameLayout(this);
+      slot.addView(icon,new FrameLayout.LayoutParams(-1,-1));
+      memberBadge=text("1",9,0xFF101021,true);
+      memberBadge.setGravity(Gravity.CENTER);
+      memberBadge.setBackground(shape(0xFFE9D9FF,20));
+      FrameLayout.LayoutParams badgePosition=new FrameLayout.LayoutParams(dp(19),dp(19),Gravity.TOP|Gravity.RIGHT);
+      badgePosition.rightMargin=dp(1);badgePosition.topMargin=dp(2);
+      slot.addView(memberBadge,badgePosition);
+      bar.addView(slot,new LinearLayout.LayoutParams(0,dp(58),weight));
+    }else bar.addView(icon,new LinearLayout.LayoutParams(0,dp(58),weight));
   }
   private GradientDrawable blend(int top,int bottom,int radius){
     GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{top,bottom});
@@ -269,8 +279,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     roomHeader=new LinearLayout(this);roomHeader.setGravity(Gravity.CENTER_VERTICAL);
     roomHeader.setPadding(dp(6),0,dp(6),0);
     roomHeader.setBackground(blend(0xFF201A23,0xFF121829,0));
-    headerIcon(roomHeader,"exit",()->leaveRoom(),1f);
-    headerIcon(roomHeader,"settings",this::showPlaybackSettings,1f);
+    headerIcon(roomHeader,"exit",this::confirmLeaveRoom,1f);
+    headerIcon(roomHeader,"settings",this::showRoomSettings,1f);
     headerIcon(roomHeader,"search",this::openSourceChooser,1f);
 
     android.widget.ImageView brand=new android.widget.ImageView(this);
@@ -513,6 +523,40 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     new AlertDialog.Builder(this).setTitle("Playback volume").setView(bar)
       .setPositiveButton("Done",null).show();
   }
+  private void confirmLeaveRoom(){
+    new AlertDialog.Builder(this).setTitle("Exit XParty room?")
+      .setMessage("Leave the watch room and close its playback on this device?")
+      .setPositiveButton("Yes, leave",(dialog,which)->leaveRoom())
+      .setNegativeButton("No",null).show();
+  }
+  private void showRoomSettings(){
+    if(room==null){toast("Join a room first.");return;}
+    boolean locked=room.optBoolean("locked",false);
+    String[] names=isHost
+      ?new String[]{locked?"Unlock room":"Lock room","Host-only playback","Shared playback control","Host approval","Participants","Playback settings"}
+      :new String[]{"Participants","Playback settings","Copy room code"};
+    new AlertDialog.Builder(this).setTitle("Room settings · "+roomCode)
+      .setItems(names,(dialog,which)->{
+        if(!isHost){
+          if(which==0)openParticipants();else if(which==1)showPlaybackSettings();else copyRoomCode();
+          return;
+        }
+        try{
+          if(which==0)socket.send(new JSONObject().put("type","lock").put("locked",!locked));
+          else if(which>=1&&which<=3){
+            String mode=which==1?"HOST_ONLY":which==2?"SHARED_CONTROL":"HOST_APPROVAL";
+            socket.send(new JSONObject().put("type","party-mode").put("mode",mode));
+          }else if(which==4)openParticipants();
+          else if(which==5)showPlaybackSettings();
+        }catch(Exception ignored){}
+      }).show();
+  }
+  private void copyRoomCode(){
+    if(roomCode==null||roomCode.isEmpty())return;
+    ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE))
+      .setPrimaryClip(ClipData.newPlainText("XParty room code",roomCode));
+    toast("Room code copied");
+  }
   private void showPlaybackSettings(){
     new AlertDialog.Builder(this).setTitle("Playback settings")
       .setItems(new String[]{"Video scaling: fit / fill","Playback volume","Select new video","Connection and room info"},
@@ -657,6 +701,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     JSONArray members=data.optJSONArray("people");int count=0;
     if(members!=null)for(int i=0;i<members.length();i++)if(members.optJSONObject(i).optBoolean("online"))count++;
     if(people!=null)people.setText(count+" online  ·  "+(isHost?"You're the host":"Watching together"));
+    if(memberBadge!=null)memberBadge.setText(count>9?"9+":String.valueOf(count));
     playback=data.optJSONObject("playback");
     JSONObject next=data.optJSONObject("source");
     String newId=next==null?"":next.optString("id","");
