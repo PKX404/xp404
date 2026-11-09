@@ -84,6 +84,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private int savedVideoHeight=0;
   private NativeArtwork artwork;
   private android.widget.ImageView nativeChannelLogo;
+  private final java.util.Map<String,JSONObject> knownChats=new java.util.HashMap<>();
+  private final java.util.Map<String,TextView> chatBubbles=new java.util.HashMap<>();
+  private String replyToId=null;
+  private long lastTypingAt=0;
 
   @Override public void onCreate(Bundle saved){
     super.onCreate(saved);
@@ -233,7 +237,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if(!roomActive)showRoom();
       updateRoom(received);
       JSONArray history=event.optJSONArray("history");
-      if(history!=null){chatItems.removeAllViews();for(int i=0;i<history.length();i++)renderMessage(history.optJSONObject(i));}
+      if(history!=null){
+        chatItems.removeAllViews();knownChats.clear();chatBubbles.clear();
+        for(int i=0;i<history.length();i++)renderMessage(history.optJSONObject(i));
+      }
       status("Connected to room "+roomCode);
     }else if("state".equals(type)){
       JSONObject next=event.optJSONObject("room");if(next!=null)updateRoom(next);
@@ -243,6 +250,20 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         followPlayback();
       }
     }else if("chat".equals(type)){renderMessage(event);
+    }else if("message-update".equals(type)){
+      JSONObject changed=event.optJSONObject("message");
+      if(changed!=null)renderMessage(changed);
+    }else if("chat-updated".equals(type)){
+      String id=event.optString("id");
+      JSONObject old=knownChats.get(id);
+      if(old!=null){
+        try{
+          old.put("text",event.optString("text",""));
+          old.put("deleted",event.optBoolean("deleted",false));
+          renderMessage(old);
+        }catch(Exception ignored){}
+      }
+    }else if("chat-error".equals(type)){toast(event.optString("message","Unable to send message"));
     }else if("error".equals(type)||"resume-failed".equals(type)||"ended".equals(type)||"kicked".equals(type)){
       toast(event.optString("message","Room unavailable"));
       if("resume-failed".equals(type)||"ended".equals(type)||"kicked".equals(type)){socket.disconnect(false);showLobby();}
@@ -437,6 +458,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatScroll.setFillViewport(true);
     chatScroll.setVerticalScrollBarEnabled(false);
     chatItems=column();chatItems.setPadding(dp(15),dp(5),dp(14),dp(12));
+    knownChats.clear();chatBubbles.clear();replyToId=null;
     chatScroll.addView(chatItems);
     roomPane.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1));
 
@@ -454,6 +476,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatInput.setTextSize(14);
     chatInput.setPadding(dp(8),dp(6),dp(6),dp(6));
     chatInput.setBackgroundColor(Color.TRANSPARENT);
+    chatInput.addTextChangedListener(new android.text.TextWatcher(){
+      @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
+      @Override public void onTextChanged(CharSequence s,int start,int before,int count){
+        if(System.currentTimeMillis()-lastTypingAt<1300)return;
+        lastTypingAt=System.currentTimeMillis();
+        try{socket.send(new JSONObject().put("type","typing").put("active",s.length()>0));}
+        catch(Exception ignored){}
+      }
+      @Override public void afterTextChanged(android.text.Editable value){}
+    });
     chatComposer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(50),1));
     XPControl mention=xpIcon("at",()->chatInput.getText().insert(chatInput.getSelectionStart(),"@"));
     mentionIcon=mention;iconIn(chatComposer,mention,40,52);
@@ -685,22 +717,100 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   private void renderMessage(JSONObject data){
     if(data==null||chatItems==null)return;
+    final String id=data.optString("id","");
     String body=data.optString("text","");
+    boolean deleted=data.optBoolean("deleted",false);
+    JSONObject attachment=data.optJSONObject("attachment");
+    if(body.isEmpty()&&attachment!=null)body="📎 "+attachment.optString("name","Attachment");
+    if(deleted)body="Message deleted";
     if(body.isEmpty())return;
-    if(chatItems.getChildCount()>100)chatItems.removeViewAt(0);
     boolean self=myId.equals(data.optString("from"));
-    TextView bubble=text((self?"You":data.optString("name","Member"))+"  ·  "+body,13,WHITE,false);
-    bubble.setBackground(shape(self?0xFF3C3470:CARD2,12));
+    String author=self?"You":data.optString("name","Member");
+    String text=author+"  ·  "+body;
+    JSONObject reactions=data.optJSONObject("reactions");
+    if(reactions!=null){
+      java.util.Iterator<String> keys=reactions.keys();
+      while(keys.hasNext()){
+        String emoji=keys.next();
+        JSONArray members=reactions.optJSONArray(emoji);
+        if(members!=null&&members.length()>0)text+="\n"+emoji+" "+members.length();
+      }
+    }
+    if(id.length()>0)knownChats.put(id,data);
+    TextView bubble=id.length()>0?chatBubbles.get(id):null;
+    if(bubble!=null){bubble.setText(text);return;}
+    if(chatItems.getChildCount()>100){
+      View oldest=chatItems.getChildAt(0);
+      chatItems.removeViewAt(0);
+      chatBubbles.values().remove(oldest);
+    }
+    bubble=text(text,13,WHITE,false);
+    bubble.setMaxWidth(dp(298));
+    bubble.setBackground(shape(self?0xFF514084:0xFF332A55,16));
     bubble.setPadding(dp(12),dp(9),dp(12),dp(9));
     LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,-2);
     params.gravity=self?Gravity.RIGHT:Gravity.LEFT;
-    params.bottomMargin=dp(6);chatItems.addView(bubble,params);
+    params.bottomMargin=dp(7);chatItems.addView(bubble,params);
+    if(!id.isEmpty()){
+      chatBubbles.put(id,bubble);
+      final JSONObject message=data;
+      bubble.setOnLongClickListener(v->{showChatActions(message);return true;});
+      if(!self){
+        try {
+          JSONArray ids=new JSONArray().put(id);
+          socket.send(new JSONObject().put("type","delivered").put("ids",ids));
+          if(showChat)socket.send(new JSONObject().put("type","read").put("ids",ids));
+        }catch(Exception ignored){}
+      }
+    }
     chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));
+  }
+  private void showChatActions(JSONObject message){
+    if(message==null)return;
+    String id=message.optString("id");
+    boolean mine=myId.equals(message.optString("from"));
+    ArrayList<String> actions=new ArrayList<>();
+    actions.add("Reply");
+    actions.add("React ❤️");actions.add("React 😂");actions.add("React 👍");
+    actions.add("Copy text");
+    if(mine){actions.add("Edit");actions.add("Delete");}
+    new AlertDialog.Builder(this).setTitle("Message actions")
+      .setItems(actions.toArray(new String[0]),(dialog,position)->{
+        String action=actions.get(position);
+        try{
+          if(action.equals("Reply")){
+            replyToId=id;
+            chatInput.setHint("Replying to "+message.optString("name","member"));
+            chatInput.requestFocus();
+          }else if(action.startsWith("React")){
+            String emoji=action.split(" ",2)[1];
+            socket.send(new JSONObject().put("type","message-reaction")
+              .put("id",id).put("emoji",emoji).put("active",true));
+          }else if(action.equals("Copy text")){
+            ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE))
+              .setPrimaryClip(ClipData.newPlainText("XParty message",message.optString("text")));
+            toast("Message copied");
+          }else if(action.equals("Delete")){
+            socket.send(new JSONObject().put("type","message-delete").put("id",id));
+          }else if(action.equals("Edit")){
+            EditText field=entry("Edit your message");
+            field.setText(message.optString("text"));
+            new AlertDialog.Builder(this).setTitle("Edit message").setView(field)
+              .setNegativeButton("Cancel",null)
+              .setPositiveButton("Save",(d,w)->{
+                try{socket.send(new JSONObject().put("type","chat-edit").put("id",id)
+                  .put("text",field.getText().toString().trim()));}catch(Exception ignored){}
+              }).show();
+          }
+        }catch(Exception ignored){}
+      }).show();
   }
   private void sendChat(String body){
     try{
       JSONObject data=new JSONObject().put("type","chat").put("text",body)
         .put("clientId",java.util.UUID.randomUUID().toString());
+      if(replyToId!=null&&!replyToId.isEmpty())data.put("replyTo",replyToId);
+      replyToId=null;chatInput.setHint("Message");
       socket.send(data);
     }catch(Exception ignored){}
   }
