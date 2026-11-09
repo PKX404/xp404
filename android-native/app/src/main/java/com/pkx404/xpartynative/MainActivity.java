@@ -76,7 +76,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private LinearLayout roomHeader,roomStage,roomPane,chatComposer,roomControls,roomNativeRoot,hostNotice;
   private FrameLayout videoContainer;
   private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
-  private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge;
+  private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
   private SeekBar progress;
   private View micIcon,mentionIcon,emojiIcon,cameraIcon,plusIcon;
   private boolean liked=false,imeShown=false,fullscreenNative=false,showChat=true;
@@ -390,7 +390,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     playSlot.addView(pauseIcon,new FrameLayout.LayoutParams(-1,-1));
     pauseIcon.setVisibility(View.GONE);
     roomControls.addView(playSlot,new LinearLayout.LayoutParams(dp(45),dp(52)));
-    TextView live=text("●  LIVE",12,WHITE,true);
+    TextView live=text("● LIVE",12,WHITE,true);
+    mediaTypeBadge=live;
     live.setGravity(Gravity.CENTER_VERTICAL);live.setTextColor(0xFFF5F1FF);
     roomControls.addView(live,new LinearLayout.LayoutParams(-2,dp(52)));
     // Native white vector buttons: same hitbox, identical alignment.
@@ -401,6 +402,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     iconIn(roomControls,xpIcon("settings",this::showPlaybackSettings),44,52);
     iconIn(roomControls,xpIcon("volume",this::showVolume),44,52);
     playerFrame.addView(roomControls,new FrameLayout.LayoutParams(-1,dp(52),Gravity.BOTTOM));
+    roomControls.setVisibility(View.GONE);
+    progress.setVisibility(View.GONE);
 
     // Gradient room panel with native split call/chat affordances.
     roomPane=column();
@@ -840,9 +843,19 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     player.stop();player.clearMediaItems();renderedVideo=false;
     youtube.stopLoading();youtube.loadUrl("about:blank");youtube.setVisibility(View.GONE);
     playerView.setVisibility(View.VISIBLE);
-    if(source==null){sourceType="";videoState.setText("Choose a video");playerLabel.setText("Now watching · Select a video");return;}
+    if(source==null){
+      sourceType="";videoState.setText("Choose a video");
+      playerLabel.setText("Now watching · Select a video");
+      if(roomControls!=null)roomControls.setVisibility(View.GONE);
+      if(progress!=null)progress.setVisibility(View.GONE);
+      return;
+    }
+    if(roomControls!=null)roomControls.setVisibility(View.VISIBLE);
+    if(progress!=null)progress.setVisibility(View.VISIBLE);
     sourceType=source.optString("type","");
     sourceUrl=source.optString("url","");
+    if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● LIVE":
+      "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
     if(artwork!=null&&nativeChannelLogo!=null)artwork.show(source.optString("logo",""),nativeChannelLogo);
     playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")+source.optString("title","Video"));
     videoState.setText("Preparing video…");
