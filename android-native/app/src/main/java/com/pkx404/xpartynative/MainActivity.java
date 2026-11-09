@@ -1012,6 +1012,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
   }
   @Override public void onBackPressed(){
+    if(fullscreenNative){toggleNativeFullscreen();return;}
     if(roomActive){
       new AlertDialog.Builder(this).setTitle("Leave the watch room?")
         .setMessage("Video and chat will close on this device.")
