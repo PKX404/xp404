@@ -555,27 +555,64 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(room==null)return;
     JSONArray participants=room.optJSONArray("people");
     if(participants==null)return;
-    String[] names=new String[participants.length()];
+    android.app.Dialog sheet=new android.app.Dialog(this);
+    LinearLayout body=column();
+    body.setBackground(blend(0xFF221A40,0xFF160F2D,0));
+    body.setPadding(dp(10),dp(20),dp(10),dp(14));
+    TextView heading=text("PARTICIPANTS",14,WHITE,true);
+    heading.setGravity(Gravity.CENTER);add(body,heading,8);
+    TextView count=text(participants.length()+" members",12,MUTED,false);
+    count.setGravity(Gravity.CENTER);add(body,count,10);
+    ScrollView scroll=new ScrollView(this);
+    LinearLayout list=column();scroll.addView(list);
+    body.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
     for(int i=0;i<participants.length();i++){
-      JSONObject item=participants.optJSONObject(i);
-      names[i]=(myId.equals(item.optString("id"))?"YOU · ":"")
-        +item.optString("name","Member")
-        +(item.optString("id").equals(room.optString("hostId"))?"  ♛ HOST":"")
-        +(item.optBoolean("online")?"  ●":"  ◌");
+      JSONObject member=participants.optJSONObject(i);
+      if(member==null)continue;
+      boolean host=member.optString("id").equals(room.optString("hostId"));
+      boolean self=member.optString("id").equals(myId);
+      LinearLayout item=new LinearLayout(this);
+      item.setGravity(Gravity.CENTER_VERTICAL);
+      item.setPadding(dp(4),dp(8),dp(4),dp(8));
+      TextView avatar=text(member.optString("name","M").substring(0,1).toUpperCase(Locale.ROOT),15,WHITE,true);
+      avatar.setGravity(Gravity.CENTER);avatar.setBackground(shape(0xFF64517E,50));
+      item.addView(avatar,new LinearLayout.LayoutParams(dp(37),dp(37)));
+      LinearLayout label=column();label.setPadding(dp(6),0,0,0);
+      String name=member.optString("name","Member");
+      TextView title=text(name+(self?" (You)":""),11,WHITE,true);title.setMaxLines(1);
+      title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      label.addView(title);
+      label.addView(text((host?"♛ Host · ":"")+(member.optBoolean("online")?"Online":"Offline"),10,0xFFC6B4E8,false));
+      item.addView(label,new LinearLayout.LayoutParams(0,-2,1));
+      if(isHost&&!self){
+        XPControl menu=xpIcon("settings",()->{
+          new AlertDialog.Builder(this).setTitle(name)
+            .setItems(new String[]{"Make host","Remove from room"},(d,which)->{
+              try{socket.send(new JSONObject().put("type",which==0?"transfer-host":"kick")
+                 .put("target",member.optString("id")));}
+              catch(Exception ignored){}
+              sheet.dismiss();
+            }).show();
+        });
+        item.addView(menu,new LinearLayout.LayoutParams(dp(35),dp(40)));
+      }
+      add(list,item,5);
     }
-    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Participants · "+names.length)
-      .setItems(names,(d,index)->{
-        JSONObject member=participants.optJSONObject(index);
-        if(!isHost||member==null||myId.equals(member.optString("id")))return;
-        final String id=member.optString("id");
-        new AlertDialog.Builder(this).setTitle(member.optString("name"))
-          .setItems(new String[]{"Make host","Remove from room"},(confirm,which)->{
-            try{socket.send(new JSONObject().put("type",which==0?"transfer-host":"kick").put("target",id));}
-            catch(Exception ignored){}
-          }).show();
-      }).setPositiveButton("Close",null).show();
-    if(dialog.getWindow()!=null){
-      dialog.getWindow().setLayout(Math.round(getResources().getDisplayMetrics().widthPixels*.72f),-2);
+    XPControl close=xpIcon("exit",sheet::dismiss);
+    LinearLayout closeRow=new LinearLayout(this);closeRow.setGravity(Gravity.RIGHT);
+    closeRow.addView(close,new LinearLayout.LayoutParams(dp(47),dp(48)));
+    add(body,closeRow,0);
+    sheet.setContentView(body);
+    if(sheet.getWindow()!=null){
+      sheet.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+      sheet.getWindow().setDimAmount(.40f);
+      sheet.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+    }
+    sheet.show();
+    if(sheet.getWindow()!=null){
+      sheet.getWindow().setGravity(Gravity.RIGHT);
+      sheet.getWindow().setLayout(Math.round(getResources().getDisplayMetrics().widthPixels*.43f),
+        WindowManager.LayoutParams.MATCH_PARENT);
     }
   }
   private void showEmojiMenu(){
