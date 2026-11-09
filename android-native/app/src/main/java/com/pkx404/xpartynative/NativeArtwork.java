@@ -20,7 +20,7 @@ final class NativeArtwork {
   private int generation=0;
   void show(String url,ImageView destination){
     final int request=++generation;
-    destination.setImageDrawable(null);
+    destination.setImageDrawable(null);destination.setVisibility(android.view.View.GONE);
     if(url==null||!url.startsWith("https://")||url.length()>2048)return;
     queue.execute(()->{
       HttpURLConnection con=null;
@@ -50,7 +50,7 @@ final class NativeArtwork {
         }
       }catch(Exception ignored){}finally{if(con!=null)con.disconnect();}
       Bitmap image=bitmap;
-      if(image!=null)ui.post(()->{if(request==generation)destination.setImageBitmap(image);});
+      if(image!=null)ui.post(()->{if(request==generation){destination.setImageBitmap(image);destination.setVisibility(android.view.View.VISIBLE);}});
     });
   }
   void shutdown(){queue.shutdownNow();}
