@@ -276,8 +276,6 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   private android.animation.ValueAnimator homeAnimator;
   private LinearLayout exploreRoomList;
-  private android.animation.ValueAnimator homeAnimator;
-  private LinearLayout exploreRoomList;
   private String pendingHomeSheet=null;
   private int homeTab=0;
 
