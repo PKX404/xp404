@@ -37,7 +37,7 @@ public final class XPControl extends View {
   @Override protected void onDraw(Canvas original){
     super.onDraw(original);
     original.save();
-    float unit=Math.min(getWidth(),getHeight())/36f;
+    float unit=Math.min(getWidth(),getHeight())/43f;
     float dx=(getWidth()-36*unit)/2,dy=(getHeight()-36*unit)/2;
     original.translate(dx,dy);original.scale(unit,unit);
     Canvas c=original;
