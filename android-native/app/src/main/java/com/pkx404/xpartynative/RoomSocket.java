@@ -17,7 +17,7 @@ final class RoomSocket {
     void status(String text);
     void message(JSONObject message);
   }
-  private static final String URL="wss://xp404.onrender.com/ws";
+  private static final String URL="wss://xparty-native-room.onrender.com/ws";
   private final OkHttpClient client=new OkHttpClient.Builder()
      .pingInterval(20,TimeUnit.SECONDS)
      .readTimeout(0,TimeUnit.MILLISECONDS)
@@ -33,7 +33,7 @@ final class RoomSocket {
 
   void start(String type,String name,String code,String existingToken) {
     disconnect(false);
-    closed=false;retryCount=0;sessionToken=existingToken;
+    closed=false;welcomed=false;retryCount=0;sessionToken=existingToken;
     try {
       pending=new JSONObject().put("type",type);
       if("join".equals(type))pending.put("code",code);
@@ -46,7 +46,7 @@ final class RoomSocket {
   private void connect(int current){
     if(closed||generation!=current)return;
     emitStatus(retryCount==0?"Connecting to live room…":"Reconnecting ("+retryCount+"/6)…");
-    Request request=new Request.Builder().url(URL).header("Origin","https://xp404.onrender.com").build();
+    Request request=new Request.Builder().url(URL).header("Origin","https://xparty-native-room.onrender.com").build();
     final java.util.concurrent.atomic.AtomicBoolean stopped=new java.util.concurrent.atomic.AtomicBoolean(false);
     socket=client.newWebSocket(request,new WebSocketListener(){
       @Override public void onOpen(WebSocket webSocket,Response response){
