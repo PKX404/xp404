@@ -53,6 +53,15 @@ public final class XPControl extends View {
         break;
       case "search":
         circle(c,15.5f,14.5f,8.3f);line(c,22,22,29.5f,30);break;
+      case "home":
+        path(c,5,17,18,5,31,17);path(c,9,17,9,31,27,31,27,17);
+        path(c,15,31,15,23,21,23,21,31);break;
+      case "messages":
+        path(c,6,7,30,7,30,26,14,26,8,32,8,26,6,26,6,7);break;
+      case "profile":
+        circle(c,18,12,6);c.drawArc(new RectF(6,19,30,34),193,154,false,p);break;
+      case "info":
+        circle(c,18,18,13);line(c,18,16,18,27);circle(c,18,10,1);break;
       case "playsearch":
         circle(c,17,17,12);path(c,14,10.5f,14,23,23,17,14,10.5f);line(c,26,26,31,31);break;
       case "share":
