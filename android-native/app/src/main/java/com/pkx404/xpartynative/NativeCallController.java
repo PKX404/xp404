@@ -115,7 +115,10 @@ final class NativeCallController {
     callRoot=frame;
     frame.removeAllViews();frame.setBackgroundColor(BG);
     try{
+      // Rendering may fail on devices with a broken EGL implementation.
+      // Never let a failed call initialization crash the entire watch room.
       ensureSetup();
+      if(!initialized||egl==null||factory==null)throw new IllegalStateException("WebRTC unavailable");
       remoteRenderer=new SurfaceViewRenderer(activity);
       remoteRenderer.init(egl.getEglBaseContext(),null);
       remoteRenderer.setEnableHardwareScaler(true);
@@ -157,6 +160,9 @@ final class NativeCallController {
       if(videoTrack!=null)videoTrack.addSink(localRenderer);
     }catch(Throwable e){
       report("Video call unavailable on this device: "+e.getClass().getSimpleName());
+      // A partially initialized renderer must not be used by microphone callbacks.
+      if(localRenderer!=null){try{localRenderer.release();}catch(Throwable ignored){} localRenderer=null;}
+      if(remoteRenderer!=null){try{remoteRenderer.release();}catch(Throwable ignored){} remoteRenderer=null;}
     }
   }
   private void ensureSetup(){
@@ -350,28 +356,52 @@ final class NativeCallController {
     return false;
   }
   void toggleMic(){
-    if(!inCall){events.action("call-join");report("Requesting a call seat…");return;}
+    if(destroyed){report("Call is closing. Re-enter the room.");return;}
     if(!askPermission(Manifest.permission.RECORD_AUDIO))return;
-    try{ensureSetup();}catch(Throwable e){report("Microphone unavailable");return;}
-    micOn=!micOn;
-    audioTrack.setEnabled(micOn);
-    if(micButton!=null)micButton.setText(micOn?"MIC ON":"MIC OFF");
-    events.sendMedia(micOn,cameraOn);
+    if(!inCall){
+      // Join call seat first. Avoid creating an audio track while seat permission
+      // is pending; that race caused a null JNI track on some Android devices.
+      events.action("call-join");
+      report("Joining voice call · tap mic again once connected");
+      return;
+    }
+    try{
+      ensureSetup();
+      if(!initialized||audioTrack==null)throw new IllegalStateException("Audio track not available");
+      boolean next=!micOn;
+      audioTrack.setEnabled(next);
+      micOn=next;
+      if(micButton!=null)micButton.setText(micOn?"MIC ON":"MIC OFF");
+      events.sendMedia(micOn,cameraOn);
+      report(micOn?"Microphone on":"Microphone muted");
+    }catch(Throwable failure){
+      // JNI errors should be reported, never brought into the Activity event loop.
+      micOn=false;
+      report("Microphone could not start on this device ("+
+        failure.getClass().getSimpleName()+"). You can still chat and watch.");
+    }
   }
   void toggleCamera(){
-    if(!inCall){events.action("call-join");report("Requesting a call seat…");return;}
+    if(destroyed){report("Call is closing");return;}
     if(!askPermission(Manifest.permission.CAMERA))return;
-    try{ensureSetup();}catch(Throwable e){report("Camera unavailable");return;}
-    if(!cameraOn){
-      if(!cameraStarted&&!startCamera())return;
-      cameraOn=true;videoTrack.setEnabled(true);
-      if(localRenderer!=null){videoTrack.addSink(localRenderer);localRenderer.setVisibility(View.VISIBLE);}
-    }else{
-      cameraOn=false;videoTrack.setEnabled(false);
-      if(localRenderer!=null)localRenderer.setVisibility(View.INVISIBLE);
+    if(!inCall){events.action("call-join");report("Joining camera call. Tap again when connected.");return;}
+    try{
+      ensureSetup();
+      if(!initialized||videoTrack==null)throw new IllegalStateException("Video track unavailable");
+      if(!cameraOn){
+        if(!cameraStarted&&!startCamera())return;
+        cameraOn=true;videoTrack.setEnabled(true);
+        if(localRenderer!=null){videoTrack.addSink(localRenderer);localRenderer.setVisibility(View.VISIBLE);}
+      }else{
+        cameraOn=false;videoTrack.setEnabled(false);
+        if(localRenderer!=null)localRenderer.setVisibility(View.INVISIBLE);
+      }
+      if(cameraButton!=null)cameraButton.setText(cameraOn?"CAM ON":"CAM OFF");
+      events.sendMedia(micOn,cameraOn);
+    }catch(Throwable failure){
+      cameraOn=false;
+      report("Camera could not start ("+failure.getClass().getSimpleName()+")");
     }
-    if(cameraButton!=null)cameraButton.setText(cameraOn?"CAM ON":"CAM OFF");
-    events.sendMedia(micOn,cameraOn);
   }
   private boolean startCamera(){
     try{
@@ -391,7 +421,7 @@ final class NativeCallController {
       cameraCapturer.initialize(captureHelper,activity,videoSource.getCapturerObserver());
       cameraCapturer.startCapture(360,480,15);
       cameraStarted=true;return true;
-    }catch(Exception e){report("Could not start camera: "+e.getMessage());return false;}
+    }catch(Throwable e){report("Could not start camera: "+e.getClass().getSimpleName());return false;}
   }
   void flipCamera(){
     if(cameraCapturer==null||!cameraStarted){report("Turn on the camera first");return;}
