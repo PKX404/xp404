@@ -1,0 +1,30 @@
+name: Publish native XParty v0.2 downloadable APK
+on:
+  push:
+    branches:
+      - feature/xparty-native-android-v0.1-20261110
+    paths:
+      - '.github/workflows/publish-xparty-native-download.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch verified native Android v0.2 APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh run download 42794790700 --repo "$GITHUB_REPOSITORY" --name XParty-Native-Foundation-v0.1-APK --dir dist
+          test -s dist/app-debug.apk
+          mv dist/app-debug.apk dist/XParty-Native-v0.2-Preview.apk
+          sha256sum dist/XParty-Native-v0.2-Preview.apk
+      - name: Create public direct-download GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create xparty-native-v0.2-preview             dist/XParty-Native-v0.2-Preview.apk             --repo "$GITHUB_REPOSITORY"             --target "$GITHUB_SHA"             --title "XParty Native v0.2 — Android development preview"             --notes "Native Java Android prototype with WebRTC calling module, Media3 IPTV, chat, sync, and an experimental immersive player. Build and emulator startup were verified; real two-device calls and full v31.6 parity are NOT verified. YouTube uses an embedded player; not a finished v31.6 native conversion. The APK installs separately from XParty."             --prerelease
