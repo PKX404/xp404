@@ -78,7 +78,7 @@ public final class MainActivity extends Activity {
   private long generation=0; private int retries=0;
   private String myId="",token="",roomCode="",currentSourceId="",currentType="",youtubeId="";
   private JSONObject room=null;
-  private boolean destroyed=false,receivedFrame=false,recovered=false,wasMicDenied=false;
+  private boolean destroyed=false,receivedFrame=false,recovered=false,audioOnly=false;
   private int tileColumns=2;
   private long lastFrame=0,lastSyncRequest=0;
   private double serverOffsetMs=0;
@@ -213,11 +213,14 @@ public final class MainActivity extends Activity {
           myId=m.optString("id");token=m.optString("token");room=m.optJSONObject("room");
           roomCode=room.optString("code");
           getPreferences(0).edit().putString("token",token).putString("room",roomCode).apply();
-          retries=0;showRoom();renderRoomState();
+          retries=0;
+          JSONArray history=m.optJSONArray("history");chatHistory=history==null?new JSONArray():history;
+          lastDisplayedMessages=0;
+          showRoom();renderRoomState();
           JSONObject skip=room.optJSONObject("skipVoting");
           if(myId.equals(room.optString("hostId"))&&(skip==null||!skip.optBoolean("enabled")))
             send("skip-settings",obj("enabled",true));
-          JSONArray history=m.optJSONArray("history");if(history!=null){chatHistory=history;renderChat();}
+          renderChat();
           break;
         }
         case "state":room=m.optJSONObject("room");if(room!=null&&stage!=null)renderRoomState();break;
@@ -266,8 +269,16 @@ public final class MainActivity extends Activity {
     sp.setMargins(0,dp(12),dp(10),0);stage.addView(playbackStatus,sp);
     player.addListener(new Player.Listener(){
       @Override public void onRenderedFirstFrame(){receivedFrame=true;lastFrame=SystemClock.elapsedRealtime();recovered=false;statusMessage("Video ready");}
-      @Override public void onPlayerError(PlaybackException e){statusMessage("This stream cannot be decoded on this device");}
-      @Override public void onPlaybackStateChanged(int state){if(state==Player.STATE_READY&&currentType.equals("iptv")&&!receivedFrame)checkVideoFrames();}
+      @Override public void onPlayerError(PlaybackException e){
+        statusMessage("This stream cannot be decoded on this device");
+        if(!currentSourceId.isEmpty())send("ready",obj("sourceId",currentSourceId,"ready",false,"status","Decoder error"));
+      }
+      @Override public void onPlaybackStateChanged(int state){
+        if(state==Player.STATE_READY&&(currentType.equals("iptv")||currentType.equals("direct"))){
+          send("ready",obj("sourceId",currentSourceId,"ready",true,"status","Ready"));
+          if(!audioOnly&&!receivedFrame)checkVideoFrames();
+        }
+      }
     });
     LinearLayout controls=horizontal();controls.setPadding(dp(6),dp(7),dp(6),dp(7));controls.setBackgroundColor(0xd51b1725);
     playToggle=button("▶",()->togglePlayback());controls.addView(playToggle,new LinearLayout.LayoutParams(dp(55),dp(44)));
@@ -329,6 +340,7 @@ public final class MainActivity extends Activity {
   private void loadSource(JSONObject source){
     if(youtubeFrame!=null){stage.removeView(youtubeFrame);youtubeFrame.destroy();youtubeFrame=null;}
     player.stop();player.clearMediaItems();receivedFrame=false;recovered=false;lastFrame=SystemClock.elapsedRealtime();
+    audioOnly=source.optBoolean("radio",false);ambient.setImageDrawable(null);
     String type=source.optString("type"),url=source.optString("url");
     if(type.equals("youtube")){
       youtubeId=source.optString("videoId");
@@ -336,12 +348,22 @@ public final class MainActivity extends Activity {
       youtubeFrame=new WebView(this);
       youtubeFrame.setBackgroundColor(Color.BLACK);WebSettings settings=youtubeFrame.getSettings();
       settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setMediaPlaybackRequiresUserGesture(false);
-      youtubeFrame.setWebChromeClient(new WebChromeClient());youtubeFrame.setWebViewClient(new WebViewClient());
+      final String expectedId=currentSourceId;
+      youtubeFrame.setWebChromeClient(new WebChromeClient(){
+        @Override public boolean onConsoleMessage(android.webkit.ConsoleMessage message){
+          if("XPARTY_YT_READY".equals(message.message())&&expectedId.equals(currentSourceId)){
+            ui.post(()->{send("ready",obj("sourceId",expectedId,"ready",true,"status","Ready"));statusMessage("YouTube ready");});
+            return true;
+          }
+          return super.onConsoleMessage(message);
+        }
+      });
+      youtubeFrame.setWebViewClient(new WebViewClient());
       stage.addView(youtubeFrame,0,new FrameLayout.LayoutParams(-1,-1));
       String html="<html><head><meta name='viewport' content='width=device-width,initial-scale=1,user-scalable=no'/></head>"+
         "<body style='margin:0;background:black;overflow:hidden'><div id='yt'></div>"+
         "<script>var p,ready=false;function onYouTubeIframeAPIReady(){p=new YT.Player('yt',{width:'100%',height:'100%',"+
-        "videoId:'"+youtubeId+"',playerVars:{playsinline:1,controls:1,rel:0,origin:'https://xp404.onrender.com'},events:{onReady:function(){ready=true;}}});}"+
+        "videoId:'"+youtubeId+"',playerVars:{playsinline:1,controls:1,rel:0,origin:'https://xp404.onrender.com'},events:{onReady:function(){ready=true;console.log('XPARTY_YT_READY');}}});}"+
         "var s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);"+
         "function xpartySync(seconds,play){if(!ready)return;try{var diff=Math.abs(p.getCurrentTime()-seconds);"+
         "if(diff>1.2)p.seekTo(seconds,true);if(play&&p.getPlayerState()!==1)p.playVideo();"+
@@ -361,7 +383,7 @@ public final class MainActivity extends Activity {
     final String id=currentSourceId;
     ui.postDelayed(()->{
       if(destroyed||player==null||!currentSourceId.equals(id)||!currentType.equals("iptv"))return;
-      if(!receivedFrame&&player.isPlaying()){
+      if(!receivedFrame&&!audioOnly&&player.isPlaying()){
         if(!recovered){recovered=true;statusMessage("Recovering video picture…");player.stop();player.prepare();player.play();checkVideoFrames();}
         else{statusMessage("Audio detected without picture · try another channel");player.pause();}
       }
@@ -394,6 +416,9 @@ public final class MainActivity extends Activity {
   private void syncLoop(){
     if(destroyed||room==null||player==null)return;
     syncPlayback(room.optJSONObject("playback"),false);
+    if(SystemClock.elapsedRealtime()-lastSyncRequest>6000){
+      send("ping",obj("sent",System.currentTimeMillis()));lastSyncRequest=SystemClock.elapsedRealtime();
+    }
     ui.postDelayed(this::syncLoop,2100);
   }
   private void togglePlayback(){
