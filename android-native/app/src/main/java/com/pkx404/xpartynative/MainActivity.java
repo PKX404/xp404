@@ -45,6 +45,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 import org.json.JSONObject;
@@ -163,7 +164,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
       @Override public void notice(String info){toast(info);}
     },"https://xparty-native-room.onrender.com");
-    player=new ExoPlayer.Builder(this).build();
+    // Quick first frame; still retain enough rebuffer protection for live HLS.
+    DefaultLoadControl fastStart=new DefaultLoadControl.Builder()
+      .setBufferDurationsMs(3000,35000,700,1700).build();
+    player=new ExoPlayer.Builder(this).setLoadControl(fastStart).build();
     playbackSheet=new NativePlaybackSheet(this,player,new NativePlaybackSheet.Actions(){
       @Override public void playback(){togglePlayback();}
       @Override public void scale(){cycleVideoScaling();}
