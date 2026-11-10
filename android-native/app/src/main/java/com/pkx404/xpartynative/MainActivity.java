@@ -1069,7 +1069,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   private void toggleNativeMic(){
     NativeCallController c=ensureCalls();
-    if(c!=null)c.toggleMic();
+    if(c==null){toast("Unable to open native video call.");return;}
+    if(showChat)showRoomTab(false); // Expose actual call buttons and status.
+    c.toggleMic();
   }
   private void showRoomTab(boolean chat){
     showChat=chat;
