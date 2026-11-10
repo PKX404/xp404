@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -22,6 +23,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebResourceRequest;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -109,6 +111,7 @@ final class NativeSourceSheet {
   }
   private String title(String text){return text==null?"":text;}
   private int tileColumns(){
+    // Only the Quick YouTube SEARCH result thumbnails use a configurable grid.
     switch(tileMode){
       case "grid3":return 3;
       case "grid4":return 4;
@@ -128,8 +131,6 @@ final class NativeSourceSheet {
         prefs.edit().putString("native_source_tile_layout",tileMode).apply();
         dialog.dismiss();
         if("youtube".equals(currentTab))renderYoutubeResults();
-        else if("iptv".equals(currentTab))renderIPTV();
-        else if("all".equals(currentTab))showProviders();
       }).setNegativeButton("Cancel",null).show();
   }
   private JSONArray saved(){
@@ -162,6 +163,11 @@ final class NativeSourceSheet {
     prefs.edit().putString("last_source",source.optString("type","")).apply();
     actions.selected(source);dismiss();
   }
+  void openYouTubeBrowse(String token){
+    if(showing())dismiss();
+    open("youtube",token,"");
+    showYouTubeBrowse();
+  }
   void open(String playing,String token,String name){
     roomToken=token==null?"":token;
     String recent=prefs.getString("last_source","");
@@ -182,8 +188,11 @@ final class NativeSourceSheet {
     tabs.addView(all,middle);
     LinearLayout.LayoutParams right=new LinearLayout.LayoutParams(0,dp(48),1);right.leftMargin=dp(6);
     tabs.addView(savedChip,right);
-    TextView tiling=chip("▦",false,this::selectTileLayout);
-    tiling.setContentDescription("Choose source tile layout");
+    TextView tiling=chip("▦",false,()->{
+      if("youtube".equals(currentTab))selectTileLayout();
+      else {showYoutube(false);selectTileLayout();}
+    });
+    tiling.setContentDescription("Choose YouTube search tile layout");
     LinearLayout.LayoutParams tilingLp=new LinearLayout.LayoutParams(dp(43),dp(47));
     tilingLp.leftMargin=dp(5);tabs.addView(tiling,tilingLp);
     XPControl close=new XPControl(activity,"exit");close.setOnClickListener(v->dismiss());
@@ -247,7 +256,7 @@ final class NativeSourceSheet {
       R.drawable.xp_brand_twitch,R.drawable.xp_brand_soundcloud,R.drawable.xp_brand_vimeo,
       R.drawable.xp_brand_drive,R.drawable.xp_brand_link,R.drawable.xp_brand_files};
     LinearLayout row=null;
-    final int columns=tileColumns();
+    final int columns=4; // Fixed source icons; not video-result grid.
     for(int i=0;i<labels.length;i++){
       final int index=i;
       if(i%columns==0){row=new LinearLayout(activity);row.setOrientation(LinearLayout.HORIZONTAL);add(body,row,dp(10));}
@@ -320,9 +329,35 @@ final class NativeSourceSheet {
       add(body,row,8);
     }
   }
+  private void changeIptvCategory(int delta){
+    String[] cats={"All","Saved","Movies","Entertainment","News","Sports","Kids","Music","Radio"};
+    int at=0;
+    for(int i=0;i<cats.length;i++)if(cats[i].equals(category)){at=i;break;}
+    category=cats[(at+delta+cats.length)%cats.length];
+    prefs.edit().putString("last_iptv_category",category).apply();
+    shownChannels=28;typedSearch="";showIPTV(false);
+  }
   private void showIPTV(boolean keepSearch){
     currentTab="iptv";clear();
-    add(body,label("LIVE IPTV   ·   FIND YOUR CHANNEL",13,PURPLE,true),7);
+    // A dedicated swipe strip changes categories. Browsing and text-entry touches
+    // remain untouched, so horizontal search/web scrolling cannot conflict.
+    TextView swipe=label("‹  Swipe here to change Live TV category  ›",12,WHITE,false);
+    swipe.setGravity(Gravity.CENTER);swipe.setBackground(rounded(0x503D3354,11));
+    swipe.setOnTouchListener(new View.OnTouchListener(){
+      float downX,downY;
+      @Override public boolean onTouch(View v,MotionEvent e){
+        if(e.getActionMasked()==MotionEvent.ACTION_DOWN){downX=e.getX();downY=e.getY();return true;}
+        if(e.getActionMasked()==MotionEvent.ACTION_UP){
+          float dx=e.getX()-downX,dy=e.getY()-downY;
+          if(Math.abs(dx)>dp(58)&&Math.abs(dx)>Math.abs(dy)*1.5f)
+            changeIptvCategory(dx<0?1:-1);
+          else showIPTV(true);
+          return true;
+        }
+        return true;
+      }
+    });
+    add(body,swipe,7);
     HorizontalScrollView carousel=new HorizontalScrollView(activity);
     carousel.setHorizontalScrollBarEnabled(false);
     LinearLayout chips=new LinearLayout(activity);
@@ -566,7 +601,8 @@ final class NativeSourceSheet {
     // to XParty's existing room signaling, with no video extraction or ad bypass.
     if(dialog==null)return;
     clear();currentTab="youtube-browse";
-    add(body,label("YOUTUBE BROWSE",16,WHITE,true),9);
+    TextView route=chip("‹  Live TV     Swipe from the left edge →",false,()->showIPTV(false));
+    add(body,route,8);
     TextView hint=label("Choose a public video. XParty will play the selected link for your room.",12,MUTED,false);
     add(body,hint,7);
     TextView search=chip("Search inside XParty instead",false,()->showYoutube(false));
@@ -624,9 +660,30 @@ final class NativeSourceSheet {
         if(showing()&&"youtube-browse".equals(currentTab))select(url);
       }
     });
+    FrameLayout browser=new FrameLayout(activity);
     int height=Math.round(activity.getResources().getDisplayMetrics().heightPixels*.57f);
     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,Math.max(dp(330),height));
-    body.addView(web,lp);
+    browser.addView(web,new FrameLayout.LayoutParams(-1,-1));
+    // Only an 18dp edge strip owns the source-switch gesture; the YouTube
+    // WebView retains its own page scrolling, tapping and built-in gestures.
+    View swipeEdge=new View(activity);
+    swipeEdge.setBackgroundColor(0x124E5078);
+    swipeEdge.setOnTouchListener(new View.OnTouchListener(){
+      float startX,startY;
+      @Override public boolean onTouch(View view,MotionEvent event){
+        if(event.getActionMasked()==MotionEvent.ACTION_DOWN){
+          startX=event.getX();startY=event.getY();return true;
+        }
+        if(event.getActionMasked()==MotionEvent.ACTION_UP){
+          if(event.getX()-startX>dp(50)&&Math.abs(event.getY()-startY)<dp(85))
+            showIPTV(false);
+          return true;
+        }
+        return true;
+      }
+    });
+    browser.addView(swipeEdge,new FrameLayout.LayoutParams(dp(24),-1,Gravity.LEFT));
+    body.addView(browser,lp);
     web.loadUrl("https://m.youtube.com/");
   }
 }
