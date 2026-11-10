@@ -76,6 +76,8 @@ final class NativeSourceSheet {
   private int categoryRequest=0,youtubeRequest=0,shownChannels=28,selectedTabIndex=1;
   private String loadedCategory="";
   private Runnable youtubeDebounce;
+  private String ytNextPageToken="";
+  private int shownYoutube=20;
 
   NativeSourceSheet(Activity activity,ChannelCatalog directory,NativeArtwork artwork,Actions actions,String backend){
     this.activity=activity;this.directory=directory;this.artwork=artwork;this.actions=actions;this.backend=backend;
@@ -394,55 +396,71 @@ final class NativeSourceSheet {
     }else loadYoutube(youtubeQuery);
   }
   private void loadYoutube(String query){
+    ytNextPageToken="";
+    ytItems.clear();shownYoutube=20;
+    requestYoutubePage(query,"",true);
+  }
+  private void requestYoutubePage(String query,String pageToken,boolean fresh){
     int generation=++youtubeRequest;
     if(providerView==null||!"youtube".equals(currentTab))return;
-    providerView.removeAllViews();
+    if(fresh)providerView.removeAllViews();
     if(query.trim().length()<2){
       add(providerView,label("Enter at least two characters.",12,MUTED,false),12);return;
     }
-    add(providerView,label("Searching YouTube…",13,MUTED,false),12);
     if(roomToken.isEmpty()){
       providerView.removeAllViews();
-      add(providerView,label("Reconnect the room before searching.",13,MUTED,false),12);return;
+      add(providerView,label("Reconnect the room to search videos.",13,MUTED,false),12);return;
     }
-    Request req=new Request.Builder().url(backend+"/api/search?q="+urlEncode(query))
+    if(fresh)add(providerView,label("Searching YouTube…",13,MUTED,false),12);
+    Request req=new Request.Builder().url(backend+"/api/search?q="+urlEncode(query)
+      +(pageToken.isEmpty()?"":"&pageToken="+urlEncode(pageToken)))
       .header("Authorization","Bearer "+roomToken).build();
     http.newCall(req).enqueue(new Callback(){
-      @Override public void onFailure(Call c,IOException error){ui.post(()->{
-        if(generation==youtubeRequest&&showing()&&"youtube".equals(currentTab)){
-          providerView.removeAllViews();
-          add(providerView,label("YouTube search unavailable. You can still paste a link or use Browse.",13,MUTED,false),12);
-        }
+      @Override public void onFailure(Call call,IOException error){ui.post(()->{
+        if(generation!=youtubeRequest||!showing()||!"youtube".equals(currentTab))return;
+        if(fresh)providerView.removeAllViews();
+        if(ytItems.isEmpty())
+          add(providerView,label("Search temporarily unavailable. Browse or paste a YouTube URL.",13,MUTED,false),12);
+        else renderYoutubeResults();
       });}
-      @Override public void onResponse(Call c,Response response)throws IOException{
-        String result;
-        try(Response used=response){result=used.body()==null?"{}":used.body().string();}
-        try {
-          JSONObject json=new JSONObject(result);
+      @Override public void onResponse(Call call,Response response)throws IOException{
+        String body;
+        try(Response r=response){
+          body=r.body()==null?"{}":r.body().string();
+        }
+        try{
+          JSONObject json=new JSONObject(body);
           JSONArray items=json.optJSONArray("items");
-          List<JSONObject> list=new ArrayList<>();
-          if(items!=null)for(int i=0;i<items.length()&&i<24;i++){
-            JSONObject v=items.optJSONObject(i);
-            if(v!=null)list.add(v);
+          List<JSONObject> page=new ArrayList<>();
+          if(items!=null)for(int i=0;i<items.length()&&i<50;i++){
+            JSONObject item=items.optJSONObject(i);
+            if(item!=null)page.add(item);
           }
+          String next=json.optString("nextPageToken","");
           ui.post(()->{
             if(generation!=youtubeRequest||!showing()||!"youtube".equals(currentTab))return;
-            providerView.removeAllViews();
-            ytItems.clear();ytItems.addAll(list);
+            if(fresh)ytItems.clear();
+            java.util.HashSet<String> ids=new java.util.HashSet<>();
+            for(JSONObject v:ytItems)ids.add(v.optString("id"));
+            for(JSONObject v:page)if(ids.add(v.optString("id")))ytItems.add(v);
+            ytNextPageToken=next;
+            if(!fresh)shownYoutube=Math.min(shownYoutube+20,ytItems.size());
             renderYoutubeResults();
           });
-        }catch(Exception ignored){onFailure(c,new IOException("Bad search result"));}
+        }catch(Exception error){onFailure(call,new IOException("Unexpected search response"));}
       }
     });
   }
   private void renderYoutubeResults(){
     if(providerView==null)return;
+    providerView.removeAllViews();
     if(ytItems.isEmpty()){
       add(providerView,label("No videos returned. Search another term or paste a YouTube URL.",13,MUTED,false),10);return;
     }
-    add(providerView,label("VIDEOS · "+ytItems.size()+" results",11,MUTED,true),10);
+    add(providerView,label("VIDEOS · "+ytItems.size()+" results"
+      +(!ytNextPageToken.isEmpty()?" · more available":""),11,MUTED,true),10);
     LinearLayout pair=null;
-    for(int i=0;i<ytItems.size();i++){
+    for(int i=0;i<Math.min(shownYoutube,ytItems.size());i++){
       final JSONObject item=ytItems.get(i);
       String id=item.optString("id","");
       if(!id.matches("[\\w-]{11}"))continue;
@@ -468,6 +486,17 @@ final class NativeSourceSheet {
       card.setOnClickListener(v->choose(src));
       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);
       if(i%2==1)lp.leftMargin=dp(8);pair.addView(card,lp);
+    }
+    if(shownYoutube<ytItems.size()){
+      TextView more=chip("Show more videos ("+(ytItems.size()-shownYoutube)+")",false,()->{
+        shownYoutube=Math.min(shownYoutube+20,ytItems.size());
+        renderYoutubeResults();
+      });
+      add(providerView,more,15);
+    }else if(!ytNextPageToken.isEmpty()){
+      TextView next=chip("Load more YouTube results",false,()->
+        requestYoutubePage(youtubeQuery,ytNextPageToken,false));
+      add(providerView,next,15);
     }
   }
   private static String urlEncode(String text){
