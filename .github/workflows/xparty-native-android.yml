@@ -32,3 +32,47 @@ jobs:
           path: native-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+  android-launch-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get native APK
+        uses: actions/download-artifact@v4
+        with:
+          name: XParty-Native-Foundation-v0.1-APK
+          path: dist
+      - name: Configure emulator acceleration
+        run: if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Android 10 launch, settings and relaunch
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            set -eux
+            adb install dist/app-debug.apk
+            adb logcat -c
+            adb shell am start -W -n com.pkx404.xpartynative/.MainActivity
+            sleep 5
+            adb shell pidof com.pkx404.xpartynative
+            adb shell input tap 150 420
+            sleep 2
+            adb shell pidof com.pkx404.xpartynative
+            adb shell am force-stop com.pkx404.xpartynative
+            adb shell am start -W -n com.pkx404.xpartynative/.MainActivity
+            sleep 4
+            adb shell pidof com.pkx404.xpartynative
+            if adb logcat -d -s AndroidRuntime:E | grep -q 'FATAL EXCEPTION'; then echo 'Android crash in logs'; exit 1; fi
+            adb shell screencap -p /sdcard/xparty-native-start.png
+            adb pull /sdcard/xparty-native-start.png xparty-native-start.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: XParty-Native-Startup-Screenshot
+          path: xparty-native-start.png
+          if-no-files-found: error
