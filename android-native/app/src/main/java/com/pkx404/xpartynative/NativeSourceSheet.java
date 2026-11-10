@@ -139,7 +139,7 @@ final class NativeSourceSheet {
     dialog=new Dialog(activity);
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
     LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
-    root.setBackground(rounded(BG,27));
+    root.setBackground(NativeImmersiveBackdrop.sheetSkin());
     root.setPadding(dp(12),dp(15),dp(12),dp(12));
     // Drag handle visually connects this dialog to the v31.6 source sheet.
     TextView handle=label("━━━━",15,0xFF6E677F,true);handle.setGravity(Gravity.CENTER);add(root,handle,5);
