@@ -86,7 +86,11 @@ public final class XPControl extends View {
         h.cubicTo(14,26,5,21,5,14);
         h.cubicTo(5,4,15,4,18,12);
         h.cubicTo(22,4,31,5,31,14);
-        h.cubicTo(31,21,23,27,18,30);c.drawPath(h,p);break;
+        h.cubicTo(31,21,23,27,18,30);
+        h.close();
+        p.setColor(active?0xFFFF304E:ink);
+        p.setStyle(active?Paint.Style.FILL:Paint.Style.STROKE);
+        c.drawPath(h,p);break;
       case "scale":
         c.drawRoundRect(new RectF(7,10,29,26),3,3,p);
         path(c,15,15,10,18,15,21);path(c,21,15,26,18,21,21);break;
