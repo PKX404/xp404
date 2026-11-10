@@ -91,7 +91,7 @@ final class NativePlaybackSheet {
     dialog=new Dialog(activity);
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
     LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
-    root.setPadding(dp(16),dp(18),dp(16),dp(19));root.setBackground(shape(BG,26));
+    root.setPadding(dp(16),dp(18),dp(16),dp(19));root.setBackground(NativeImmersiveBackdrop.sheetSkin());
     TextView handle=label("━━━━",15,0xFF746887,true);handle.setGravity(Gravity.CENTER);add(root,handle,6);
     add(root,label("Playback Settings",22,WHITE,true),3);
     add(root,label(name==null||name.isEmpty()?"No media selected":name,13,MUTED,false),11);
