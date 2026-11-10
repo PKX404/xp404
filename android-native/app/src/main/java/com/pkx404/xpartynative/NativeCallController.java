@@ -332,7 +332,7 @@ final class NativeCallController {
     for(Peer p:new ArrayList<>(peers.values())){
       p.pc.addTrack(videoTrack,Collections.singletonList("xp-call"));
       if(p.initiator)offer(p);
-      else sendPeer(p.id,new JSONObject().put("restart",true));
+      else try{sendPeer(p.id,new JSONObject().put("restart",true));}catch(Exception ignored){}
     }
   }
   private boolean startCapture(){
