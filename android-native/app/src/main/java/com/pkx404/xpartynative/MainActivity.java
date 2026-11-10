@@ -121,6 +121,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(source==null)return;
     if(roomControls!=null)roomControls.setVisibility(View.GONE);
     if(progress!=null)progress.setVisibility(View.GONE);
+    if(fullscreenNative){
+      if(fullscreenControl!=null)fullscreenControl.setVisibility(View.GONE);
+      if(videoPill!=null)videoPill.setVisibility(View.GONE);
+    }
   };
   private View micIcon,mentionIcon,emojiIcon,cameraIcon,plusIcon;
   private boolean liked=false,imeShown=false,fullscreenNative=false,showChat=true;
@@ -382,7 +386,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     iconIn(head,settings,43,47);
     XPControl info=xpIcon("info",()->new AlertDialog.Builder(this)
       .setTitle("XParty Native")
-      .setMessage("Watch Live TV, YouTube and videos together, with native room controls and chat.")
+      .setMessage("Watch XPTV, YouTube and videos together, with native room controls and chat.")
       .setPositiveButton("Close",null).show());
     iconIn(head,info,43,47);
     home.addView(head,new LinearLayout.LayoutParams(-1,dp(72)));
@@ -599,7 +603,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     TextView air=text("ON AIR",11,0xFF76B5FF,true);air.setLetterSpacing(.2f);
     add(stations,air,12);
     add(stations,text("Country                            India",13,MUTED,false),12);
-    row(stations,new String[]{"Live TV","Radio"},new Runnable[]{
+    row(stations,new String[]{"XPTV","Radio"},new Runnable[]{
       ()->openHomeSourceSheet("iptv"),
       ()->toast("Radio catalog is not yet available in this native build.")
     });
@@ -893,7 +897,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     playSlot.addView(pauseIcon,new FrameLayout.LayoutParams(-1,-1));
     pauseIcon.setVisibility(View.GONE);
     roomControls.addView(playSlot,new LinearLayout.LayoutParams(dp(45),dp(52)));
-    TextView live=text("● LIVE",12,WHITE,true);
+    TextView live=text("● XPTV",12,WHITE,true);
     mediaTypeBadge=live;
     live.setGravity(Gravity.CENTER_VERTICAL);live.setTextColor(0xFFF5F1FF);
     roomControls.addView(live,new LinearLayout.LayoutParams(-2,dp(52)));
