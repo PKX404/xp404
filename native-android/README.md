@@ -1,27 +1,36 @@
-# XParty Native Android Foundation (v0.1)
+# XParty Native Android — v0.2 development preview
 
-This is a **separate native prototype**, not a replacement for production XParty v31.6.
+This is a **native Android implementation in progress**, NOT a full feature-identical replacement for XParty v31.6.
 
-## Native in this build
-- Android Activity, panels, source picker, tiles, room lobby, chat and emoji panel (not a whole-app WebView).
-- Connects directly to the existing XParty `wss://xp404.onrender.com/ws` protocol. Room create/join/resume, chat, state, reconnection and voting are live server operations.
-- Media3 ExoPlayer for HTTPS IPTV/HLS/MP4 and a first-picture watchdog to avoid silent audio-only video playback. Audio-only radio streams are not a target for the watchdog.
-- YouTube video playback **only** through YouTube's embedded iframe/WebView player, not through stream extraction. Video search uses the room server's /api/search with the room access token.
-- Native source tiles (1 / 2 / 3 columns), an emoji picker, saved sources, and a native blurred-background treatment based on YouTube posters/channel logos.
-- Majority-skip enabled by default by hosts when entering a room, subject to the existing server requirements (two or more participants and a queued video).
-- Netflix and Prime Video buttons open their official services. **No DRM circumvention, no provider playback inside XParty.**
+## Implemented in Android Java
 
-## NOT completed / not verified
-- Existing v31.6's complete visual parity; Google/Apple/Instagram authentication; file uploading; multi-participant native video calls and voice calls; chat attachments; YouTube search recommendations/thumbnail durations at full quality; source-channel availability health checks; video-frame immersive background capture.
-- Android mic button will request permission safely but will **not** transmit audio. This is explicitly a placeholder until a proper WebRTC implementation is tested.
-- Native source tiling and video-picture recovery need physical Android testing with real devices/channels.
-- Synchronization is clock-aware but YouTube's embedding API, buffering, internet latency and DRM restrictions prevent guaranteed millisecond-perfect equality.
-- This debug APK uses a separate package `com.pkx404.xpartynative`. It **can install alongside** the existing XParty application rather than replacing it.
+- Native Android lobby, room UI, source grid, message composer and extensive emoji picker.
+- Existing XParty room protocol: create/join/resume, chat, source, playback and majority skip votes.
+- Native Media3/ExoPlayer playback for HTTPS HLS IPTV and direct streams, including a first-video-frame watchdog.
+- Native, bounded video drift correction every 250 ms; this does not guarantee millisecond-level synchronization over a real network.
+- **New in v0.2:** native WebRTC signaling compatible with XParty room messages, microphone and camera controls, call seats, peer connections, remote video surfaces and echo-cancellation configuration.
+- **New in v0.2:** native PixelCopy sampling of the application's **non-protected** video surface to tint a blurred immersive room background. Protected/DRM playback is never sampled.
+- Source tiles with 1/2/3-column settings, saved sources and health indicator checks.
+- YouTube search with thumbnails and official YouTube iframe embedded playback. The YouTube player itself uses an official web component; it is NOT a native YouTube decoder.
+- Netflix and Prime Video shortcuts open their official services; no DRM circumvention.
+- Majority-skip voting requested by the host automatically on room entry.
 
-## Build
-`cd native-android && gradle :app:assembleDebug`
+## Verification
 
-CI uploads the debug APK under the `XParty Native Android Preview` workflow.
+- GitHub Actions Gradle debug APK build: **passed**.
+- Android 10 emulator install, initial launch, process-survival check, forced close and relaunch: **passed**.
+- The automated test is NOT a two-device call or a full integration test.
+- Mic/camera WebRTC interoperability, real IPTV frame sampling, call stability, varying network types, YouTube sync and speed on physical devices still need tests.
 
-## Safety and provider compliance
-Netflix, Prime Video and other protected media remain in their own official applications. This implementation neither captures their video nor bypasses DRM. A contractual provider integration would be required for an authorized custom DRM experience.
+## Still incomplete vs XParty v31.6
+
+- Pixel-identical UI/UX, all interaction and layout states, profiles/accounts and OAuth, full participant settings/moderation, file transfer and attachments, comprehensive call recovery and adaptive bandwidth, music glow and other immersive modes.
+- A multi-device end-to-end WebRTC call was **not** validated.
+- DRM services cannot be rendered inside XParty as if authorized; provider integration and licensing would be needed.
+- Native YouTube components remain provider-controlled embedded views.
+
+Package name: com.pkx404.xpartynative. The debug APK installs **alongside** the original XParty. Do not uninstall the original app.
+
+Build: cd native-android && gradle :app:assembleDebug.
+
+Verified APK build: https://github.com/PKX404/xp404/actions/runs/42794790700
