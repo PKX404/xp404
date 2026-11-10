@@ -85,6 +85,7 @@ public final class MainActivity extends Activity {
   private String connectionRequest="create",joinCode="";
   private FrameLayout background,stage,callVideoPanel;
   private NativeCallManager nativeCall;
+  private NativeImmersiveSampler immersiveSampler;
   private JSONArray rtcIceServers=new JSONArray();
   private TextView micIcon,cameraIcon,callSeatIcon;
   private String lastCallMessage="";
@@ -263,6 +264,11 @@ public final class MainActivity extends Activity {
     // A resumed room may recreate the activity. Do not reuse a source ID with a new decoder.
     stopNativeCall();clearPlayback();currentSourceId="";currentType="";youtubeId="";
     buildBackground();
+    immersiveSampler=new NativeImmersiveSampler(frame->{
+      if(!destroyed&&room!=null&&ambient!=null&&currentType.equals("iptv")||!destroyed&&room!=null&&ambient!=null&&currentType.equals("direct")){
+        ambient.setImageBitmap(frame);ambient.setAlpha(.64f);
+      }
+    });
     content=vertical();background.addView(content,new FrameLayout.LayoutParams(-1,-1));
     header=horizontal();header.setPadding(dp(8),dp(8),dp(8),dp(8));header.setBackgroundColor(0xee161321);
     header.addView(button("✕",()->leaveRoom()),new LinearLayout.LayoutParams(dp(46),dp(46)));
@@ -284,7 +290,10 @@ public final class MainActivity extends Activity {
     FrameLayout.LayoutParams sp=new FrameLayout.LayoutParams(-2,dp(32),Gravity.TOP|Gravity.RIGHT);
     sp.setMargins(0,dp(12),dp(10),0);stage.addView(playbackStatus,sp);
     player.addListener(new Player.Listener(){
-      @Override public void onRenderedFirstFrame(){receivedFrame=true;lastFrame=SystemClock.elapsedRealtime();recovered=false;statusMessage("Video ready");}
+      @Override public void onRenderedFirstFrame(){receivedFrame=true;lastFrame=SystemClock.elapsedRealtime();recovered=false;statusMessage("Video ready");
+        if(!audioOnly&&immersiveSampler!=null&&playerView!=null&&playerView.getVideoSurfaceView() instanceof android.view.SurfaceView)
+          immersiveSampler.start((android.view.SurfaceView)playerView.getVideoSurfaceView());
+      }
       @Override public void onPlayerError(PlaybackException e){
         statusMessage("This stream cannot be decoded on this device");
         if(!currentSourceId.isEmpty())send("ready",obj("sourceId",currentSourceId,"ready",false,"status","Decoder error"));
@@ -361,17 +370,22 @@ public final class MainActivity extends Activity {
     renderChat();
   }
   private void clearSource(){
+    if(immersiveSampler!=null)immersiveSampler.stop();
+    if(ambient!=null)ambient.setAlpha(.29f);
     currentSourceId="";currentType="";youtubeId="";
     if(youtubeFrame!=null){stage.removeView(youtubeFrame);youtubeFrame.destroy();youtubeFrame=null;}
     if(player!=null){player.stop();player.clearMediaItems();}
     if(ambient!=null)ambient.setImageDrawable(null);
   }
   private void clearPlayback(){
+    if(immersiveSampler!=null){immersiveSampler.stop();immersiveSampler=null;}
     if(youtubeFrame!=null){youtubeFrame.destroy();youtubeFrame=null;}
     if(player!=null){player.release();player=null;}
   }
   private void loadSource(JSONObject source){
     if(youtubeFrame!=null){stage.removeView(youtubeFrame);youtubeFrame.destroy();youtubeFrame=null;}
+    if(immersiveSampler!=null)immersiveSampler.stop();
+    if(ambient!=null)ambient.setAlpha(.34f);
     player.stop();player.clearMediaItems();receivedFrame=false;recovered=false;lastFrame=SystemClock.elapsedRealtime();
     audioOnly=source.optBoolean("radio",false);ambient.setImageDrawable(null);
     String type=source.optString("type"),url=source.optString("url");
@@ -438,8 +452,8 @@ public final class MainActivity extends Activity {
     }else if((currentType.equals("iptv")||currentType.equals("direct"))&&player!=null){
       if(!player.isCurrentMediaItemLive()&&!currentType.equals("iptv")){
         long diff=expected-player.getCurrentPosition();
-        if(Math.abs(diff)>1200)player.seekTo(expected);
-        else if(Math.abs(diff)>300&&playing)player.setPlaybackSpeed(diff>0?1.025f:.975f);
+        if(Math.abs(diff)>800)player.seekTo(expected);
+        else if(Math.abs(diff)>120&&playing)player.setPlaybackSpeed(diff>0?1.03f:.97f);
         else player.setPlaybackSpeed(1f);
       }
       if(playing&&!player.isPlaying())player.play();
@@ -452,7 +466,7 @@ public final class MainActivity extends Activity {
     if(SystemClock.elapsedRealtime()-lastPingAt>6000){
       send("ping",obj("sent",System.currentTimeMillis()));lastPingAt=SystemClock.elapsedRealtime();
     }
-    ui.postDelayed(this::syncLoop,2100);
+    ui.postDelayed(this::syncLoop,250);
   }
   private void togglePlayback(){
     JSONObject pb=room==null?null:room.optJSONObject("playback");
