@@ -65,7 +65,7 @@ final class NativeSourceSheet {
   private String roomToken="",currentTab="all",category="All",typedSearch="",youtubeQuery="";
   private final List<ChannelCatalog.Channel> channels=new ArrayList<>();
   private final List<JSONObject> ytItems=new ArrayList<>();
-  private int categoryRequest=0,youtubeRequest=0,shownChannels=28,selectedTabIndex=1;
+  private int categoryRequest=0,youtubeRequest=0,shownChannels=28,shownYouTube=20,selectedTabIndex=1;
   private String loadedCategory="";
   private Runnable youtubeDebounce;
 
@@ -406,14 +406,14 @@ final class NativeSourceSheet {
           JSONObject json=new JSONObject(result);
           JSONArray items=json.optJSONArray("items");
           List<JSONObject> list=new ArrayList<>();
-          if(items!=null)for(int i=0;i<items.length()&&i<24;i++){
+          if(items!=null)for(int i=0;i<items.length()&&i<50;i++){
             JSONObject v=items.optJSONObject(i);
             if(v!=null)list.add(v);
           }
           ui.post(()->{
             if(generation!=youtubeRequest||!showing()||!"youtube".equals(currentTab))return;
             providerView.removeAllViews();
-            ytItems.clear();ytItems.addAll(list);
+            ytItems.clear();ytItems.addAll(list);shownYouTube=20;
             renderYoutubeResults();
           });
         }catch(Exception ignored){onFailure(c,new IOException("Bad search result"));}
@@ -427,7 +427,7 @@ final class NativeSourceSheet {
     }
     add(providerView,label("VIDEOS · "+ytItems.size()+" results",11,MUTED,true),10);
     LinearLayout pair=null;
-    for(int i=0;i<ytItems.size();i++){
+    for(int i=0;i<Math.min(shownYouTube,ytItems.size());i++){
       final JSONObject item=ytItems.get(i);
       String id=item.optString("id","");
       if(!id.matches("[\\w-]{11}"))continue;
@@ -453,6 +453,12 @@ final class NativeSourceSheet {
       card.setOnClickListener(v->choose(src));
       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);
       if(i%2==1)lp.leftMargin=dp(8);pair.addView(card,lp);
+    }
+    if(ytItems.size()>shownYouTube){
+      TextView more=chip("Show more videos ("+(ytItems.size()-shownYouTube)+")",false,()->{
+        shownYouTube+=20;renderYoutubeResults();
+      });
+      add(providerView,more,10);
     }
   }
   private static String urlEncode(String text){
@@ -485,6 +491,18 @@ final class NativeSourceSheet {
     add(body,search,7);
     WebView web=new WebView(activity);
     web.setBackgroundColor(Color.BLACK);
+    web.setVerticalScrollBarEnabled(true);
+    web.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+    // Nested WebView scroll gestures must be handled by YouTube,
+    // not intercepted by the containing bottom-sheet ScrollView.
+    web.setOnTouchListener((view,event)->{
+      if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN||
+         event.getActionMasked()==android.view.MotionEvent.ACTION_MOVE)
+        view.getParent().requestDisallowInterceptTouchEvent(true);
+      if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP)
+        view.getParent().requestDisallowInterceptTouchEvent(false);
+      return false;
+    });
     web.getSettings().setJavaScriptEnabled(true);
     web.getSettings().setDomStorageEnabled(true);
     web.getSettings().setSupportMultipleWindows(true);
@@ -518,7 +536,8 @@ final class NativeSourceSheet {
         if(showing()&&"youtube-browse".equals(currentTab))select(url);
       }
     });
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(430));
+    int height=Math.round(activity.getResources().getDisplayMetrics().heightPixels*.57f);
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,Math.max(dp(330),height));
     body.addView(web,lp);
     web.loadUrl("https://m.youtube.com/");
   }
