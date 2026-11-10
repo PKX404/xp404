@@ -6,6 +6,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
+import android.graphics.RadialGradient;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
@@ -32,7 +34,14 @@ import java.util.concurrent.Executors;
  * This deliberately avoids copying recognizable video detail to the chat panel.
  */
 final class NativeImmersiveBackdrop {
-  private static final int W=128,H=72,R=6;
+  // Small source texture + broad blur stops recognizable video copies in the chat panel.
+  private static final int W=80,H=45,R=8;
+  private static volatile int ambientTop=0xFF283E67,ambientMid=0xFF1E2A50,ambientEnd=0xFF2E1B4F;
+  static GradientDrawable sheetSkin(){
+    GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+      new int[]{ambientTop,ambientMid,ambientEnd});
+    d.setCornerRadius(28f);d.setStroke(1,0xFF64547E);return d;
+  }
   private final Activity activity;
   private final View target;
   private final PlayerView player;
@@ -48,14 +57,14 @@ final class NativeImmersiveBackdrop {
     @Override public void run(){
       if(!running)return;
       if(enabled&&hasSource)sample();
-      ui.postDelayed(this,170);
+      ui.postDelayed(this,260);
     }
   };
   NativeImmersiveBackdrop(Activity activity,View target,PlayerView player,WebView youtube){
     this.activity=activity;this.target=target;this.player=player;this.youtube=youtube;
     float total=0;
     for(int i=0;i<=R;i++){
-      float v=(float)Math.exp(-.5f*i*i/16f);weights[i]=v;
+      float v=(float)Math.exp(-.5f*i*i/36f);weights[i]=v;
       total+=i==0?v:2*v;
     }
     for(int i=0;i<=R;i++)weights[i]/=total;
@@ -85,7 +94,7 @@ final class NativeImmersiveBackdrop {
   private void sample(){
     if(!running||!enabled||!hasSource||busy||Build.VERSION.SDK_INT<26)return;
     if(!target.isShown())return;
-    if(SystemClock.uptimeMillis()-lastCopy<165)return;
+    if(SystemClock.uptimeMillis()-lastCopy<250)return;
     View surface=player.getVideoSurfaceView();
     boolean nativeSurface=!usingYoutube&&surface instanceof SurfaceView
       &&surface.isShown()&&((SurfaceView)surface).getHolder().getSurface().isValid();
@@ -112,7 +121,11 @@ final class NativeImmersiveBackdrop {
         Bitmap blur=gradeAndBlur(pixels);
         ui.post(()->{
           if(running&&enabled&&hasSource){
-            drawable.frame=blur;target.invalidate();
+            drawable.frame=blur;
+            ambientTop=extractColor(blur,0,blur.getWidth()/3);
+            ambientMid=extractColor(blur,blur.getWidth()/3,blur.getWidth()*2/3);
+            ambientEnd=extractColor(blur,blur.getWidth()*2/3,blur.getWidth());
+            target.invalidate();
           }
           busy=false;
         });
@@ -157,6 +170,18 @@ final class NativeImmersiveBackdrop {
     b.setPixels(out,0,W,0,0,W,H);
     return b;
   }
+  private static int extractColor(Bitmap bitmap,int x0,int x1){
+    long rr=0,gg=0,bb=0,total=0;
+    for(int y=3;y<bitmap.getHeight();y+=3){
+      for(int x=x0;x<x1;x+=3){
+        int c=bitmap.getPixel(x,y);
+        rr+=Color.red(c);gg+=Color.green(c);bb+=Color.blue(c);total++;
+      }
+    }
+    if(total==0)return 0xFF242548;
+    // 31.6 scene colours survive, but the glass skin remains dark enough for text.
+    return Color.rgb((int)(rr/total*.62+15),(int)(gg/total*.62+12),(int)(bb/total*.7+28));
+  }
   private static int clamp(float v){return Math.max(0,Math.min(255,Math.round(v)));}
   private static final class RoomDrawable extends Drawable {
     private final Paint paint=new Paint(Paint.FILTER_BITMAP_FLAG|Paint.ANTI_ALIAS_FLAG);
@@ -178,11 +203,18 @@ final class NativeImmersiveBackdrop {
           int height=Math.round(image.getWidth()/targetRatio);
           y0=(image.getHeight()-height)/2;y1=y0+height;
         }
-        paint.setAlpha(232);paint.setShader(null);
+        paint.setAlpha(105);paint.setShader(null);
         canvas.drawBitmap(image,new Rect(x0,y0,x1,y1),
           new RectF(b.left-overX,b.top-overY,b.right+overX,b.bottom+overY),paint);
       }
-      // Exact conceptual overlay used by v31.6 ambient.css:
+      // Diffuse scene-colour wash, not a stretched ghost image of the video.
+      paint.setAlpha(255);
+      paint.setShader(new RadialGradient(b.width()*.18f,b.height()*.15f,
+        Math.max(b.width(),b.height())*.88f,
+        new int[]{0xAA233766,0x502A244B,0x00212B4F},
+        new float[]{0f,.50f,1f},Shader.TileMode.CLAMP));
+      canvas.drawRect(b,paint);paint.setShader(null);
+      // Conceptual overlay from v31.6 ambient.css:
       // #05081275 -> #06091238 (35%) -> #070a128f
       paint.setAlpha(255);
       paint.setShader(new LinearGradient(0,b.top,0,b.bottom,
@@ -190,7 +222,7 @@ final class NativeImmersiveBackdrop {
         new float[]{0,.35f,1},Shader.TileMode.CLAMP));
       canvas.drawRect(b,paint);paint.setShader(null);
       // Original XParty chat surface is a semi-transparent #0b1026a6.
-      paint.setColor(0x8F0B1026);
+      paint.setColor(0x620B1026);
       canvas.drawRect(b,paint);paint.setColor(Color.WHITE);
     }
     @Override public void setAlpha(int alpha){}
