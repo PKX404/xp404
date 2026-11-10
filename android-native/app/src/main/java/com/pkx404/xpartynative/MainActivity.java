@@ -104,6 +104,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private TextView roomFooter;
   private boolean landscapeRoom=false;
   private View participantOverlay=null;
+  private XPControl landscapeMemberButton;
   private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
   private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
   private SeekBar progress;
@@ -847,6 +848,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     tabChat.setGravity(Gravity.CENTER);
     tabChat.setOnClickListener(v->showRoomTab(true));
     tabs.addView(tabChat,new LinearLayout.LayoutParams(0,dp(58),1));
+    landscapeMemberButton=xpIcon("people",this::openParticipants);
+    landscapeMemberButton.setContentDescription("Show room participants");
+    landscapeMemberButton.setVisibility(View.GONE);
+    tabs.addView(landscapeMemberButton,new LinearLayout.LayoutParams(dp(43),dp(49)));
     roomPane.addView(tabs);
 
     hostNotice=new LinearLayout(this);hostNotice.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
@@ -995,6 +1000,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       roomNativeRoot.addView(landscapeRow,1,new LinearLayout.LayoutParams(-1,0,1));
       if(roomHeader!=null)roomHeader.setVisibility(View.GONE);
       if(roomFooter!=null)roomFooter.setVisibility(View.GONE);
+      if(landscapeMemberButton!=null)landscapeMemberButton.setVisibility(View.VISIBLE);
       LinearLayout.LayoutParams videoParams=(LinearLayout.LayoutParams)playerFrame.getLayoutParams();
       videoParams.height=-1;
       playerFrame.setLayoutParams(videoParams);
@@ -1012,6 +1018,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       roomNativeRoot.addView(chatComposer,4,new LinearLayout.LayoutParams(-1,dp(65)));
       if(roomHeader!=null)roomHeader.setVisibility(imeShown?View.GONE:View.VISIBLE);
       if(roomFooter!=null)roomFooter.setVisibility(View.VISIBLE);
+      if(landscapeMemberButton!=null)landscapeMemberButton.setVisibility(View.GONE);
       LinearLayout.LayoutParams videoParams=(LinearLayout.LayoutParams)playerFrame.getLayoutParams();
       videoParams.height=savedVideoHeight;
       playerFrame.setLayoutParams(videoParams);
@@ -1182,8 +1189,78 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       +"\nOpen the XParty Native Android app and enter this code.");
     startActivity(Intent.createChooser(sendIntent,"Invite to XParty"));
   }
+  /**
+   * Split/shift interaction from v31.6: participants occupy the right edge,
+   * video and chat compress temporarily instead of a modal covering the video.
+   */
+  private void toggleLandscapeParticipants(){
+    if(landscapeRow==null||landscapeRight==null||roomStage==null)return;
+    if(participantOverlay!=null){
+      View panel=participantOverlay;participantOverlay=null;
+      panel.animate().translationX(panel.getWidth()).alpha(0f).setDuration(170).withEndAction(()->{
+        detachFromParent(panel);
+        LinearLayout.LayoutParams video=(LinearLayout.LayoutParams)roomStage.getLayoutParams();
+        video.weight=61;roomStage.setLayoutParams(video);
+        LinearLayout.LayoutParams chat=(LinearLayout.LayoutParams)landscapeRight.getLayoutParams();
+        chat.weight=39;landscapeRight.setLayoutParams(chat);
+      }).start();
+      return;
+    }
+    JSONArray people=room==null?null:room.optJSONArray("people");
+    if(people==null)return;
+    LinearLayout list=column();
+    list.setPadding(dp(7),dp(7),dp(7),dp(8));
+    list.setBackground(blend(0xFF22183B,0xFF121022,0));
+    LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
+    TextView title=text("PARTICIPANTS",12,WHITE,true);
+    heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+    XPControl close=xpIcon("exit",this::toggleLandscapeParticipants);
+    heading.addView(close,new LinearLayout.LayoutParams(dp(39),dp(38)));
+    add(list,heading,7);
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);
+    LinearLayout members=column();scroll.addView(members);
+    list.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    for(int i=0;i<people.length();i++){
+      JSONObject member=people.optJSONObject(i);if(member==null)continue;
+      String id=member.optString("id","");
+      LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
+      TextView avatar=text(member.optString("name","?").substring(0,1).toUpperCase(Locale.ROOT),13,WHITE,true);
+      avatar.setGravity(Gravity.CENTER);avatar.setBackground(shape(0xFF655384,24));
+      row.addView(avatar,new LinearLayout.LayoutParams(dp(32),dp(32)));
+      TextView label=text(member.optString("name","Member")+
+        (id.equals(room.optString("hostId"))?" ♛":""),11,WHITE,true);
+      label.setMaxLines(1);label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      LinearLayout.LayoutParams textLp=new LinearLayout.LayoutParams(0,-2,1);
+      textLp.leftMargin=dp(6);row.addView(label,textLp);
+      if(isHost&&!id.equals(myId)){
+        XPControl controls=xpIcon("settings",()->new AlertDialog.Builder(this)
+          .setTitle(member.optString("name","Member"))
+          .setItems(new String[]{"Make host","Remove"},(d,which)->{
+            try{socket.send(new JSONObject()
+              .put("type",which==0?"transfer-host":"kick").put("target",id));}
+            catch(Exception ignored){}
+          }).show());
+        row.addView(controls,new LinearLayout.LayoutParams(dp(34),dp(38)));
+      }
+      add(members,row,7);
+    }
+    participantOverlay=list;
+    LinearLayout.LayoutParams video=(LinearLayout.LayoutParams)roomStage.getLayoutParams();
+    video.weight=49;roomStage.setLayoutParams(video);
+    LinearLayout.LayoutParams chat=(LinearLayout.LayoutParams)landscapeRight.getLayoutParams();
+    chat.weight=24;landscapeRight.setLayoutParams(chat);
+    landscapeRow.addView(list,new LinearLayout.LayoutParams(0,-1,27));
+    list.post(()->{
+      list.setTranslationX(list.getWidth());list.setAlpha(0f);
+      list.animate().translationX(0).alpha(1f).setDuration(190).start();
+    });
+  }
   private void openParticipants(){
     if(room==null)return;
+    if(landscapeRoom&&landscapeRow!=null){
+      toggleLandscapeParticipants();
+      return;
+    }
     JSONArray participants=room.optJSONArray("people");
     if(participants==null)return;
     android.app.Dialog sheet=new android.app.Dialog(this);
