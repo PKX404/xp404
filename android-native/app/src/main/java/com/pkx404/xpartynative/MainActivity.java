@@ -744,6 +744,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     youtube.getSettings().setJavaScriptEnabled(true);
     youtube.getSettings().setMediaPlaybackRequiresUserGesture(true);
     youtube.setWebChromeClient(new WebChromeClient());
+    youtube.setWebViewClient(new android.webkit.WebViewClient(){
+      @Override public boolean shouldOverrideUrlLoading(WebView view,android.webkit.WebResourceRequest request){
+        if(!request.isForMainFrame())return false;
+        String url=request.getUrl().toString();
+        if("about:blank".equals(url))return false;
+        java.util.regex.Matcher match=java.util.regex.Pattern.compile(
+          "(?:youtu\\.be/|[?&]v=|/shorts/|/embed/)([A-Za-z0-9_-]{11})").matcher(url);
+        if(match.find()){selectYoutubeRecommendation(match.group(1),"YouTube recommendation");return true;}
+        return true; // Keep video suggestions within XParty, not external YouTube app.
+      }
+    });
     youtube.addJavascriptInterface(new YoutubeBridge(),"XpartyYT");
     youtube.setOnTouchListener((v,event)->{
       if(event.getActionMasked()==MotionEvent.ACTION_DOWN)revealPlaybackControls();
@@ -1509,7 +1520,20 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
    * Only the official YouTube IFrame API runs in WebView; all room controls,
    * signaling, chat and IPTV decoding remain native Android components.
    */
+  private void selectYoutubeRecommendation(String video,String title){
+    if(!roomActive||!"youtube".equals(sourceType)||!video.matches("[A-Za-z0-9_-]{11}"))return;
+    if(video.equals(youtubeId))return;
+    if(!isHost){toast("Ask the host to select this video for the room.");followPlayback();return;}
+    try{
+      JSONObject next=new JSONObject().put("type","youtube").put("videoId",video)
+        .put("title",title==null||title.isEmpty()?"YouTube recommended video":title);
+      sendSource(next);
+    }catch(Exception ignored){}
+  }
   public final class YoutubeBridge {
+    @JavascriptInterface public void changed(String id,String title){
+      runOnUiThread(()->selectYoutubeRecommendation(id,title));
+    }
     @JavascriptInterface public void onReady(){
       runOnUiThread(()->{
         if(!roomActive||!"youtube".equals(sourceType)||source==null)return;
@@ -1645,7 +1669,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           };
           setInterval(function(){
             if(!ytPlayer)return;
-            try{XpartyYT.progress(ytPlayer.getCurrentTime()||0,ytPlayer.getDuration()||0);}catch(e){}
+            try{
+              XpartyYT.progress(ytPlayer.getCurrentTime()||0,ytPlayer.getDuration()||0);
+              const info=ytPlayer.getVideoData&&ytPlayer.getVideoData();
+              if(info&&/^[A-Za-z0-9_-]{11}$/.test(info.video_id)
+                &&info.video_id!=='__VIDEO_ID__'){
+                XpartyYT.changed(info.video_id,info.title||'YouTube suggestion');
+              }
+            }catch(e){}
           },850);
         </script></body></html>
         """.replace("__VIDEO_ID__",youtubeId);
