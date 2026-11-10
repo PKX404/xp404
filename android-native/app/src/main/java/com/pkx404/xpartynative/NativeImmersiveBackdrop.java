@@ -32,7 +32,8 @@ import java.util.concurrent.Executors;
  * This deliberately avoids copying recognizable video detail to the chat panel.
  */
 final class NativeImmersiveBackdrop {
-  private static final int W=128,H=72,R=6;
+  private static final int W=128,H=72,R=12;
+  static volatile int skinLeft=0xFF241B44,skinMiddle=0xFF17182E,skinRight=0xFF21203F;
   private final Activity activity;
   private final View target;
   private final PlayerView player;
@@ -48,14 +49,14 @@ final class NativeImmersiveBackdrop {
     @Override public void run(){
       if(!running)return;
       if(enabled&&hasSource)sample();
-      ui.postDelayed(this,170);
+      ui.postDelayed(this,115);
     }
   };
   NativeImmersiveBackdrop(Activity activity,View target,PlayerView player,WebView youtube){
     this.activity=activity;this.target=target;this.player=player;this.youtube=youtube;
     float total=0;
     for(int i=0;i<=R;i++){
-      float v=(float)Math.exp(-.5f*i*i/16f);weights[i]=v;
+      float v=(float)Math.exp(-.5f*i*i/64f);weights[i]=v;
       total+=i==0?v:2*v;
     }
     for(int i=0;i<=R;i++)weights[i]/=total;
@@ -85,7 +86,7 @@ final class NativeImmersiveBackdrop {
   private void sample(){
     if(!running||!enabled||!hasSource||busy||Build.VERSION.SDK_INT<26)return;
     if(!target.isShown())return;
-    if(SystemClock.uptimeMillis()-lastCopy<165)return;
+    if(SystemClock.uptimeMillis()-lastCopy<105)return;
     View surface=player.getVideoSurfaceView();
     boolean nativeSurface=!usingYoutube&&surface instanceof SurfaceView
       &&surface.isShown()&&((SurfaceView)surface).getHolder().getSurface().isValid();
@@ -110,6 +111,10 @@ final class NativeImmersiveBackdrop {
     worker.execute(()->{
       try{
         Bitmap blur=gradeAndBlur(pixels);
+        // Diffuse palette updates each frame; source/settings/chat use the same skin.
+        skinLeft=mean(blur,0,42);
+        skinMiddle=mean(blur,42,85);
+        skinRight=mean(blur,85,W);
         ui.post(()->{
           if(running&&enabled&&hasSource){
             drawable.frame=blur;target.invalidate();
@@ -158,6 +163,42 @@ final class NativeImmersiveBackdrop {
     return b;
   }
   private static int clamp(float v){return Math.max(0,Math.min(255,Math.round(v)));}
+  private static int mean(Bitmap image,int left,int right){
+    long red=0,green=0,blue=0,count=0;
+    for(int y=3;y<H;y+=6)for(int x=left;x<right;x+=3){
+      int color=image.getPixel(x,y);
+      red+=Color.red(color);green+=Color.green(color);blue+=Color.blue(color);count++;
+    }
+    return count==0?0xFF18152C:Color.rgb((int)(red/count),(int)(green/count),(int)(blue/count));
+  }
+  /**
+   * Shared glass skin. Dialogs use identical live palette instead of opaque black.
+   * Android draws the effect in-process; no extra bitmap/video player is created.
+   */
+  static Drawable panelBackground(){
+    return new Drawable(){
+      final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+      @Override public void draw(Canvas canvas){
+        Rect b=getBounds();if(b.isEmpty())return;
+        float radius=Math.max(b.width(),b.height())*.9f;
+        android.graphics.Path rounded=new android.graphics.Path();
+        rounded.addRoundRect(new RectF(b),22,22,android.graphics.Path.Direction.CW);
+        canvas.save();canvas.clipPath(rounded);
+        paint.setShader(new LinearGradient(b.left,b.top,b.right,b.bottom,
+          new int[]{skinLeft,skinMiddle,skinRight},null,Shader.TileMode.CLAMP));
+        canvas.drawRect(b,paint);
+        paint.setShader(null);paint.setColor(0xD6110C21);
+        canvas.drawRect(b,paint);
+        paint.setColor(0x59463768);paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(1.4f);canvas.drawRoundRect(new RectF(b),22,22,paint);
+        paint.setStyle(Paint.Style.FILL);paint.setColor(Color.WHITE);
+        canvas.restore();
+      }
+      @Override public void setAlpha(int alpha){}
+      @Override public void setColorFilter(ColorFilter filter){}
+      @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
+    };
+  }
   private static final class RoomDrawable extends Drawable {
     private final Paint paint=new Paint(Paint.FILTER_BITMAP_FLAG|Paint.ANTI_ALIAS_FLAG);
     volatile Bitmap frame;
@@ -178,7 +219,7 @@ final class NativeImmersiveBackdrop {
           int height=Math.round(image.getWidth()/targetRatio);
           y0=(image.getHeight()-height)/2;y1=y0+height;
         }
-        paint.setAlpha(232);paint.setShader(null);
+        paint.setAlpha(158);paint.setShader(null);
         canvas.drawBitmap(image,new Rect(x0,y0,x1,y1),
           new RectF(b.left-overX,b.top-overY,b.right+overX,b.bottom+overY),paint);
       }
@@ -186,11 +227,11 @@ final class NativeImmersiveBackdrop {
       // #05081275 -> #06091238 (35%) -> #070a128f
       paint.setAlpha(255);
       paint.setShader(new LinearGradient(0,b.top,0,b.bottom,
-        new int[]{0x75050812,0x38060912,0x8F070A12},
+        new int[]{0x9C050812,0x78060912,0xCB070A12},
         new float[]{0,.35f,1},Shader.TileMode.CLAMP));
       canvas.drawRect(b,paint);paint.setShader(null);
       // Original XParty chat surface is a semi-transparent #0b1026a6.
-      paint.setColor(0x8F0B1026);
+      paint.setColor(0xA60B1026);
       canvas.drawRect(b,paint);paint.setColor(Color.WHITE);
     }
     @Override public void setAlpha(int alpha){}
