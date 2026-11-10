@@ -142,7 +142,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private final java.util.Map<String,TextView> chatBubbles=new java.util.HashMap<>();
   private String replyToId=null;
   private String privateRecipientId=null,privateRecipientName=null;
-  private String pendingMediaCaption=null;
+  private String pendingMediaCaption=null,pendingMediaRecipient=null;
+  private boolean uploadInProgress=false;
   private long lastTypingAt=0;
 
   @Override public void onCreate(Bundle saved){
@@ -1506,9 +1507,62 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
   }
   private void openChatPicker(String mime,int request){
-    Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
-    pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType(mime);
-    startActivityForResult(pick,request);
+    Intent pick=new Intent("image/*".equals(mime)||"video/*".equals(mime)?
+      Intent.ACTION_GET_CONTENT:Intent.ACTION_OPEN_DOCUMENT);
+    pick.addCategory(Intent.CATEGORY_OPENABLE);
+    pick.setType(mime);
+    try{startActivityForResult(Intent.createChooser(pick,
+      "image/*".equals(mime)?"Choose from gallery":"Choose file"),request);}
+    catch(Exception failure){toast("No gallery or file app found.");}
+  }
+  private void showMediaPreview(Uri selected,android.graphics.Bitmap captured,String mime){
+    if(uploadInProgress){toast("Finish the current upload first.");return;}
+    // Inspect, caption and explicitly confirm before uploading, as in common chat apps.
+    LinearLayout content=column();
+    content.setPadding(dp(12),dp(8),dp(12),dp(5));
+    content.setBackground(NativeImmersiveBackdrop.sheetSkin());
+    if(mime.startsWith("image/")){
+      android.widget.ImageView preview=new android.widget.ImageView(this);
+      preview.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+      preview.setBackgroundColor(0x60201D32);
+      if(captured!=null)preview.setImageBitmap(captured);
+      else if(selected!=null){
+        try(java.io.InputStream input=getContentResolver().openInputStream(selected)){
+          android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();
+          opts.inSampleSize=4;
+          preview.setImageBitmap(android.graphics.BitmapFactory.decodeStream(input,null,opts));
+        }catch(Exception ignored){preview.setImageResource(android.R.drawable.ic_menu_gallery);}
+      }
+      content.addView(preview,new LinearLayout.LayoutParams(-1,dp(235)));
+    }else{
+      android.widget.VideoView preview=new android.widget.VideoView(this);
+      preview.setBackgroundColor(0xAA161426);
+      content.addView(preview,new LinearLayout.LayoutParams(-1,dp(230)));
+      if(selected!=null){
+        preview.setVideoURI(selected);
+        preview.setOnPreparedListener(media->{
+          media.setVolume(0f,0f);media.setLooping(true);preview.start();
+        });
+        preview.setOnErrorListener((media,what,extra)->{toast("Preview unavailable; file can still be sent.");return true;});
+      }
+    }
+    EditText caption=entry("Add a caption (optional)");
+    caption.setSingleLine(false);caption.setMaxLines(3);
+    add(content,caption,5);
+    AlertDialog box=new AlertDialog.Builder(this).setTitle(
+      mime.startsWith("video/")?"Preview video":"Preview photo")
+      .setView(content).setNegativeButton("Cancel",null)
+      .setPositiveButton("Send",null).create();
+    box.setOnShowListener(unused->box.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+      if(uploadInProgress)return;
+      pendingMediaCaption=caption.getText().toString().trim();
+      pendingMediaRecipient=privateRecipientId;
+      uploadInProgress=true;
+      if(selected!=null)attachments.upload(selected,token,pendingMediaRecipient,attachmentListener);
+      else attachments.uploadCamera(captured,token,pendingMediaRecipient,attachmentListener);
+      box.dismiss();
+    }));
+    box.show();
   }
   private void setAttachmentStatus(String text){
     if(attachmentStatus==null)return;
@@ -1522,13 +1576,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       try{
         JSONObject chat=new JSONObject().put("type","chat").put("attachmentId",id)
           .put("clientId",java.util.UUID.randomUUID().toString());
-        String accompanying=chatInput==null?"":chatInput.getText().toString().trim();
+        String accompanying=pendingMediaCaption==null?"":pendingMediaCaption.trim();
         if(!accompanying.isEmpty())chat.put("text",accompanying);
+        if(pendingMediaRecipient!=null&&!pendingMediaRecipient.isEmpty())
+          chat.put("to",pendingMediaRecipient);
         if(replyToId!=null&&!replyToId.isEmpty())chat.put("replyTo",replyToId);
         socket.send(chat);
-        if(chatInput!=null)chatInput.setText("");
         replyToId=null;
       }catch(Exception e){toast("Upload completed but chat message could not be sent.");}
+      pendingMediaCaption=null;pendingMediaRecipient=null;uploadInProgress=false;
       handler.postDelayed(()->setAttachmentStatus(""),1800);
     }
     @Override public void downloaded(String path){
@@ -1537,6 +1593,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
     @Override public void error(String error){
       setAttachmentStatus("");
+      pendingMediaCaption=null;pendingMediaRecipient=null;uploadInProgress=false;
       toast(error);
     }
   };
@@ -1961,13 +2018,22 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(result!=RESULT_OK)return;
     if((request==REQUEST_CHAT_FILE||request==REQUEST_CHAT_GALLERY)&&data!=null&&data.getData()!=null){
       if(!roomActive){toast("Join a room to share files.");return;}
-      attachments.upload(data.getData(),token,attachmentListener);
+      Uri selected=data.getData();
+      String mime=getContentResolver().getType(selected);
+      if(mime!=null&&(mime.startsWith("image/")||mime.startsWith("video/")))
+        showMediaPreview(selected,null,mime);
+      else{
+        if(uploadInProgress){toast("Finish the current upload first.");return;}
+        pendingMediaCaption=null;pendingMediaRecipient=privateRecipientId;
+        uploadInProgress=true;
+        attachments.upload(selected,token,pendingMediaRecipient,attachmentListener);
+      }
       return;
     }
     if(request==REQUEST_CHAT_CAMERA){
       android.graphics.Bitmap snapshot=data!=null&&data.getExtras()!=null
         ?(android.graphics.Bitmap)data.getExtras().get("data"):null;
-      if(snapshot!=null&&roomActive)attachments.uploadCamera(snapshot,token,attachmentListener);
+      if(snapshot!=null&&roomActive)showMediaPreview(null,snapshot,"image/jpeg");
       else toast("Camera did not return a picture.");
       return;
     }
