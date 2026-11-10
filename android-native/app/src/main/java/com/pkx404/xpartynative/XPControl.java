@@ -79,8 +79,15 @@ public final class XPControl extends View {
         c.drawRoundRect(new RectF(4,7,32,29),3,3,p);
         circle(c,24,14,3);path(c,7,26,14,18,20,24,24,20,30,27);break;
       case "fullscreen":
-        path(c,14,7,7,7,7,14);line(c,7,7,15,15);
-        path(c,22,29,29,29,29,22);line(c,22,22,29,29);break;
+        if(active){
+          // Four corners point inward when the viewer is already fullscreen.
+          path(c,6,14,14,14,14,6);line(c,6,6,14,14);
+          path(c,30,22,22,22,22,30);line(c,22,22,30,30);
+        }else{
+          path(c,14,7,7,7,7,14);line(c,7,7,15,15);
+          path(c,22,29,29,29,29,22);line(c,22,22,29,29);
+        }
+        break;
       case "heart":
         Path h=new Path();h.moveTo(18,30);
         h.cubicTo(14,26,5,21,5,14);
