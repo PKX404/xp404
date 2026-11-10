@@ -78,6 +78,7 @@ final class NativeCallController {
   private FrameLayout callRoot;
   private TextView statusText,micButton,cameraButton,speakerButton;
   private String me="";
+  private JSONObject latestRoom;
   private boolean initialized=false,micOn=false,cameraOn=false,speakerOn=true,inCall=false,cameraStarted=false;
   private boolean destroyed=false;
   private final AudioManager audio;
@@ -113,54 +114,47 @@ final class NativeCallController {
   }
   void attach(FrameLayout frame){
     callRoot=frame;
-    frame.removeAllViews();frame.setBackgroundColor(BG);
+    frame.removeAllViews();
+    frame.setBackgroundColor(0xFF171127);
+    statusText=new TextView(activity);
+    statusText.setTextColor(WHITE);statusText.setTextSize(12);
+    statusText.setText("Tap Join Call; microphone and camera start OFF");
+    statusText.setPadding(dp(12),dp(17),dp(10),dp(8));
+    frame.addView(statusText,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
+    LinearLayout buttons=new LinearLayout(activity);
+    buttons.setPadding(dp(6),dp(6),dp(6),dp(7));buttons.setGravity(Gravity.CENTER_VERTICAL);
+    micButton=control("MIC OFF",this::toggleMic);
+    cameraButton=control("CAM OFF",this::toggleCamera);
+    speakerButton=control("SPEAKER",this::toggleSpeaker);
+    TextView flip=control("FLIP",this::flipCamera);
+    TextView hangup=control("LEAVE CALL",this::leaveSeat);
+    TextView[] all={micButton,cameraButton,speakerButton,flip,hangup};
+    for(int i=0;i<all.length;i++){
+      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(48),1);
+      if(i>0)lp.leftMargin=dp(4);
+      buttons.addView(all[i],lp);
+    }
+    frame.addView(buttons,new FrameLayout.LayoutParams(-1,dp(62),Gravity.BOTTOM));
+    // No JNI/EGL/peer initialization here: ordinary mic and tab taps stay safe.
+  }
+  private void prepareVideoRenderers(){
+    if(callRoot==null||localRenderer!=null||egl==null)return;
     try{
-      // Do not load EGL/WebRTC on an ordinary chat mic tap. It can crash
-      // phones whose GPU driver cannot initialize while the video is playing.
-      if(!initialized)throw new IllegalStateException("Call seat pending");
       remoteRenderer=new SurfaceViewRenderer(activity);
       remoteRenderer.init(egl.getEglBaseContext(),null);
-      remoteRenderer.setEnableHardwareScaler(true);
-      remoteRenderer.setMirror(false);
-      frame.addView(remoteRenderer,new FrameLayout.LayoutParams(-1,-1));
-
+      remoteRenderer.setEnableHardwareScaler(true);remoteRenderer.setMirror(false);
+      FrameLayout.LayoutParams remoteLp=new FrameLayout.LayoutParams(-1,-1);
+      remoteLp.bottomMargin=dp(70);remoteLp.topMargin=dp(40);
+      callRoot.addView(remoteRenderer,0,remoteLp);
       localRenderer=new SurfaceViewRenderer(activity);
       localRenderer.init(egl.getEglBaseContext(),null);
-      localRenderer.setZOrderMediaOverlay(true);
-      localRenderer.setMirror(true);
-      FrameLayout.LayoutParams preview=new FrameLayout.LayoutParams(dp(109),dp(147),Gravity.TOP|Gravity.RIGHT);
-      preview.topMargin=dp(9);preview.rightMargin=dp(10);
-      frame.addView(localRenderer,preview);
+      localRenderer.setZOrderMediaOverlay(true);localRenderer.setMirror(true);
+      FrameLayout.LayoutParams preview=new FrameLayout.LayoutParams(dp(98),dp(130),Gravity.RIGHT|Gravity.TOP);
+      preview.topMargin=dp(45);preview.rightMargin=dp(10);
+      callRoot.addView(localRenderer,1,preview);
       localRenderer.setVisibility(View.INVISIBLE);
-
-      statusText=new TextView(activity);
-      statusText.setTextColor(WHITE);statusText.setTextSize(12);
-      statusText.setText("Video calling · camera and microphone are off");
-      statusText.setPadding(dp(12),dp(9),dp(10),dp(8));
-      FrameLayout.LayoutParams status=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);
-      frame.addView(statusText,status);
-
-      LinearLayout buttons=new LinearLayout(activity);
-      buttons.setPadding(dp(6),dp(6),dp(6),dp(7));
-      buttons.setGravity(Gravity.CENTER_VERTICAL);
-      micButton=control("MIC OFF",this::toggleMic);
-      cameraButton=control("CAM OFF",this::toggleCamera);
-      speakerButton=control("SPEAKER",this::toggleSpeaker);
-      TextView flip=control("FLIP",this::flipCamera);
-      TextView hangup=control("LEAVE CALL",this::leaveSeat);
-      TextView[] all={micButton,cameraButton,speakerButton,flip,hangup};
-      for(int i=0;i<all.length;i++){
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(49),1);
-        if(i>0)lp.leftMargin=dp(5);
-        buttons.addView(all[i],lp);
-      }
-      FrameLayout.LayoutParams controls=new FrameLayout.LayoutParams(-1,dp(62),Gravity.BOTTOM);
-      frame.addView(buttons,controls);
       if(videoTrack!=null)videoTrack.addSink(localRenderer);
-    }catch(Throwable e){
-      report("Video call renderer unavailable: "+e.getClass().getSimpleName());
-      // UI controls remain present even when video rendering cannot start.
-    }
+    }catch(Throwable e){report("Video renderer is unavailable: "+e.getClass().getSimpleName());}
   }
   private void ensureSetup(){
     if(initialized||destroyed)return;
@@ -203,7 +197,7 @@ final class NativeCallController {
   }
   void syncRoom(JSONObject room,String self){
     if(destroyed||room==null)return;
-    me=self;
+    me=self;latestRoom=room;
     JSONArray people=room.optJSONArray("people");
     if(people==null)return;
     Set<String> eligible=new HashSet<>();
@@ -362,6 +356,7 @@ final class NativeCallController {
       if(audioTrack==null){report("Microphone unavailable on this device");return;}
       micOn=!micOn;
       audioTrack.setEnabled(micOn);
+      if(latestRoom!=null)syncRoom(latestRoom,me);
       if(micButton!=null)micButton.setText(micOn?"MIC ON":"MIC OFF");
       events.sendMedia(micOn,cameraOn);
     }catch(Throwable failure){
@@ -374,6 +369,7 @@ final class NativeCallController {
     if(!askPermission(Manifest.permission.CAMERA))return;
     try{ensureSetup();}catch(Throwable e){report("Camera unavailable: "+e.getClass().getSimpleName());return;}
     if(!cameraOn){
+      prepareVideoRenderers();
       if(!cameraStarted&&!startCamera())return;
       cameraOn=true;videoTrack.setEnabled(true);
       if(localRenderer!=null){videoTrack.addSink(localRenderer);localRenderer.setVisibility(View.VISIBLE);}
