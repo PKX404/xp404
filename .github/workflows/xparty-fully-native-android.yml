@@ -1,7 +1,7 @@
-name: Build XParty Native v0.4.1 optimized APKs
+name: Build XParty Native v0.4.1 optimized APKs (mic fix branch enabled)
 on:
   push:
-    branches: [feature/xparty-native-v041-stability-landscape-20261110]
+    branches: [feature/xparty-native-v041-stability-landscape-20261110, fix/native-v041-microphone-tiling-20261110]
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-fully-native-android.yml'
