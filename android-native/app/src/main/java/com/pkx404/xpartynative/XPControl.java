@@ -68,9 +68,16 @@ public final class XPControl extends View {
         circle(c,10,18,3);circle(c,27,9,3);circle(c,27,28,3);
         line(c,13,16,24,10);line(c,13,20,24,27);break;
       case "people":
-        circle(c,13,12,5);circle(c,26,14,4);
-        c.drawArc(new RectF(4,17,23,33),205,130,false,p);
-        c.drawArc(new RectF(20,19,34,31),205,130,false,p);break;
+        // Keep all strokes inside the 36x36 canvas; previous arcs were clipped.
+        circle(c,13,12,4.9f);circle(c,26,14,4.1f);
+        c.drawArc(new RectF(3,19,23,33),182,176,false,p);
+        c.drawArc(new RectF(21,21,34,32),198,148,false,p);break;
+      case "file":
+        path(c,10,4,23,4,29,10,29,32,10,32,10,4);
+        path(c,23,4,23,10,29,10);line(c,15,19,24,19);line(c,15,24,24,24);break;
+      case "gallery":
+        c.drawRoundRect(new RectF(4,7,32,29),3,3,p);
+        circle(c,24,14,3);path(c,7,26,14,18,20,24,24,20,30,27);break;
       case "fullscreen":
         path(c,14,7,7,7,7,14);line(c,7,7,15,15);
         path(c,22,29,29,29,29,22);line(c,22,22,29,29);break;
