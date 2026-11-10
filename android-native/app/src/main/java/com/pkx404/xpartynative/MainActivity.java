@@ -104,7 +104,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private boolean isLandscapeLayout=false;
   private FrameLayout videoContainer;
   private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
-  private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
+  private TextView videoPill,watchingLabel,hostStatus,hostAvatar,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
   private SeekBar progress;
   private final Runnable hidePlaybackUi=()->{
     if(source==null)return;
@@ -916,6 +916,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     hostNotice.addView(hostStatus,new LinearLayout.LayoutParams(-2,-2));
     FrameLayout hostBadge=new FrameLayout(this);
     TextView avatar=text("H",15,WHITE,true);avatar.setGravity(Gravity.CENTER);
+    hostAvatar=avatar;
     avatar.setBackground(shape(0xFF685880,44));
     FrameLayout.LayoutParams avatarLp=new FrameLayout.LayoutParams(dp(42),dp(42),Gravity.BOTTOM|Gravity.RIGHT);
     hostBadge.addView(avatar,avatarLp);
@@ -1747,8 +1748,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void updateRoom(JSONObject data){
     room=data;roomCode=data.optString("code",roomCode);isHost=myId.equals(data.optString("hostId"));
     if(roomTitle!=null)roomTitle.setText("ROOM  ·  "+roomCode+(isHost?"  ★":""));
-    if(hostStatus!=null)hostStatus.setText(data.optBoolean("hostReconnecting",false)?"Host reconnecting · temporary controls":(isHost?"Host":"Guest")+" joined the room");
     JSONArray members=data.optJSONArray("people");int count=0;
+    String hostName="Host";
+    if(members!=null)for(int i=0;i<members.length();i++){
+      JSONObject member=members.optJSONObject(i);
+      if(member!=null&&data.optString("hostId","").equals(member.optString("id"))){
+        hostName=member.optString("name","Host");break;
+      }
+    }
+    if(hostStatus!=null)hostStatus.setText(data.optBoolean("hostReconnecting",false)?
+      "Host reconnecting":(isHost?"You're hosting":hostName+" is hosting"));
+    if(hostAvatar!=null&&!hostName.isEmpty())hostAvatar.setText(hostName.substring(0,1).toUpperCase(Locale.ROOT));
     if(members!=null)for(int i=0;i<members.length();i++)if(members.optJSONObject(i).optBoolean("online"))count++;
     if(people!=null)people.setText(count+" online  ·  "+(isHost?"You're the host":"Watching together"));
     if(memberBadge!=null)memberBadge.setText(count>9?"9+":String.valueOf(count));
