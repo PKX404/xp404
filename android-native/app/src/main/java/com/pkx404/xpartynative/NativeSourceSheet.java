@@ -210,7 +210,7 @@ final class NativeSourceSheet {
     LinearLayout tabs=new LinearLayout(activity);tabs.setGravity(Gravity.CENTER_VERTICAL);
     if(specialSearch){
       // Minimal overlay: no All/Saved tabs, headings or back-to-room row.
-      modeTitle=label("YouTube  ⇄  Live TV",13,WHITE,true);
+      modeTitle=label("YouTube  ⇄  XPTV",13,WHITE,true);
       modeTitle.setGravity(Gravity.CENTER_VERTICAL);
       modeTitle.setPadding(dp(8),0,0,0);
       modeTitle.setOnClickListener(v->toggleSource());
@@ -293,7 +293,7 @@ final class NativeSourceSheet {
   }
   private void showProviders(){
     currentTab="all";clear();mode("All sources");
-    String[] labels={"Live IPTV","YouTube","YouTube Browse","Netflix","Prime Video","Twitch",
+    String[] labels={"XPTV","YouTube","YouTube Browse","Netflix","Prime Video","Twitch",
       "SoundCloud","Vimeo","Google Drive","Video link","Your files"};
     int[] logos={R.drawable.xp_brand_tv,R.drawable.xp_brand_youtube,
       R.drawable.xp_brand_youtube_browse,R.drawable.xp_brand_netflix,R.drawable.xp_brand_prime,
@@ -330,7 +330,7 @@ final class NativeSourceSheet {
       case 10:dismiss();actions.pickLocal();return;
       default:
         // Do not claim native third-party DRM integrations work without provider authorization.
-        actions.notice("This source requires a supported provider integration. Use Live IPTV, YouTube or Video link.");
+        actions.notice("This source requires a supported provider integration. Use XPTV, YouTube or Video link.");
     }
   }
   private void openOfficialProvider(String name,String url){
@@ -350,7 +350,7 @@ final class NativeSourceSheet {
     clear();currentTab="quick";mode("Quick search");
     EditText search=input("Search YouTube videos or live channels");
     add(body,search,8);
-    TextView tv=chip("Live TV",false,()->{
+    TextView tv=chip("XPTV",false,()->{
       typedSearch=search.getText().toString().trim();showIPTV(false);
     });
     TextView yt=chip("YouTube videos",false,()->{
@@ -379,7 +379,7 @@ final class NativeSourceSheet {
     }
   }
   private void showIPTV(boolean keepSearch){
-    currentTab="iptv";clear();mode("Live TV  ⇄  YouTube");
+    currentTab="iptv";clear();mode("XPTV  ⇄  YouTube");
     HorizontalScrollView carousel=new HorizontalScrollView(activity);
     carousel.setHorizontalScrollBarEnabled(false);
     LinearLayout chips=new LinearLayout(activity);
@@ -422,7 +422,7 @@ final class NativeSourceSheet {
     if(!channels.isEmpty()&&keepSearch&&loadedCategory.equals(category)){renderIPTV();return;}
     channels.clear();loadedCategory=category;
     int request=++categoryRequest;
-    TextView loading=label("Loading live channels…",14,MUTED,false);add(providerView,loading,12);
+    TextView loading=label("Loading XPTV channels…",14,MUTED,false);add(providerView,loading,12);
     String target="All".equals(category)?"in":category.toLowerCase(Locale.ROOT);
     directory.load(target,(list,error)->{
       if(!showing()||request!=categoryRequest||!"iptv".equals(currentTab))return;
@@ -448,7 +448,11 @@ final class NativeSourceSheet {
           .put("title",c.title).put("logo",c.logo));}catch(Exception ignored){}
       }
     }
-    add(providerView,label(rows.size()+" channels",11,MUTED,false),9);
+    // Known unavailable sources are listed after channels without a recent failure.
+    rows.sort((left,right)->Integer.compare(
+      directory.failedStatus(left.optString("url"))==0?0:1,
+      directory.failedStatus(right.optString("url"))==0?0:1));
+    add(providerView,label(rows.size()+" XPTV channels",11,MUTED,false),9);
     LinearLayout pair=null;
     int count=Math.min(shownChannels,rows.size());
     for(int i=0;i<count;i++){
@@ -461,7 +465,9 @@ final class NativeSourceSheet {
       card.addView(art,new LinearLayout.LayoutParams(dp(53),dp(57)));
       artwork.show(src.optString("logo",""),art);
       // Artwork loader hides absent images; retain a small initials fallback.
-      TextView title=label(src.optString("title","Channel"),12,WHITE,true);
+      String issue=directory.failureText(src.optString("url"));
+      TextView title=label(src.optString("title","Channel")
+        +(issue.isEmpty()?"":"\n"+issue),12,issue.isEmpty()?WHITE:0xFFFFB5B9,true);
       title.setMaxLines(3);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
       title.setPadding(dp(7),0,dp(2),0);
       card.addView(title,new LinearLayout.LayoutParams(0,-2,1));
@@ -471,6 +477,7 @@ final class NativeSourceSheet {
       save.setOnClickListener(v->{toggleFavorite(src);boolean yes=favorite(key);
         save.setText(yes?"♥":"♡");save.setTextColor(yes?0xFFFF3B51:WHITE);});
       card.addView(save,new LinearLayout.LayoutParams(dp(25),dp(45)));
+      // Even a recently failed stream remains tappable for a fresh attempt.
       card.setOnClickListener(v->choose(src));
       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(100),1);
       if(i%2==1)lp.leftMargin=dp(8);
@@ -481,10 +488,10 @@ final class NativeSourceSheet {
         shownChannels+=28;renderIPTV();
       });add(providerView,more,10);
     }
-    if(rows.isEmpty())add(providerView,label("No matching channels. Try another category or search.",13,MUTED,false),10);
+    if(rows.isEmpty())add(providerView,label("No matching XPTV channels. Try another category or search.",13,MUTED,false),10);
   }
   private void showYoutube(boolean browse){
-    clear();currentTab="youtube";mode("YouTube search  ·  swipe ↔ Live TV");
+    clear();currentTab="youtube";mode("YouTube search  ·  swipe ↔ XPTV");
     LinearLayout searchRow=new LinearLayout(activity);searchRow.setGravity(Gravity.CENTER_VERTICAL);
     youtubeSearch=input("Search YouTube videos");
     youtubeSearch.setText(youtubeQuery);
@@ -636,7 +643,7 @@ final class NativeSourceSheet {
     // to XParty's existing room signaling, with no video extraction or ad bypass.
     if(dialog==null)return;
     clear();currentTab="youtube-browse";
-    mode("YouTube  ⇄  Live TV");
+    mode("YouTube  ⇄  XPTV");
     WebView web=new WebView(activity);
     browseWeb=web;
     web.setBackgroundColor(Color.BLACK);
