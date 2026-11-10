@@ -1323,34 +1323,96 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         WindowManager.LayoutParams.MATCH_PARENT);
     }
   }
+  /** Category-based icon and emoji popovers sized like XParty v31.6, not a giant alert. */
   private void showEmojiMenu(){
-    String[] emoji={"😀","😂","❤️","👍","🔥","🎉","😮","👏"};
-    new AlertDialog.Builder(this).setTitle("Emoji").setItems(emoji,(d,index)->{
-      int position=Math.max(0,chatInput.getSelectionStart());
-      chatInput.getText().insert(position,emoji[index]);
-      chatInput.requestFocus();
-    }).show();
+    if(chatInput==null)return;
+    android.widget.PopupWindow popup=new android.widget.PopupWindow(this);
+    LinearLayout shell=column();shell.setPadding(dp(9),dp(9),dp(9),dp(11));
+    shell.setBackground(shape(0xFF181329,16));
+    String[][] categories={
+      {"😀","😃","😄","😁","😆","😅","😂","🤣","😊","😍","🥰","😘","😎","🤩","🥳","😮","😢","😭","🤔","😴","🙃","😡","👍","🙏","👏","💜","❤️","🔥","🎉","✨"},
+      {"👋","🤝","✌️","🤟","👌","💪","👑","💯","🌟","💫","🥇","🎵","🎬","🎮","💻","📱","🎧","🎸"},
+      {"🐱","🐶","🦋","🌸","🌹","🌈","🌙","☀️","⭐","🍕","🍿","☕","🍩","🍓","🍉"}
+    };
+    LinearLayout categoryButtons=new LinearLayout(this);
+    android.widget.FrameLayout area=new FrameLayout(this);
+    Runnable[] fill=new Runnable[categories.length];
+    for(int i=0;i<categories.length;i++){
+      final int section=i;
+      fill[i]=()->{
+        area.removeAllViews();
+        ScrollView scroller=new ScrollView(this);
+        android.widget.GridLayout grid=new android.widget.GridLayout(this);
+        grid.setColumnCount(6);
+        grid.setPadding(dp(2),dp(3),dp(2),dp(2));
+        for(String symbol:categories[section]){
+          TextView item=text(symbol,23,WHITE,false);item.setGravity(Gravity.CENTER);
+          item.setOnClickListener(v->{
+            int pos=Math.max(0,chatInput.getSelectionStart());
+            chatInput.getText().insert(pos,symbol);
+            popup.dismiss();chatInput.requestFocus();
+          });
+          grid.addView(item,new ViewGroup.LayoutParams(dp(45),dp(46)));
+        }
+        scroller.addView(grid);
+        area.addView(scroller,new FrameLayout.LayoutParams(-1,-1));
+      };
+      TextView chip=text(new String[]{"Smileys","Reactions","Other"}[i],11,WHITE,true);
+      chip.setGravity(Gravity.CENTER);chip.setBackground(shape(0xFF29203E,11));
+      chip.setOnClickListener(v->fill[section].run());
+      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(38),1);
+      if(i>0)lp.leftMargin=dp(5);categoryButtons.addView(chip,lp);
+    }
+    add(shell,categoryButtons,7);
+    shell.addView(area,new LinearLayout.LayoutParams(-1,dp(216)));
+    fill[0].run();
+    popup.setContentView(shell);
+    popup.setWidth(dp(302));popup.setHeight(dp(282));
+    popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    popup.setOutsideTouchable(true);popup.setFocusable(true);
+    popup.setElevation(dp(9));
+    int marginBottom=dp(landscapeRoom?74:100);
+    popup.showAtLocation(roomNativeRoot,Gravity.BOTTOM|Gravity.RIGHT,dp(16),marginBottom);
   }
   private void showChatAttachments(){
-    if(!roomActive){toast("Create or join a room first.");return;}
-    new AlertDialog.Builder(this).setTitle("Share in XParty chat")
-      .setItems(new String[]{"Attachment","Gallery","Camera","Extra"},(d,which)->{
-        if(which==0)openChatPicker("*/*",REQUEST_CHAT_FILE);
-        else if(which==1)openChatPicker("image/*",REQUEST_CHAT_GALLERY);
-        else if(which==2){
-          try{
-            Intent intent=new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-            if(intent.resolveActivity(getPackageManager())!=null)
-              startActivityForResult(intent,REQUEST_CHAT_CAMERA);
-            else toast("No camera application is available.");
-          }catch(Exception e){toast("Cannot open camera.");}
-        }else{
-          new AlertDialog.Builder(this).setTitle("More sharing options")
-            .setItems(new String[]{"Share video","Share image","Share document"},(extra,n)->{
-              openChatPicker(n==0?"video/*":n==1?"image/*":"*/*",REQUEST_CHAT_FILE);
-            }).show();
-        }
-      }).show();
+    if(!roomActive||plusIcon==null)return;
+    android.widget.PopupWindow popup=new android.widget.PopupWindow(this);
+    LinearLayout menu=column();menu.setPadding(dp(8),dp(8),dp(8),dp(8));
+    menu.setBackground(shape(0xFF181427,16));
+    String[] names={"Attachment","Gallery","Camera","Extra"};
+    String[] symbols={"attachment","gallery","photo","extra"};
+    for(int i=0;i<names.length;i++){
+      final int selected=i;
+      LinearLayout line=new LinearLayout(this);line.setGravity(Gravity.CENTER_VERTICAL);
+      line.setPadding(dp(7),dp(1),dp(7),dp(1));
+      XPControl icon=xpIcon(symbols[i],()->{});
+      line.addView(icon,new LinearLayout.LayoutParams(dp(38),dp(40)));
+      TextView label=text(names[i],13,WHITE,true);label.setPadding(dp(9),0,dp(8),0);
+      line.addView(label,new LinearLayout.LayoutParams(-1,dp(40)));
+      line.setOnClickListener(v->{
+        popup.dismiss();
+        if(selected==0)openChatPicker("*/*",REQUEST_CHAT_FILE);
+        else if(selected==1)openChatPicker("image/*",REQUEST_CHAT_GALLERY);
+        else if(selected==2)launchChatCamera();
+        else new AlertDialog.Builder(this).setTitle("More sharing options")
+          .setItems(new String[]{"Video","Image","Document"},(dlg,n)->
+            openChatPicker(n==0?"video/*":n==1?"image/*":"*/*",REQUEST_CHAT_FILE))
+          .show();
+      });
+      add(menu,line,0);
+    }
+    popup.setContentView(menu);popup.setWidth(dp(170));popup.setHeight(dp(185));
+    popup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    popup.setElevation(dp(9));popup.setFocusable(true);popup.setOutsideTouchable(true);
+    popup.showAtLocation(roomNativeRoot,Gravity.RIGHT|Gravity.BOTTOM,dp(10),dp(landscapeRoom?74:96));
+  }
+  private void launchChatCamera(){
+    try{
+      Intent intent=new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+      if(intent.resolveActivity(getPackageManager())!=null)
+        startActivityForResult(intent,REQUEST_CHAT_CAMERA);
+      else toast("No camera app available.");
+    }catch(Exception failure){toast("Cannot open camera.");}
   }
   private void openChatPicker(String mime,int request){
     Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
