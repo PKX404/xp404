@@ -9,6 +9,8 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -22,8 +24,20 @@ final class ChannelCatalog {
   }
   interface Result {void loaded(List<Channel> channels,String error);}
   private final Handler ui=new Handler(Looper.getMainLooper());
-  private final ExecutorService worker=Executors.newSingleThreadExecutor();
+  // Browse repeated categories instantly without re-fetching hundreds of stream entries.
+  private static final long CACHE_TTL_MS=5*60*1000L;
+  private static final class CacheEntry {
+    final List<Channel> channels;final long savedAt;
+    CacheEntry(List<Channel> items){channels=new ArrayList<>(items);savedAt=System.currentTimeMillis();}
+  }
+  private final Map<String,CacheEntry> cache=new ConcurrentHashMap<>();
+  private final ExecutorService worker=Executors.newFixedThreadPool(3);
   void load(String category,Result callback){
+    CacheEntry hit=cache.get(category);
+    if(hit!=null&&System.currentTimeMillis()-hit.savedAt<CACHE_TTL_MS){
+      ui.post(()->callback.loaded(new ArrayList<>(hit.channels),null));
+      return;
+    }
     worker.execute(()->{
       List<Channel> channels=new ArrayList<>();
       String error=null;
@@ -32,7 +46,7 @@ final class ChannelCatalog {
       HttpURLConnection con=null;
       try{
         con=(HttpURLConnection)new URL(endpoint).openConnection();
-        con.setConnectTimeout(12000);con.setReadTimeout(12000);
+        con.setConnectTimeout(6000);con.setReadTimeout(8500);
         con.setRequestProperty("User-Agent","XPartyNative/0.1");
         if(con.getResponseCode()!=200)throw new Exception("Channel list HTTP "+con.getResponseCode());
         try(BufferedReader br=new BufferedReader(new InputStreamReader(con.getInputStream()))){
@@ -54,7 +68,9 @@ final class ChannelCatalog {
         }
       }catch(Exception ex){error="Unable to load live channels: "+ex.getMessage();}
       finally{if(con!=null)con.disconnect();}
-      List<Channel> response=channels;String message=error;
+      if(!channels.isEmpty())cache.put(category,new CacheEntry(channels));
+      else if(hit!=null&&!hit.channels.isEmpty())channels=new ArrayList<>(hit.channels);
+      List<Channel> response=channels;String message=channels.isEmpty()?error:null;
       ui.post(()->callback.loaded(response,message));
     });
   }
