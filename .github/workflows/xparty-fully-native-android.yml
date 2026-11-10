@@ -5,6 +5,11 @@ on:
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-fully-native-android.yml'
+  pull_request:
+    branches: [feature/xparty-native-v041-stability-landscape-20261110]
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/xparty-fully-native-android.yml'
   workflow_dispatch:
 jobs:
   android-native:
