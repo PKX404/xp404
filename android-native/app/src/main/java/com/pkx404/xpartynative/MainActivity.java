@@ -25,6 +25,8 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.JavascriptInterface;
 import android.os.SystemClock;
 import android.widget.ArrayAdapter;
@@ -744,7 +746,34 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     youtube.setBackgroundColor(Color.BLACK);
     youtube.getSettings().setJavaScriptEnabled(true);
     youtube.getSettings().setMediaPlaybackRequiresUserGesture(true);
-    youtube.setWebChromeClient(new WebChromeClient());
+    youtube.getSettings().setSupportMultipleWindows(true);
+    youtube.setWebChromeClient(new WebChromeClient(){
+      @Override public boolean onCreateWindow(WebView view,boolean isDialog,
+             boolean isUserGesture,android.os.Message resultMsg){
+        WebView popup=new WebView(MainActivity.this);
+        popup.setWebViewClient(new WebViewClient(){
+          @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest request){
+            handleSuggestedYouTube(request.getUrl().toString());
+            return true; // Don't send suggested watch links to the external app.
+          }
+          @Override public void doUpdateVisitedHistory(WebView v,String address,boolean reload){
+            handleSuggestedYouTube(address);
+          }
+        });
+        ((WebView.WebViewTransport)resultMsg.obj).setWebView(popup);
+        resultMsg.sendToTarget();
+        return true;
+      }
+    });
+    youtube.setWebViewClient(new WebViewClient(){
+      @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
+        if(!request.isForMainFrame())return false;
+        if(handleSuggestedYouTube(request.getUrl().toString()))return true;
+        String host=request.getUrl().getHost();
+        return host==null||!(host.endsWith("youtube.com")||host.equals("youtu.be")
+          ||host.equals("xparty-native-room.onrender.com"));
+      }
+    });
     youtube.addJavascriptInterface(new YoutubeBridge(),"XpartyYT");
     youtube.setOnTouchListener((v,event)->{
       if(event.getActionMasked()==MotionEvent.ACTION_DOWN)revealPlaybackControls();
@@ -1812,6 +1841,22 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           try{sendSource(new JSONObject().put("type",kind).put("url",v).put("title",kind.equals("iptv")?"Live IPTV":"Shared video"));}catch(Exception ignored){}
         }
       }).show();
+  }
+  private boolean handleSuggestedYouTube(String link){
+    if(link==null||!roomActive||!"youtube".equals(sourceType))return false;
+    String id=parseYoutubeId(link);
+    if(id==null)return false;
+    if(id.equals(youtubeId))return false;
+    runOnUiThread(()->{
+      if(!isHost){
+        toast("Ask the room host to select this recommended video.");
+        return;
+      }
+      try{sendSource(new JSONObject().put("type","youtube")
+        .put("videoId",id).put("title","Recommended YouTube video"));}
+      catch(Exception ignored){}
+    });
+    return true;
   }
   private String parseYoutubeId(String value){
     if(value.matches("[A-Za-z0-9_-]{11}"))return value;
