@@ -82,6 +82,7 @@ final class NativeCallController {
   private boolean initialized=false,micOn=false,cameraOn=false,speakerOn=true,inCall=false,cameraStarted=false;
   private boolean destroyed=false;
   private boolean pendingMicEnable=false;
+  private boolean micPreflightPassed=false, micPreflightPending=false;
   private final AudioManager audio;
   private static final int BG=0xFF141029,CARD=0xFF32234F,WHITE=0xFFF7F4FF;
   private final class Peer {
@@ -359,10 +360,48 @@ final class NativeCallController {
     report("Grant "+(Manifest.permission.CAMERA.equals(permission)?"camera":"microphone")+" permission, then tap again.");
     return false;
   }
+  private void verifyMicrophoneBeforeWebRTC(){
+    if(destroyed||micPreflightPending)return;
+    micPreflightPending=true;
+    report("Checking microphone before starting the call…");
+    android.os.ResultReceiver callback=new android.os.ResultReceiver(main){
+      @Override protected void onReceiveResult(int status,android.os.Bundle details){
+        if(!micPreflightPending||destroyed)return;
+        micPreflightPending=false;
+        if(status==MicPreflightService.READY){
+          micPreflightPassed=true;
+          report("Microphone checked; connecting audio…");
+          main.post(NativeCallController.this::toggleMic);
+        }else{
+          String reason=details==null?"unavailable":details.getString("detail","unavailable");
+          android.util.Log.e("XPartyMic","Mic probe unavailable: "+reason);
+          report("Microphone could not start safely; call remains available.");
+        }
+      }
+    };
+    try{
+      android.content.Intent probe=new android.content.Intent(activity,MicPreflightService.class);
+      probe.putExtra("xpartyMicCallback",callback);
+      activity.startService(probe);
+    }catch(Throwable error){
+      micPreflightPending=false;
+      android.util.Log.e("XPartyMic","Unable to start isolated microphone check",error);
+      report("Microphone service unavailable; call remains available.");
+      return;
+    }
+    main.postDelayed(()->{
+      if(micPreflightPending&&!destroyed){
+        micPreflightPending=false;
+        report("Microphone check timed out. Playback and chat remain active.");
+        android.util.Log.e("XPartyMic","Isolated mic probe timed out; native crash possible");
+      }
+    },9500L);
+  }
   void toggleMic(){
     if(destroyed)return;
     if(!inCall){pendingMicEnable=true;events.action("call-join");report("Joining call · microphone remains off until approved");return;}
     if(!askPermission(Manifest.permission.RECORD_AUDIO))return;
+    if(!micPreflightPassed){verifyMicrophoneBeforeWebRTC();return;}
     try{
       ensureSetup();
       if(audioTrack==null){report("Microphone unavailable on this device");return;}
@@ -442,7 +481,7 @@ final class NativeCallController {
   boolean isMicOn(){return micOn;}
   boolean isCameraOn(){return cameraOn;}
   void stop(){
-    destroyed=true;pendingMicEnable=false;
+    destroyed=true;pendingMicEnable=false;micPreflightPending=false;
     for(String id:new ArrayList<>(peers.keySet()))removePeer(id);
     if(cameraCapturer!=null){
       try{cameraCapturer.stopCapture();}catch(Exception ignored){}
