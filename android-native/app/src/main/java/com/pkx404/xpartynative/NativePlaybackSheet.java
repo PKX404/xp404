@@ -1,6 +1,8 @@
 package com.pkx404.xpartynative;
 
 import android.app.Activity;
+import android.os.Handler;
+import android.os.Looper;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
@@ -47,6 +49,14 @@ final class NativePlaybackSheet {
   private final android.content.SharedPreferences prefs;
   private final AudioManager audio;
   private Dialog dialog;
+  private View skinTarget;
+  private final Handler skinHandler=new Handler(Looper.getMainLooper());
+  private final Runnable skinUpdate=new Runnable(){
+    @Override public void run(){
+      if(skinTarget==null||dialog==null||!dialog.isShowing())return;
+      skinTarget.invalidate();skinHandler.postDelayed(this,145);
+    }
+  };
   private static final int BG=0xFF171123,CARD=0xFF252035,PURPLE=0xFF9E86CE,WHITE=0xFFF7F4FF,MUTED=0xFFB9ADCB;
   NativePlaybackSheet(Activity activity,ExoPlayer player,Actions actions){
     this.activity=activity;this.player=player;this.actions=actions;
@@ -91,7 +101,8 @@ final class NativePlaybackSheet {
     dialog=new Dialog(activity);
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
     LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
-    root.setPadding(dp(16),dp(18),dp(16),dp(19));root.setBackground(shape(BG,26));
+    root.setPadding(dp(16),dp(18),dp(16),dp(19));
+    root.setBackground(NativeImmersiveBackdrop.panelBackground());skinTarget=root;
     TextView handle=label("━━━━",15,0xFF746887,true);handle.setGravity(Gravity.CENTER);add(root,handle,6);
     add(root,label("Playback Settings",22,WHITE,true),3);
     add(root,label(name==null||name.isEmpty()?"No media selected":name,13,MUTED,false),11);
@@ -154,6 +165,8 @@ final class NativePlaybackSheet {
       window.setDimAmount(.47f);window.setGravity(Gravity.BOTTOM);
     }
     dialog.show();
+    skinHandler.removeCallbacks(skinUpdate);skinHandler.post(skinUpdate);
+    dialog.setOnDismissListener(d->{skinTarget=null;skinHandler.removeCallbacks(skinUpdate);});
     if(window!=null)window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
       Math.round(activity.getResources().getDisplayMetrics().heightPixels*.82f));
   }
@@ -210,5 +223,8 @@ final class NativePlaybackSheet {
     }
     return out;
   }
-  void dismiss(){if(dialog!=null){dialog.dismiss();dialog=null;}}
+  void dismiss(){
+    skinHandler.removeCallbacks(skinUpdate);skinTarget=null;
+    if(dialog!=null){dialog.dismiss();dialog=null;}
+  }
 }
