@@ -115,7 +115,9 @@ final class NativeCallController {
     callRoot=frame;
     frame.removeAllViews();frame.setBackgroundColor(BG);
     try{
-      ensureSetup();
+      // Do not load EGL/WebRTC on an ordinary chat mic tap. It can crash
+      // phones whose GPU driver cannot initialize while the video is playing.
+      if(!initialized)throw new IllegalStateException("Call seat pending");
       remoteRenderer=new SurfaceViewRenderer(activity);
       remoteRenderer.init(egl.getEglBaseContext(),null);
       remoteRenderer.setEnableHardwareScaler(true);
@@ -156,7 +158,8 @@ final class NativeCallController {
       frame.addView(buttons,controls);
       if(videoTrack!=null)videoTrack.addSink(localRenderer);
     }catch(Throwable e){
-      report("Video call unavailable on this device: "+e.getClass().getSimpleName());
+      report("Video call renderer unavailable: "+e.getClass().getSimpleName());
+      // UI controls remain present even when video rendering cannot start.
     }
   }
   private void ensureSetup(){
@@ -215,8 +218,9 @@ final class NativeCallController {
       if(!eligible.contains(previous)||!inCall)removePeer(previous);
     }
     if(!inCall){report("Join a call seat to use microphone or camera.");return;}
-    if(!initialized)return; // Lazily initialize after user enters call panel.
-    for(String id:eligible)ensurePeer(id);
+    // Native library loading is deferred until user grants media permission.
+    if(!initialized)return;
+    for(String id:eligible)try{ensurePeer(id);}catch(Throwable e){report("Call peer unavailable: "+e.getClass().getSimpleName());}
   }
   private void removePeer(String id){
     Peer p=peers.remove(id);
@@ -350,18 +354,25 @@ final class NativeCallController {
     return false;
   }
   void toggleMic(){
-    if(!inCall){events.action("call-join");report("Requesting a call seat…");return;}
+    if(destroyed)return;
     if(!askPermission(Manifest.permission.RECORD_AUDIO))return;
-    try{ensureSetup();}catch(Throwable e){report("Microphone unavailable");return;}
-    micOn=!micOn;
-    audioTrack.setEnabled(micOn);
-    if(micButton!=null)micButton.setText(micOn?"MIC ON":"MIC OFF");
-    events.sendMedia(micOn,cameraOn);
+    if(!inCall){events.action("call-join");report("Joining the call · tap microphone again to speak");return;}
+    try{
+      ensureSetup();
+      if(audioTrack==null){report("Microphone unavailable on this device");return;}
+      micOn=!micOn;
+      audioTrack.setEnabled(micOn);
+      if(micButton!=null)micButton.setText(micOn?"MIC ON":"MIC OFF");
+      events.sendMedia(micOn,cameraOn);
+    }catch(Throwable failure){
+      micOn=false;
+      report("Could not initialize microphone: "+failure.getClass().getSimpleName());
+    }
   }
   void toggleCamera(){
     if(!inCall){events.action("call-join");report("Requesting a call seat…");return;}
     if(!askPermission(Manifest.permission.CAMERA))return;
-    try{ensureSetup();}catch(Throwable e){report("Camera unavailable");return;}
+    try{ensureSetup();}catch(Throwable e){report("Camera unavailable: "+e.getClass().getSimpleName());return;}
     if(!cameraOn){
       if(!cameraStarted&&!startCamera())return;
       cameraOn=true;videoTrack.setEnabled(true);
