@@ -749,7 +749,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     // The balanced, edge-to-edge XParty header is fully native.
     roomHeader=new LinearLayout(this);roomHeader.setGravity(Gravity.CENTER_VERTICAL);
     roomHeader.setPadding(dp(6),0,dp(6),0);
-    roomHeader.setBackground(blend(0xFF201A23,0xFF121829,0));
+    roomHeader.setBackground(NativeImmersiveBackdrop.headerSkin());
     headerIcon(roomHeader,"exit",this::confirmLeaveRoom,1f);
     headerIcon(roomHeader,"settings",this::showRoomSettings,1f);
     headerIcon(roomHeader,"search",this::openSourceChooser,1f);
@@ -860,7 +860,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
 
     roomControls=new LinearLayout(this);roomControls.setGravity(Gravity.CENTER_VERTICAL);
     roomControls.setPadding(dp(7),0,dp(7),0);
-    roomControls.setBackground(blend(0xC6151933,0xF21E1935,0));
+    roomControls.setBackground(NativeImmersiveBackdrop.headerSkin());
     FrameLayout playSlot=new FrameLayout(this);
     playIcon=xpIcon("play",this::togglePlayback);
     pauseIcon=xpIcon("pause",this::togglePlayback);
@@ -961,7 +961,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatComposer=new LinearLayout(this);
     chatComposer.setGravity(Gravity.CENTER_VERTICAL);
     chatComposer.setPadding(dp(5),dp(6),dp(5),dp(6));
-    chatComposer.setBackgroundColor(0xFF1A1424);
+    chatComposer.setBackground(NativeImmersiveBackdrop.headerSkin());
     XPControl mic=xpIcon("mic_off",this::toggleNativeMic);
     mic.tint(0xFFEDE3FF);micIcon=mic;
     iconIn(chatComposer,mic,48,54);
@@ -1243,7 +1243,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(participants==null)return;
     android.app.Dialog sheet=new android.app.Dialog(this);
     LinearLayout body=column();
-    body.setBackground(blend(0xFF221A40,0xFF160F2D,0));
+    body.setBackground(NativeImmersiveBackdrop.sheetSkin());
     body.setPadding(dp(10),dp(20),dp(10),dp(14));
     TextView heading=text("PARTICIPANTS",14,WHITE,true);
     heading.setGravity(Gravity.CENTER);add(body,heading,8);
