@@ -217,6 +217,43 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     });
     showLobby();
     handler.postDelayed(progressTicker,700);
+    // QA-only microphone probe launched by the isolated GitHub emulator workflow.
+    if(getIntent()!=null&&getIntent().getBooleanExtra("xparty_native_mic_selftest",false)){
+      handler.postDelayed(this::runNativeMicSelfTest,800);
+    }
+  }
+  private void runNativeMicSelfTest(){
+    final String tag="XPartyMicProbe";
+    if(android.os.Build.VERSION.SDK_INT>=23
+       &&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+      android.util.Log.e(tag,"FAILED: RECORD_AUDIO permission missing");
+      return;
+    }
+    try{
+      JSONObject self=new JSONObject().put("id","xparty-mic-selftest")
+        .put("inCall",true).put("online",true);
+      JSONObject remote=new JSONObject().put("id","xparty-mic-selftest-remote")
+        .put("inCall",true).put("online",true);
+      JSONObject fake=new JSONObject().put("people",new JSONArray().put(self).put(remote));
+      if(calls!=null){calls.stop();calls=null;}
+      calls=new NativeCallController(this,new NativeCallController.Events(){
+        @Override public void signal(String peer,JSONObject signal){}
+        @Override public void sendMedia(boolean mic,boolean camera){
+          android.util.Log.i(tag,"sendMedia mic="+mic+" camera="+camera);
+        }
+        @Override public void action(String action){android.util.Log.i(tag,"action="+action);}
+        @Override public void status(String value){android.util.Log.i(tag,"status="+value);}
+      });
+      calls.attach(new FrameLayout(this));
+      calls.syncRoom(fake,"xparty-mic-selftest");
+      android.util.Log.i(tag,"STARTING: audio-only WebRTC peer and microphone");
+      calls.toggleMic();
+      handler.postDelayed(()->{
+        android.util.Log.i(tag,"ALIVE after microphone startup: "+(calls!=null&&calls.isMicOn()));
+      },5000);
+    }catch(Throwable error){
+      android.util.Log.e(tag,"FAILED: native microphone init",error);
+    }
   }
   private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
   private GradientDrawable shape(int color,int radius){
