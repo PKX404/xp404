@@ -1346,6 +1346,78 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     pop.showAtLocation(roomNativeRoot,Gravity.BOTTOM|Gravity.RIGHT,dp(right),dp(98));
     return pop;
   }
+  private void showMentionPicker(){
+    if(!roomActive||room==null){toast("Join a room to mention someone.");return;}
+    if(plusPopup!=null)plusPopup.dismiss();
+    if(emojiPopup!=null)emojiPopup.dismiss();
+    JSONArray members=room.optJSONArray("people");
+    if(members==null)return;
+    LinearLayout list=column();
+    list.setPadding(dp(9),dp(7),dp(9),dp(7));
+    TextView heading=text("MENTION · long-press for private chat",11,0xFFE8DEF9,true);
+    add(list,heading,7);
+    if(privateRecipientId!=null){
+      TextView publicChat=text("×  Back to public chat",13,WHITE,true);
+      publicChat.setPadding(dp(7),dp(8),dp(5),dp(8));
+      publicChat.setOnClickListener(v->{
+        privateRecipientId=null;privateRecipientName=null;
+        chatInput.setHint("Message");if(plusPopup!=null)plusPopup.dismiss();
+      });
+      add(list,publicChat,5);
+    }
+    int shown=0;
+    for(int i=0;i<members.length();i++){
+      JSONObject m=members.optJSONObject(i);
+      if(m==null||!m.optBoolean("online")||myId.equals(m.optString("id")))continue;
+      final String targetId=m.optString("id"),name=m.optString("name","Member");
+      TextView option=text("@" + name,13,WHITE,false);
+      option.setPadding(dp(8),dp(9),dp(8),dp(9));
+      option.setOnClickListener(v->{
+        int index=Math.max(0,chatInput.getSelectionStart());
+        chatInput.getText().insert(index,"@"+name+" ");
+        if(plusPopup!=null)plusPopup.dismiss();
+        chatInput.requestFocus();
+      });
+      option.setOnLongClickListener(v->{
+        privateRecipientId=targetId;privateRecipientName=name;
+        chatInput.setHint("Private · "+name);
+        if(plusPopup!=null)plusPopup.dismiss();
+        toast("Private chat · "+name+" · tap @ again to switch");
+        chatInput.requestFocus();return true;
+      });
+      add(list,option,2);shown++;
+    }
+    if(shown==0)add(list,text("No other online participants",12,MUTED,false),12);
+    plusPopup=popupPanel(list,260,Math.min(320,90+shown*49),7);
+  }
+  private void showVideoCallInvites(){
+    if(room==null){toast("Join a room first.");return;}
+    JSONArray members=room.optJSONArray("people");
+    if(members==null)return;
+    LinearLayout list=column();list.setPadding(dp(9),dp(8),dp(9),dp(8));
+    add(list,text("INVITE TO VIDEO CALL",12,WHITE,true),7);
+    int shown=0;
+    for(int i=0;i<members.length();i++){
+      JSONObject member=members.optJSONObject(i);
+      if(member==null||!member.optBoolean("online")||myId.equals(member.optString("id")))continue;
+      final String id=member.optString("id"),name=member.optString("name","Member");
+      TextView item=text((member.optBoolean("inCall")?"✓ ":"＋ ")+name,13,WHITE,false);
+      item.setPadding(dp(8),dp(10),dp(6),dp(10));
+      item.setOnClickListener(v->{
+        if(!isHost){toast("Only the host can invite someone; tap Video call to request a seat.");}
+        else if(member.optBoolean("inCall")){toast(name+" is already in the call.");}
+        else{
+          try{socket.send(new JSONObject().put("type","offer-mic").put("target",id));
+            toast("Call invitation sent to "+name);
+          }catch(Exception e){toast("Could not send call invitation.");}
+        }
+        if(plusPopup!=null)plusPopup.dismiss();
+      });
+      add(list,item,3);shown++;
+    }
+    if(shown==0)add(list,text("No other online participants",12,MUTED,false),10);
+    plusPopup=popupPanel(list,258,Math.min(312,86+shown*50),8);
+  }
   private void showEmojiMenu(){
     if(emojiPopup!=null&&emojiPopup.isShowing()){emojiPopup.dismiss();return;}
     if(plusPopup!=null)plusPopup.dismiss();
@@ -1397,9 +1469,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(emojiPopup!=null)emojiPopup.dismiss();
     LinearLayout list=column();
     list.setPadding(dp(6),dp(6),dp(6),dp(6));
-    String[] options={"Attachment","Gallery","Camera","Extra"};
-    String[] symbols={"file","gallery","camera","plus"};
-    for(int i=0;i<4;i++){
+    String[] options={"Attachment","Gallery","Camera","Extra","Quick YouTube browse"};
+    String[] symbols={"file","gallery","camera","plus","playsearch"};
+    for(int i=0;i<options.length;i++){
       final int action=i;
       LinearLayout line=new LinearLayout(this);
       line.setGravity(Gravity.CENTER_VERTICAL);
@@ -1411,7 +1483,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       line.setOnClickListener(v->launchAttachment(action));
       list.addView(line,new LinearLayout.LayoutParams(-1,dp(48)));
     }
-    plusPopup=popupPanel(list,178,209,7);
+    plusPopup=popupPanel(list,215,264,7);
   }
   private void launchAttachment(int action){
     if(plusPopup!=null)plusPopup.dismiss();
@@ -1424,6 +1496,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           startActivityForResult(intent,REQUEST_CHAT_CAMERA);
         else toast("Camera is unavailable.");
       }catch(Exception error){toast("Could not open camera");}
+    }else if(action==4){
+      if(sourceSheet!=null)sourceSheet.openYouTubeBrowse(token);
     }else{
       new AlertDialog.Builder(this).setTitle("Share more")
         .setItems(new String[]{"Video","Image","Document"},(dialog,n)->
