@@ -1068,10 +1068,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     return calls;
   }
   private void toggleNativeMic(){
-    NativeCallController c=ensureCalls();
-    if(c==null){toast("Unable to open native video call.");return;}
-    if(showChat)showRoomTab(false); // Expose actual call buttons and status.
-    c.toggleMic();
+    // Opening the mic must not construct an EGL/video renderer before permission.
+    try{
+      NativeCallController c=ensureCalls();
+      if(c==null){toast("Unable to open native video call.");return;}
+      if(showChat)showRoomTab(false);
+      c.toggleMic();
+    }catch(Throwable error){
+      android.util.Log.e("XPartyMic","Microphone action failed",error);
+      toast("Microphone could not start on this device.");
+    }
   }
   private void showRoomTab(boolean chat){
     showChat=chat;
@@ -1821,6 +1827,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       playerLabel.setText("LOCAL DEVICE VIDEO");
       videoState.setText("Local playback; sharing/upload is still being migrated.");
       toast("Playing locally. Other room members cannot access this file yet.");
+    }
+  }
+  @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
+    super.onRequestPermissionsResult(request,permissions,grants);
+    if(request==2201||request==2202){
+      boolean allowed=grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED;
+      if(calls!=null)calls.onPermissionResult(request,allowed);
+      if(!allowed)toast(request==2201?"Microphone permission was denied":"Camera permission was denied");
     }
   }
   @Override public void onBackPressed(){
