@@ -1597,6 +1597,33 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       toast(error);
     }
   };
+  private void showReceivedMediaPreview(String path,String mime,String attachmentId,String attachmentName){
+    if(isFinishing())return;
+    LinearLayout body=column();body.setPadding(dp(8),dp(7),dp(8),dp(8));
+    body.setBackground(NativeImmersiveBackdrop.sheetSkin());
+    if(mime.startsWith("image/")){
+      android.widget.ImageView image=new android.widget.ImageView(this);
+      image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+      android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();
+      options.inSampleSize=3;
+      image.setImageBitmap(android.graphics.BitmapFactory.decodeFile(path,options));
+      body.addView(image,new LinearLayout.LayoutParams(-1,dp(390)));
+    }else{
+      android.widget.VideoView video=new android.widget.VideoView(this);
+      video.setVideoPath(path);
+      body.addView(video,new LinearLayout.LayoutParams(-1,dp(350)));
+      video.setOnPreparedListener(media->{media.setLooping(false);video.start();});
+    }
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle(attachmentName)
+      .setView(body).setNegativeButton("Close",null)
+      .setPositiveButton("Save",(d,which)->
+        attachments.download(attachmentId,attachmentName,token,attachmentListener))
+      .create();
+    dialog.setOnDismissListener(unused->{
+      try{new java.io.File(path).delete();}catch(Exception ignored){}
+    });
+    dialog.show();
+  }
   private void renderMessage(JSONObject data){
     if(data==null||chatItems==null)return;
     final String id=data.optString("id","");
@@ -1641,7 +1668,18 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         String attachmentId=attachment.optString("id");
         String attachmentName=attachment.optString("name","Attachment");
         bubble.setOnClickListener(v->{
-          if(attachments!=null)attachments.download(attachmentId,attachmentName,token,attachmentListener);
+          if(attachments==null)return;
+          String lower=attachmentName.toLowerCase(Locale.ROOT);
+          if(lower.matches(".*\\.(jpe?g|png|gif|webp|mp4|webm|m4v|mov)$")){
+            setAttachmentStatus("Opening "+attachmentName+"…");
+            attachments.preview(attachmentId,attachmentName,token,new NativeAttachments.PreviewListener(){
+              @Override public void ready(String path,String mime){
+                setAttachmentStatus("");
+                showReceivedMediaPreview(path,mime,attachmentId,attachmentName);
+              }
+              @Override public void error(String reason){setAttachmentStatus("");toast(reason);}
+            });
+          }else attachments.download(attachmentId,attachmentName,token,attachmentListener);
         });
       }
       if(!self){
