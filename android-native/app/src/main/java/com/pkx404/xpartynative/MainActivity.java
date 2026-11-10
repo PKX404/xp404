@@ -217,6 +217,43 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     });
     showLobby();
     handler.postDelayed(progressTicker,700);
+    // QA-only microphone probe launched by the isolated GitHub emulator workflow.
+    if(getIntent()!=null&&getIntent().getBooleanExtra("xparty_native_mic_selftest",false)){
+      handler.postDelayed(this::runNativeMicSelfTest,800);
+    }
+  }
+  private void runNativeMicSelfTest(){
+    final String tag="XPartyMicProbe";
+    if(android.os.Build.VERSION.SDK_INT>=23
+       &&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+      android.util.Log.e(tag,"FAILED: RECORD_AUDIO permission missing");
+      return;
+    }
+    try{
+      JSONObject self=new JSONObject().put("id","xparty-mic-selftest")
+        .put("inCall",true).put("online",true);
+      JSONObject remote=new JSONObject().put("id","xparty-mic-selftest-remote")
+        .put("inCall",true).put("online",true);
+      JSONObject fake=new JSONObject().put("people",new JSONArray().put(self).put(remote));
+      if(calls!=null){calls.stop();calls=null;}
+      calls=new NativeCallController(this,new NativeCallController.Events(){
+        @Override public void signal(String peer,JSONObject signal){}
+        @Override public void sendMedia(boolean mic,boolean camera){
+          android.util.Log.i(tag,"sendMedia mic="+mic+" camera="+camera);
+        }
+        @Override public void action(String action){android.util.Log.i(tag,"action="+action);}
+        @Override public void status(String value){android.util.Log.i(tag,"status="+value);}
+      });
+      calls.attach(new FrameLayout(this));
+      calls.syncRoom(fake,"xparty-mic-selftest");
+      android.util.Log.i(tag,"STARTING: audio-only WebRTC peer and microphone");
+      calls.toggleMic();
+      handler.postDelayed(()->{
+        android.util.Log.i(tag,"ALIVE after microphone startup: "+(calls!=null&&calls.isMicOn()));
+      },5000);
+    }catch(Throwable error){
+      android.util.Log.e(tag,"FAILED: native microphone init",error);
+    }
   }
   private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
   private GradientDrawable shape(int color,int radius){
@@ -1068,10 +1105,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     return calls;
   }
   private void toggleNativeMic(){
-    NativeCallController c=ensureCalls();
-    if(c==null){toast("Unable to open native video call.");return;}
-    if(showChat)showRoomTab(false); // Expose actual call buttons and status.
-    c.toggleMic();
+    // Opening the mic must not construct an EGL/video renderer before permission.
+    try{
+      NativeCallController c=ensureCalls();
+      if(c==null){toast("Unable to open native video call.");return;}
+      if(showChat)showRoomTab(false);
+      c.toggleMic();
+    }catch(Throwable error){
+      android.util.Log.e("XPartyMic","Microphone action failed",error);
+      toast("Microphone could not start on this device.");
+    }
   }
   private void showRoomTab(boolean chat){
     showChat=chat;
@@ -1821,6 +1864,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       playerLabel.setText("LOCAL DEVICE VIDEO");
       videoState.setText("Local playback; sharing/upload is still being migrated.");
       toast("Playing locally. Other room members cannot access this file yet.");
+    }
+  }
+  @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
+    super.onRequestPermissionsResult(request,permissions,grants);
+    if(request==2201||request==2202){
+      boolean allowed=grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED;
+      if(calls!=null)calls.onPermissionResult(request,allowed);
+      if(!allowed)toast(request==2201?"Microphone permission was denied":"Camera permission was denied");
     }
   }
   @Override public void onBackPressed(){

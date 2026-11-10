@@ -25,11 +25,12 @@ import org.webrtc.Camera2Enumerator;
 import org.webrtc.CameraEnumerator;
 import org.webrtc.CameraVideoCapturer;
 import org.webrtc.DataChannel;
-import org.webrtc.DefaultVideoDecoderFactory;
-import org.webrtc.DefaultVideoEncoderFactory;
+import org.webrtc.SoftwareVideoDecoderFactory;
+import org.webrtc.SoftwareVideoEncoderFactory;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
 import org.webrtc.MediaConstraints;
+import org.webrtc.audio.JavaAudioDeviceModule;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
@@ -81,6 +82,7 @@ final class NativeCallController {
   private JSONObject latestRoom;
   private boolean initialized=false,micOn=false,cameraOn=false,speakerOn=true,inCall=false,cameraStarted=false;
   private boolean destroyed=false;
+  private boolean pendingMicEnable=false;
   private final AudioManager audio;
   private static final int BG=0xFF141029,CARD=0xFF32234F,WHITE=0xFFF7F4FF;
   private final class Peer {
@@ -138,8 +140,9 @@ final class NativeCallController {
     // No JNI/EGL/peer initialization here: ordinary mic and tab taps stay safe.
   }
   private void prepareVideoRenderers(){
-    if(callRoot==null||localRenderer!=null||egl==null)return;
+    if(callRoot==null||localRenderer!=null)return;
     try{
+      if(egl==null)egl=EglBase.create();
       remoteRenderer=new SurfaceViewRenderer(activity);
       remoteRenderer.init(egl.getEglBaseContext(),null);
       remoteRenderer.setEnableHardwareScaler(true);remoteRenderer.setMirror(false);
@@ -160,21 +163,45 @@ final class NativeCallController {
     if(initialized||destroyed)return;
     PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(activity)
       .setEnableInternalTracer(false).createInitializationOptions());
-    egl=EglBase.create();
+    // Audio-first: avoid loading GPU/EGL hardware codecs when the user taps Mic.
+    // The video renderer is initialized lazily only when Camera is requested.
     PeerConnectionFactory.Options options=new PeerConnectionFactory.Options();
-    factory=PeerConnectionFactory.builder()
-      .setOptions(options)
-      .setVideoEncoderFactory(new DefaultVideoEncoderFactory(egl.getEglBaseContext(),true,true))
-      .setVideoDecoderFactory(new DefaultVideoDecoderFactory(egl.getEglBaseContext()))
-      .createPeerConnectionFactory();
-    // Media tracks stay off until the user explicitly activates microphone/camera.
+    // Use an explicit Android ADM rather than relying on an implicit default.
+    // Hardware AEC/NS can be device-dependent and cause recorder initialization errors.
+    JavaAudioDeviceModule adm=JavaAudioDeviceModule.builder(activity.getApplicationContext())
+      .setUseHardwareAcousticEchoCanceler(false)
+      .setUseHardwareNoiseSuppressor(false)
+      .createAudioDeviceModule();
+    try{
+      factory=PeerConnectionFactory.builder()
+        .setOptions(options)
+        .setAudioDeviceModule(adm)
+        .setVideoEncoderFactory(new SoftwareVideoEncoderFactory())
+        .setVideoDecoderFactory(new SoftwareVideoDecoderFactory())
+        .createPeerConnectionFactory();
+    }finally{
+      adm.release();
+    }
+    if(factory==null)throw new IllegalStateException("WebRTC audio factory unavailable");
+    // Audio only on microphone activation. Video JNI is deferred until CAMERA ON.
     audioSource=factory.createAudioSource(new MediaConstraints());
     audioTrack=factory.createAudioTrack("xparty-native-audio",audioSource);
     audioTrack.setEnabled(false);
+    initialized=true;
+  }
+  private void ensureVideoTrack(){
+    if(videoTrack!=null)return;
+    if(factory==null)throw new IllegalStateException("Call factory unavailable");
     videoSource=factory.createVideoSource(false);
     videoTrack=factory.createVideoTrack("xparty-native-video",videoSource);
     videoTrack.setEnabled(false);
-    initialized=true;
+    // A peer connected before camera activation must negotiate a new video track.
+    for(Peer peer:new ArrayList<>(peers.values())){
+      try{
+        peer.connection.addTrack(videoTrack,Collections.singletonList("xparty"));
+        if(peer.initiator)offer(peer);
+      }catch(Throwable e){report("Camera negotiation unavailable: "+e.getClass().getSimpleName());}
+    }
   }
   void configureIce(JSONArray servers){
     if(servers==null)return;
@@ -211,7 +238,15 @@ final class NativeCallController {
     for(String previous:new ArrayList<>(peers.keySet())){
       if(!eligible.contains(previous)||!inCall)removePeer(previous);
     }
-    if(!inCall){report("Join a call seat to use microphone or camera.");return;}
+    if(!inCall){
+      if(micOn){micOn=false;if(audioTrack!=null)audioTrack.setEnabled(false);events.sendMedia(false,cameraOn);}
+      if(!pendingMicEnable)report("Join a call seat to use microphone or camera.");
+      return;
+    }
+    if(pendingMicEnable){
+      pendingMicEnable=false;
+      main.post(()->{if(!destroyed&&inCall&&!micOn)toggleMic();});
+    }
     // Native library loading is deferred until user grants media permission.
     if(!initialized)return;
     for(String id:eligible)try{ensurePeer(id);}catch(Throwable e){report("Call peer unavailable: "+e.getClass().getSimpleName());}
@@ -263,8 +298,8 @@ final class NativeCallController {
     if(connection==null){report("Unable to establish peer connection");return;}
     Peer p=new Peer(id,connection,initiator);
     peers.put(id,p);
-    connection.addTrack(audioTrack,Collections.singletonList("xparty"));
-    connection.addTrack(videoTrack,Collections.singletonList("xparty"));
+    if(audioTrack!=null)connection.addTrack(audioTrack,Collections.singletonList("xparty"));
+    if(videoTrack!=null)connection.addTrack(videoTrack,Collections.singletonList("xparty"));
     if(initiator)offer(p);
   }
   private void attachRemote(String id,VideoTrack track){
@@ -308,7 +343,8 @@ final class NativeCallController {
   }
   void signal(String from,JSONObject message){
     if(destroyed||from==null||message==null)return;
-    try{ensureSetup();}catch(Exception e){report("WebRTC initialization failed");return;}
+    if(!inCall||!initialized)return; // Do not load native libraries from unsolicited signaling.
+    try{ensureSetup();}catch(Throwable e){report("WebRTC initialization failed");return;}
     if(!peers.containsKey(from))ensurePeer(from);
     Peer p=peers.get(from);
     if(p==null)return;
@@ -349,8 +385,8 @@ final class NativeCallController {
   }
   void toggleMic(){
     if(destroyed)return;
+    if(!inCall){pendingMicEnable=true;events.action("call-join");report("Joining call · microphone remains off until approved");return;}
     if(!askPermission(Manifest.permission.RECORD_AUDIO))return;
-    if(!inCall){events.action("call-join");report("Joining the call · tap microphone again to speak");return;}
     try{
       ensureSetup();
       if(audioTrack==null){report("Microphone unavailable on this device");return;}
@@ -364,10 +400,15 @@ final class NativeCallController {
       report("Could not initialize microphone: "+failure.getClass().getSimpleName());
     }
   }
+  void onPermissionResult(int code,boolean granted){
+    if(destroyed||!granted||!inCall)return;
+    if(code==2201&&!micOn)main.post(this::toggleMic);
+    if(code==2202&&!cameraOn)main.post(this::toggleCamera);
+  }
   void toggleCamera(){
     if(!inCall){events.action("call-join");report("Requesting a call seat…");return;}
     if(!askPermission(Manifest.permission.CAMERA))return;
-    try{ensureSetup();}catch(Throwable e){report("Camera unavailable: "+e.getClass().getSimpleName());return;}
+    try{ensureSetup();ensureVideoTrack();}catch(Throwable e){report("Camera unavailable: "+e.getClass().getSimpleName());return;}
     if(!cameraOn){
       prepareVideoRenderers();
       if(!cameraStarted&&!startCamera())return;
@@ -412,6 +453,7 @@ final class NativeCallController {
   }
   void leaveSeat(){
     if(!inCall){report("Not currently in a call");return;}
+    pendingMicEnable=false;
     micOn=false;cameraOn=false;
     if(audioTrack!=null)audioTrack.setEnabled(false);
     if(videoTrack!=null)videoTrack.setEnabled(false);
@@ -424,7 +466,7 @@ final class NativeCallController {
   boolean isMicOn(){return micOn;}
   boolean isCameraOn(){return cameraOn;}
   void stop(){
-    destroyed=true;
+    destroyed=true;pendingMicEnable=false;
     for(String id:new ArrayList<>(peers.keySet()))removePeer(id);
     if(cameraCapturer!=null){
       try{cameraCapturer.stopCapture();}catch(Exception ignored){}
