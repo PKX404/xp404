@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -63,7 +64,11 @@ final class NativeSourceSheet {
   private Dialog dialog;
   private WebView browseWeb;
   private final java.util.ArrayList<WebView> popupBrowsers=new java.util.ArrayList<>();
-  private LinearLayout body,providerView;
+  private LinearLayout body,providerView,sheetRoot;
+  private ScrollView sheetScroll;
+  private TextView modeTitle;
+  private float touchX,touchY;
+  private static final String[] CATEGORIES={"All","Saved","Movies","Entertainment","News","Sports","Kids","Music","Radio"};
   private EditText channelSearch,youtubeSearch;
   private String roomToken="",currentTab="all",category="All",typedSearch="",youtubeQuery="";
   private final List<ChannelCatalog.Channel> channels=new ArrayList<>();
@@ -108,6 +113,29 @@ final class NativeSourceSheet {
     parent.addView(child,lp);
   }
   private String title(String text){return text==null?"":text;}
+  private void mode(String name){if(modeTitle!=null)modeTitle.setText(name);}
+  private void toggleSource(){
+    if("iptv".equals(currentTab))showYouTubeBrowse();
+    else if("youtube".equals(currentTab)||"youtube-browse".equals(currentTab))showIPTV(true);
+  }
+  private boolean horizontalSwitch(MotionEvent e){
+    if(e.getActionMasked()==MotionEvent.ACTION_DOWN){touchX=e.getX();touchY=e.getY();return false;}
+    if(e.getActionMasked()!=MotionEvent.ACTION_UP)return false;
+    float dx=e.getX()-touchX,dy=e.getY()-touchY;
+    if(Math.abs(dx)>dp(105)&&Math.abs(dx)>1.6f*Math.abs(dy)
+       &&("iptv".equals(currentTab)||"youtube-browse".equals(currentTab))){
+      toggleSource();return true;
+    }
+    return false;
+  }
+  private void swipeCategory(int direction){
+    int i=java.util.Arrays.asList(CATEGORIES).indexOf(category);
+    int j=Math.max(0,Math.min(CATEGORIES.length-1,i+direction));
+    if(j==i)return;
+    category=CATEGORIES[j];
+    prefs.edit().putString("last_iptv_category",category).apply();
+    shownChannels=28;showIPTV(true);
+  }
   private int tileColumns(){
     switch(tileMode){
       case "grid3":return 3;
@@ -168,53 +196,50 @@ final class NativeSourceSheet {
     String initial=playing==null||playing.isEmpty()?recent:playing;
     dialog=new Dialog(activity);
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-    LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
-    root.setBackground(NativeImmersiveBackdrop.sheetSkin());
-    root.setPadding(dp(12),dp(15),dp(12),dp(12));
-    // Drag handle visually connects this dialog to the v31.6 source sheet.
-    TextView handle=label("━━━━",15,0xFF6E677F,true);handle.setGravity(Gravity.CENTER);add(root,handle,5);
+    sheetRoot=new LinearLayout(activity);sheetRoot.setOrientation(LinearLayout.VERTICAL);
+    LinearLayout root=sheetRoot;
+    root.setBackground(rounded(0xFF12121D,19));
+    root.setPadding(dp(7),dp(5),dp(7),dp(6));
+    TextView handle=label("━",12,0xFF696477,true);
+    handle.setGravity(Gravity.CENTER);
+    root.addView(handle,new LinearLayout.LayoutParams(-1,dp(10)));
     LinearLayout tabs=new LinearLayout(activity);tabs.setGravity(Gravity.CENTER_VERTICAL);
-    TextView quick=chip("Quick Search",false,()->showQuick());
-    TextView all=chip("All sources",true,()->showProviders());
-    TextView savedChip=chip("Saved",false,()->showSaved());
-    tabs.addView(quick,new LinearLayout.LayoutParams(0,dp(48),1));
-    LinearLayout.LayoutParams middle=new LinearLayout.LayoutParams(0,dp(48),1);middle.leftMargin=dp(6);
-    tabs.addView(all,middle);
-    LinearLayout.LayoutParams right=new LinearLayout.LayoutParams(0,dp(48),1);right.leftMargin=dp(6);
-    tabs.addView(savedChip,right);
-    TextView tiling=chip("▦",false,this::selectTileLayout);
-    tiling.setContentDescription("Choose source tile layout");
-    LinearLayout.LayoutParams tilingLp=new LinearLayout.LayoutParams(dp(43),dp(47));
-    tilingLp.leftMargin=dp(5);tabs.addView(tiling,tilingLp);
-    XPControl close=new XPControl(activity,"exit");close.setOnClickListener(v->dismiss());
-    LinearLayout.LayoutParams closeLp=new LinearLayout.LayoutParams(dp(43),dp(47));
-    tabs.addView(close,closeLp);add(root,tabs,8);
-    TextView returnButton=chip("Back to room",false,this::dismiss);
-    LinearLayout home=new LinearLayout(activity);home.setGravity(Gravity.RIGHT);
-    home.addView(returnButton,new LinearLayout.LayoutParams(-2,dp(43)));add(root,home,7);
-
-    ScrollView scroller=new ScrollView(activity);scroller.setFillViewport(true);
-    scroller.setVerticalScrollBarEnabled(false);
+    modeTitle=label("Sources",13,WHITE,true);
+    modeTitle.setGravity(Gravity.CENTER_VERTICAL);
+    modeTitle.setOnClickListener(v->toggleSource());
+    tabs.addView(modeTitle,new LinearLayout.LayoutParams(0,dp(42),1));
+    TextView all=chip("◈",false,this::showProviders);all.setContentDescription("All sources");
+    tabs.addView(all,new LinearLayout.LayoutParams(dp(42),dp(40)));
+    TextView savedChip=chip("♡",false,this::showSaved);savedChip.setContentDescription("Saved sources");
+    LinearLayout.LayoutParams savedLp=new LinearLayout.LayoutParams(dp(42),dp(40));
+    savedLp.leftMargin=dp(4);tabs.addView(savedChip,savedLp);
+    XPControl close=new XPControl(activity,"exit");close.setContentDescription("Back to room");
+    close.setOnClickListener(v->dismiss());
+    tabs.addView(close,new LinearLayout.LayoutParams(dp(42),dp(42)));
+    add(root,tabs,2);
+    sheetScroll=new ScrollView(activity);sheetScroll.setFillViewport(true);
+    sheetScroll.setVerticalScrollBarEnabled(false);
+    sheetScroll.setOnTouchListener((v,e)->horizontalSwitch(e));
     body=new LinearLayout(activity);body.setOrientation(LinearLayout.VERTICAL);
-    body.setPadding(dp(7),dp(10),dp(7),dp(6));
-    scroller.addView(body);
-    root.addView(scroller,new LinearLayout.LayoutParams(-1,0,1));
+    body.setPadding(dp(2),dp(4),dp(2),dp(3));
+    sheetScroll.addView(body);
+    root.addView(sheetScroll,new LinearLayout.LayoutParams(-1,0,1));
     dialog.setContentView(root);
     Window w=dialog.getWindow();
     if(w!=null){
       w.setBackgroundDrawableResource(android.R.color.transparent);
       w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-      w.setDimAmount(.47f);
+      w.setDimAmount(.23f);
       w.setGravity(Gravity.BOTTOM);
     }
     dialog.show();
     if(w!=null){
       w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
-         Math.round(activity.getResources().getDisplayMetrics().heightPixels*.83f));
+         Math.round(activity.getResources().getDisplayMetrics().heightPixels*.91f));
     }
     if("iptv".equals(initial))showIPTV(false);
-    else if("quick".equals(initial))showQuick();
-    else if("youtube".equals(initial))showYoutube(false);
+    else if("quick".equals(initial))showYouTubeBrowse();
+    else if("youtube".equals(initial)||"youtube-browse".equals(initial))showYouTubeBrowse();
     else showProviders();
   }
   boolean showing(){return dialog!=null&&dialog.isShowing();}
@@ -235,11 +260,17 @@ final class NativeSourceSheet {
     popupBrowsers.clear();
   }
   private void clear(){
+    if(sheetRoot!=null&&browseWeb!=null){
+      sheetRoot.removeView(browseWeb);
+      if(sheetScroll!=null&&sheetScroll.getParent()==null)
+        sheetRoot.addView(sheetScroll,new LinearLayout.LayoutParams(-1,0,1));
+    }
     if(body!=null){body.removeAllViews();channelSearch=null;youtubeSearch=null;}
+    providerView=null;
     clearBrowser();
   }
   private void showProviders(){
-    currentTab="all";clear();
+    currentTab="all";clear();mode("All sources");
     String[] labels={"Live IPTV","YouTube","YouTube Browse","Netflix","Prime Video","Twitch",
       "SoundCloud","Vimeo","Google Drive","Video link","Your files"};
     int[] logos={R.drawable.xp_brand_tv,R.drawable.xp_brand_youtube,
@@ -293,20 +324,9 @@ final class NativeSourceSheet {
         }catch(Exception error){actions.notice("No app can open "+name+" on this device.");}
       }).show();
   }
-  private void showQuick(){
-    clear();currentTab="quick";
-    EditText search=input("Search Live IPTV or YouTube");add(body,search,15);
-    add(body,label("SEARCH",12,PURPLE,true),9);
-    TextView tv=chip("Search live channels",false,()->{
-      typedSearch=search.getText().toString().trim();showIPTV(false);
-    });add(body,tv,9);
-    TextView yt=chip("Search YouTube videos",false,()->{
-      youtubeQuery=search.getText().toString().trim();showYoutube(false);
-    });add(body,yt,13);
-    add(body,label("Your current source remains selected until you choose a different video.",12,MUTED,false),9);
-  }
+  private void showQuick(){showYouTubeBrowse();}
   private void showSaved(){
-    clear();currentTab="saved";
+    clear();currentTab="saved";mode("Saved sources");
     add(body,label("Saved channels and videos",17,WHITE,true),15);
     JSONArray items=saved();
     if(items.length()==0){add(body,label("Tap ♡ on a channel or YouTube result to save it here.",13,MUTED,false),14);return;}
@@ -321,14 +341,12 @@ final class NativeSourceSheet {
     }
   }
   private void showIPTV(boolean keepSearch){
-    currentTab="iptv";clear();
-    add(body,label("LIVE IPTV   ·   FIND YOUR CHANNEL",13,PURPLE,true),7);
+    currentTab="iptv";clear();mode("Live TV  ·  swipe ↔ YouTube");
     HorizontalScrollView carousel=new HorizontalScrollView(activity);
     carousel.setHorizontalScrollBarEnabled(false);
     LinearLayout chips=new LinearLayout(activity);
     chips.setOrientation(LinearLayout.HORIZONTAL);
-    String[] cats={"All","Saved","Movies","Entertainment","News","Sports","Kids","Music","Radio"};
-    for(String cat:cats){
+    for(String cat:CATEGORIES){
       TextView item=chip(cat,cat.equals(category),()->{
         category=cat;prefs.edit().putString("last_iptv_category",cat).apply();
         shownChannels=28;showIPTV(true);
@@ -336,12 +354,23 @@ final class NativeSourceSheet {
       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,dp(43));lp.rightMargin=dp(7);
       chips.addView(item,lp);
     }
-    carousel.addView(chips);add(body,carousel,14);
+    carousel.addView(chips);
+    final float[] categoryStart={0,0};
+    carousel.setOnTouchListener((view,e)->{
+      if(e.getActionMasked()==MotionEvent.ACTION_DOWN){
+        categoryStart[0]=e.getX();categoryStart[1]=e.getY();
+      }else if(e.getActionMasked()==MotionEvent.ACTION_UP){
+        float dx=e.getX()-categoryStart[0],dy=e.getY()-categoryStart[1];
+        if(Math.abs(dx)>dp(75)&&Math.abs(dx)>Math.abs(dy)*1.4f){
+          swipeCategory(dx<0?1:-1);return true;
+        }
+      }
+      return false;
+    });
+    add(body,carousel,6);
     channelSearch=input("Channel name or category");
     channelSearch.setText(typedSearch);
-    add(body,channelSearch,11);
-    add(body,label("Channel selected? Connecting? Tap another channel to retry.",11,MUTED,false),11);
-    add(body,label("● Responding     ● Unverified / restricted     ● Unavailable",10,0xFFBFB6CD,false),14);
+    add(body,channelSearch,7);
     providerView=new LinearLayout(activity);providerView.setOrientation(LinearLayout.VERTICAL);
     add(body,providerView,7);
     channelSearch.addTextChangedListener(new TextWatcher(){
@@ -415,7 +444,7 @@ final class NativeSourceSheet {
     if(rows.isEmpty())add(providerView,label("No matching channels. Try another category or search.",13,MUTED,false),10);
   }
   private void showYoutube(boolean browse){
-    clear();currentTab="youtube";
+    clear();currentTab="youtube";mode("YouTube search  ·  swipe ↔ Live TV");
     LinearLayout searchRow=new LinearLayout(activity);searchRow.setGravity(Gravity.CENTER_VERTICAL);
     youtubeSearch=input("Search YouTube videos");
     youtubeSearch.setText(youtubeQuery);
@@ -566,11 +595,7 @@ final class NativeSourceSheet {
     // to XParty's existing room signaling, with no video extraction or ad bypass.
     if(dialog==null)return;
     clear();currentTab="youtube-browse";
-    add(body,label("YOUTUBE BROWSE",16,WHITE,true),9);
-    TextView hint=label("Choose a public video. XParty will play the selected link for your room.",12,MUTED,false);
-    add(body,hint,7);
-    TextView search=chip("Search inside XParty instead",false,()->showYoutube(false));
-    add(body,search,7);
+    mode("YouTube  ·  swipe ↔ Live TV");
     WebView web=new WebView(activity);
     browseWeb=web;
     web.setBackgroundColor(Color.BLACK);
@@ -580,15 +605,9 @@ final class NativeSourceSheet {
     // not intercepted by the containing bottom-sheet ScrollView.
     web.setOnTouchListener((view,event)->{
       android.view.ViewParent parent=view.getParent();
-      if(parent!=null){
-        if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN||
-           event.getActionMasked()==android.view.MotionEvent.ACTION_MOVE)
-          parent.requestDisallowInterceptTouchEvent(true);
-        if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||
-           event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL)
-          parent.requestDisallowInterceptTouchEvent(false);
-      }
-      return false;
+      if(parent!=null)parent.requestDisallowInterceptTouchEvent(
+        event.getActionMasked()!=MotionEvent.ACTION_UP&&event.getActionMasked()!=MotionEvent.ACTION_CANCEL);
+      return horizontalSwitch(event);
     });
     web.getSettings().setJavaScriptEnabled(true);
     web.getSettings().setDomStorageEnabled(true);
@@ -624,9 +643,11 @@ final class NativeSourceSheet {
         if(showing()&&"youtube-browse".equals(currentTab))select(url);
       }
     });
-    int height=Math.round(activity.getResources().getDisplayMetrics().heightPixels*.57f);
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,Math.max(dp(330),height));
-    body.addView(web,lp);
+    // Full-height browsing, without the old search tabs or large empty wrapper.
+    if(sheetRoot!=null&&sheetScroll!=null){
+      sheetRoot.removeView(sheetScroll);
+      sheetRoot.addView(web,new LinearLayout.LayoutParams(-1,0,1));
+    }
     web.loadUrl("https://m.youtube.com/");
   }
 }
