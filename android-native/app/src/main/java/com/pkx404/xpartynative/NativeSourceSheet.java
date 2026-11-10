@@ -60,6 +60,14 @@ final class NativeSourceSheet {
   private final OkHttpClient http=new OkHttpClient();
   private final String backend;
   private Dialog dialog;
+  private View skinTarget;
+  private final Runnable skinUpdate=new Runnable(){
+    @Override public void run(){
+      if(skinTarget==null||dialog==null||!dialog.isShowing())return;
+      skinTarget.invalidate();
+      ui.postDelayed(this,145);
+    }
+  };
   private LinearLayout body,providerView;
   private EditText channelSearch,youtubeSearch;
   private String roomToken="",currentTab="all",category="All",typedSearch="",youtubeQuery="";
@@ -139,7 +147,8 @@ final class NativeSourceSheet {
     dialog=new Dialog(activity);
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
     LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
-    root.setBackground(rounded(BG,27));
+    root.setBackground(NativeImmersiveBackdrop.panelBackground());
+    skinTarget=root;
     root.setPadding(dp(12),dp(15),dp(12),dp(12));
     // Drag handle visually connects this dialog to the v31.6 source sheet.
     TextView handle=label("━━━━",15,0xFF6E677F,true);handle.setGravity(Gravity.CENTER);add(root,handle,5);
@@ -176,6 +185,8 @@ final class NativeSourceSheet {
       w.setGravity(Gravity.BOTTOM);
     }
     dialog.show();
+    ui.removeCallbacks(skinUpdate);ui.post(skinUpdate);
+    dialog.setOnDismissListener(d->{skinTarget=null;ui.removeCallbacks(skinUpdate);});
     if(w!=null){
       w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
          Math.round(activity.getResources().getDisplayMetrics().heightPixels*.83f));
@@ -186,7 +197,11 @@ final class NativeSourceSheet {
     else showProviders();
   }
   boolean showing(){return dialog!=null&&dialog.isShowing();}
-  void dismiss(){if(dialog!=null){dialog.dismiss();dialog=null;}ui.removeCallbacksAndMessages(null);}
+  void dismiss(){
+    ui.removeCallbacks(skinUpdate);skinTarget=null;
+    if(dialog!=null){dialog.dismiss();dialog=null;}
+    ui.removeCallbacksAndMessages(null);
+  }
   private void clear(){
     if(body!=null){body.removeAllViews();channelSearch=null;youtubeSearch=null;}
   }
