@@ -67,6 +67,7 @@ final class NativeSourceSheet {
   private LinearLayout body,providerView,sheetRoot;
   private ScrollView sheetScroll;
   private TextView modeTitle;
+  private boolean specialSearch=false;
   private float touchX,touchY;
   private static final String[] CATEGORIES={"All","Saved","Movies","Entertainment","News","Sports","Kids","Music","Radio"};
   private EditText channelSearch,youtubeSearch;
@@ -192,30 +193,49 @@ final class NativeSourceSheet {
   }
   void open(String playing,String token,String name){
     roomToken=token==null?"":token;
+    // Only the '+' menu's special search receives the minimal browser shell.
+    specialSearch="special".equals(playing);
+    modeTitle=null;
     String recent=prefs.getString("last_source","");
     String initial=playing==null||playing.isEmpty()?recent:playing;
     dialog=new Dialog(activity);
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
     sheetRoot=new LinearLayout(activity);sheetRoot.setOrientation(LinearLayout.VERTICAL);
     LinearLayout root=sheetRoot;
-    root.setBackground(rounded(0xFF12121D,19));
-    root.setPadding(dp(7),dp(5),dp(7),dp(6));
-    TextView handle=label("━",12,0xFF696477,true);
+    root.setBackground(specialSearch?rounded(0xFF101017,18):NativeImmersiveBackdrop.sheetSkin());
+    root.setPadding(dp(specialSearch?5:9),dp(5),dp(specialSearch?5:9),dp(6));
+    TextView handle=label("━",12,0xFF6E677F,true);
     handle.setGravity(Gravity.CENTER);
     root.addView(handle,new LinearLayout.LayoutParams(-1,dp(10)));
     LinearLayout tabs=new LinearLayout(activity);tabs.setGravity(Gravity.CENTER_VERTICAL);
-    modeTitle=label("Sources",13,WHITE,true);
-    modeTitle.setGravity(Gravity.CENTER_VERTICAL);
-    modeTitle.setOnClickListener(v->toggleSource());
-    tabs.addView(modeTitle,new LinearLayout.LayoutParams(0,dp(42),1));
-    TextView all=chip("◈",false,this::showProviders);all.setContentDescription("All sources");
-    tabs.addView(all,new LinearLayout.LayoutParams(dp(42),dp(40)));
-    TextView savedChip=chip("♡",false,this::showSaved);savedChip.setContentDescription("Saved sources");
-    LinearLayout.LayoutParams savedLp=new LinearLayout.LayoutParams(dp(42),dp(40));
-    savedLp.leftMargin=dp(4);tabs.addView(savedChip,savedLp);
-    XPControl close=new XPControl(activity,"exit");close.setContentDescription("Back to room");
+    if(specialSearch){
+      // Minimal overlay: no All/Saved tabs, headings or back-to-room row.
+      modeTitle=label("YouTube  ⇄  Live TV",13,WHITE,true);
+      modeTitle.setGravity(Gravity.CENTER_VERTICAL);
+      modeTitle.setPadding(dp(8),0,0,0);
+      modeTitle.setOnClickListener(v->toggleSource());
+      tabs.addView(modeTitle,new LinearLayout.LayoutParams(0,dp(36),1));
+    }else{
+      TextView quick=chip("Quick Search",false,this::showQuick);
+      TextView all=chip("All sources",false,this::showProviders);
+      TextView savedChip=chip("Saved",false,this::showSaved);
+      for(TextView c:new TextView[]{quick,all,savedChip}){
+        c.setSingleLine(true);c.setTextSize(11);c.setPadding(dp(4),0,dp(4),0);
+      }
+      tabs.addView(quick,new LinearLayout.LayoutParams(0,dp(42),1));
+      LinearLayout.LayoutParams allLp=new LinearLayout.LayoutParams(0,dp(42),1);
+      allLp.leftMargin=dp(4);tabs.addView(all,allLp);
+      LinearLayout.LayoutParams savedLp=new LinearLayout.LayoutParams(0,dp(42),1);
+      savedLp.leftMargin=dp(4);tabs.addView(savedChip,savedLp);
+      TextView tiling=chip("▦",false,this::selectTileLayout);
+      tiling.setContentDescription("Change source tile layout");
+      LinearLayout.LayoutParams tileLp=new LinearLayout.LayoutParams(dp(34),dp(42));
+      tileLp.leftMargin=dp(3);tabs.addView(tiling,tileLp);
+    }
+    XPControl close=new XPControl(activity,"exit");
+    close.setContentDescription("Close source browser");
     close.setOnClickListener(v->dismiss());
-    tabs.addView(close,new LinearLayout.LayoutParams(dp(42),dp(42)));
+    tabs.addView(close,new LinearLayout.LayoutParams(dp(39),dp(40)));
     add(root,tabs,2);
     sheetScroll=new ScrollView(activity);sheetScroll.setFillViewport(true);
     sheetScroll.setVerticalScrollBarEnabled(false);
@@ -229,17 +249,19 @@ final class NativeSourceSheet {
     if(w!=null){
       w.setBackgroundDrawableResource(android.R.color.transparent);
       w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-      w.setDimAmount(.23f);
+      w.setDimAmount(specialSearch?.20f:.33f);
       w.setGravity(Gravity.BOTTOM);
     }
     dialog.show();
     if(w!=null){
       w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
-         Math.round(activity.getResources().getDisplayMetrics().heightPixels*.91f));
+         Math.round(activity.getResources().getDisplayMetrics().heightPixels*(specialSearch?.74f:.81f)));
     }
-    if("iptv".equals(initial))showIPTV(false);
-    else if("quick".equals(initial))showYouTubeBrowse();
-    else if("youtube".equals(initial)||"youtube-browse".equals(initial))showYouTubeBrowse();
+    if(specialSearch)showYouTubeBrowse();
+    else if("iptv".equals(initial))showIPTV(false);
+    else if("quick".equals(initial))showQuick();
+    else if("youtube".equals(initial))showYoutube(false);
+    else if("youtube-browse".equals(initial))showYouTubeBrowse();
     else showProviders();
   }
   boolean showing(){return dialog!=null&&dialog.isShowing();}
@@ -324,24 +346,40 @@ final class NativeSourceSheet {
         }catch(Exception error){actions.notice("No app can open "+name+" on this device.");}
       }).show();
   }
-  private void showQuick(){showYouTubeBrowse();}
+  private void showQuick(){
+    clear();currentTab="quick";mode("Quick search");
+    EditText search=input("Search YouTube videos or live channels");
+    add(body,search,8);
+    TextView tv=chip("Live TV",false,()->{
+      typedSearch=search.getText().toString().trim();showIPTV(false);
+    });
+    TextView yt=chip("YouTube videos",false,()->{
+      youtubeQuery=search.getText().toString().trim();showYoutube(false);
+    });
+    LinearLayout options=new LinearLayout(activity);
+    LinearLayout.LayoutParams left=new LinearLayout.LayoutParams(0,dp(43),1);
+    LinearLayout.LayoutParams right=new LinearLayout.LayoutParams(0,dp(43),1);
+    right.leftMargin=dp(7);
+    options.addView(tv,left);options.addView(yt,right);
+    add(body,options,6);
+  }
   private void showSaved(){
     clear();currentTab="saved";mode("Saved sources");
-    add(body,label("Saved channels and videos",17,WHITE,true),15);
     JSONArray items=saved();
-    if(items.length()==0){add(body,label("Tap ♡ on a channel or YouTube result to save it here.",13,MUTED,false),14);return;}
+    if(items.length()==0){add(body,label("No saved videos or channels yet",13,MUTED,false),8);return;}
     for(int i=0;i<items.length();i++){
       final JSONObject item=items.optJSONObject(i);if(item==null)continue;
       LinearLayout row=new LinearLayout(activity);row.setGravity(Gravity.CENTER_VERTICAL);
       TextView title=label(item.optString("title",item.optString("type","Video")),13,WHITE,true);
       title.setPadding(dp(10),dp(12),dp(9),dp(12));title.setMaxLines(2);
       row.addView(title,new LinearLayout.LayoutParams(0,-2,1));title.setOnClickListener(v->choose(item));
-      TextView remove=chip("♥",true,()->toggleFavorite(item));row.addView(remove,new LinearLayout.LayoutParams(dp(53),dp(43)));
+      TextView remove=chip("♥",true,()->toggleFavorite(item));remove.setTextColor(0xFFFF3B51);
+      row.addView(remove,new LinearLayout.LayoutParams(dp(53),dp(43)));
       add(body,row,8);
     }
   }
   private void showIPTV(boolean keepSearch){
-    currentTab="iptv";clear();mode("Live TV  ·  swipe ↔ YouTube");
+    currentTab="iptv";clear();mode("Live TV  ⇄  YouTube");
     HorizontalScrollView carousel=new HorizontalScrollView(activity);
     carousel.setHorizontalScrollBarEnabled(false);
     LinearLayout chips=new LinearLayout(activity);
@@ -427,9 +465,11 @@ final class NativeSourceSheet {
       title.setMaxLines(3);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
       title.setPadding(dp(7),0,dp(2),0);
       card.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-      TextView save=label(favorite(src.optString("url"))?"♥":"♡",21,WHITE,false);
+      String key=src.optString("url");
+      TextView save=label(favorite(key)?"♥":"♡",21,favorite(key)?0xFFFF3B51:WHITE,false);
       save.setGravity(Gravity.CENTER);
-      save.setOnClickListener(v->{toggleFavorite(src);showIPTV(true);});
+      save.setOnClickListener(v->{toggleFavorite(src);boolean yes=favorite(key);
+        save.setText(yes?"♥":"♡");save.setTextColor(yes?0xFFFF3B51:WHITE);});
       card.addView(save,new LinearLayout.LayoutParams(dp(25),dp(45)));
       card.setOnClickListener(v->choose(src));
       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(100),1);
@@ -552,9 +592,10 @@ final class NativeSourceSheet {
       info.setMaxLines(1);card.addView(info,new LinearLayout.LayoutParams(-1,dp(20)));
       JSONObject src=new JSONObject();
       try{src.put("type","youtube").put("videoId",id).put("title",item.optString("title","YouTube video"));}catch(Exception ignored){}
-      TextView heart=label(favorite(id)?"♥ Save":"♡ Save",12,WHITE,false);
+      TextView heart=label(favorite(id)?"♥ Save":"♡ Save",12,favorite(id)?0xFFFF3B51:WHITE,false);
       heart.setGravity(Gravity.RIGHT);heart.setPadding(0,dp(4),dp(6),dp(3));
-      heart.setOnClickListener(v->{toggleFavorite(src);});
+      heart.setOnClickListener(v->{toggleFavorite(src);boolean yes=favorite(id);
+        heart.setText(yes?"♥ Save":"♡ Save");heart.setTextColor(yes?0xFFFF3B51:WHITE);});
       card.addView(heart);
       card.setOnClickListener(v->choose(src));
       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);
@@ -595,7 +636,7 @@ final class NativeSourceSheet {
     // to XParty's existing room signaling, with no video extraction or ad bypass.
     if(dialog==null)return;
     clear();currentTab="youtube-browse";
-    mode("YouTube  ·  swipe ↔ Live TV");
+    mode("YouTube  ⇄  Live TV");
     WebView web=new WebView(activity);
     browseWeb=web;
     web.setBackgroundColor(Color.BLACK);
