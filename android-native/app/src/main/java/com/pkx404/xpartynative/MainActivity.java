@@ -939,7 +939,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     nativeChannelLogo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
     nativeChannelLogo.setPadding(dp(4),dp(5),dp(4),dp(5));
     // White logos require a neutral translucent canvas over any immersive color.
-    nativeChannelLogo.setBackground(shape(0xD6EDF0F6,12));
+    nativeChannelLogo.setBackground(shape(0xDD787E8C,12));
     nativeChannelLogo.setVisibility(View.GONE);
     artworkSlot.addView(nativeChannelLogo,new FrameLayout.LayoutParams(-1,-1));
     watching.addView(artworkSlot,new LinearLayout.LayoutParams(dp(48),dp(52)));
