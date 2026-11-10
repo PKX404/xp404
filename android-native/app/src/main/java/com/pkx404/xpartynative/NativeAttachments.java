@@ -45,6 +45,9 @@ final class NativeAttachments {
   private void status(Listener listener,String value){ui.post(()->listener.status(value));}
   private void error(Listener listener,String value){ui.post(()->listener.error(value));}
   void upload(Uri uri,String token,Listener listener){
+    upload(uri,token,null,listener);
+  }
+  void upload(Uri uri,String token,String recipient,Listener listener){
     worker.execute(()->{
       try{
         String name=fileName(uri);
@@ -53,28 +56,33 @@ final class NativeAttachments {
           if(in==null)throw new Exception("Selected file cannot be opened");
           bytes=readBounded(in);
         }
-        uploadData(name,bytes,token,listener);
+        uploadData(name,bytes,token,recipient,listener);
       }catch(Exception e){error(listener,"Attachment: "+e.getMessage());}
     });
   }
   void uploadCamera(Bitmap bitmap,String token,Listener listener){
+    uploadCamera(bitmap,token,null,listener);
+  }
+  void uploadCamera(Bitmap bitmap,String token,String recipient,Listener listener){
     if(bitmap==null){error(listener,"Camera did not return a picture");return;}
     worker.execute(()->{
       try{
         ByteArrayOutputStream out=new ByteArrayOutputStream();
         bitmap.compress(Bitmap.CompressFormat.JPEG,86,out);
-        uploadData("XParty-camera-"+System.currentTimeMillis()+".jpg",out.toByteArray(),token,listener);
+        uploadData("XParty-camera-"+System.currentTimeMillis()+".jpg",out.toByteArray(),token,recipient,listener);
       }catch(Exception e){error(listener,"Camera: "+e.getMessage());}
     });
   }
-  private void uploadData(String name,byte[] bytes,String token,Listener listener)throws Exception{
+  private void uploadData(String name,byte[] bytes,String token,String recipient,Listener listener)throws Exception{
     if(bytes.length<1||bytes.length>MAX)throw new Exception("Select an attachment under 20 MB");
     if(token==null||token.isEmpty())throw new Exception("Room connection is offline");
     status(listener,"Uploading "+name+"…");
     String encoded=URLEncoder.encode(name,"UTF-8").replace("+","%20");
-    Request req=new Request.Builder().url(backend+"/api/attachment")
+    Request.Builder request=new Request.Builder().url(backend+"/api/attachment")
       .header("Authorization","Bearer "+token)
-      .header("X-Attachment-Name",encoded)
+      .header("X-Attachment-Name",encoded);
+    if(recipient!=null&&!recipient.isEmpty())request.header("X-Attachment-To",recipient);
+    Request req=request
       .post(RequestBody.create(MediaType.parse("application/octet-stream"),bytes)).build();
     try(Response response=http.newCall(req).execute()){
       String body=response.body()==null?"{}":response.body().string();
