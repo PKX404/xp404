@@ -1,8 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
  <uses-permission android:name="android.permission.INTERNET"/>
  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+ <uses-permission android:name="android.permission.CAMERA"/>
  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
  <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+ <uses-feature android:name="android.hardware.camera" android:required="false"/>
  <application android:label="XParty Native Preview" android:usesCleartextTraffic="false" android:allowBackup="false" android:theme="@android:style/Theme.Material.NoActionBar">
    <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize" android:configChanges="keyboardHidden|orientation|screenSize">
       <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
