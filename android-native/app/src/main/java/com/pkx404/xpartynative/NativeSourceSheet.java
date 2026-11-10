@@ -66,6 +66,7 @@ final class NativeSourceSheet {
   private final List<ChannelCatalog.Channel> channels=new ArrayList<>();
   private final List<JSONObject> ytItems=new ArrayList<>();
   private int categoryRequest=0,youtubeRequest=0,shownChannels=28,shownYouTube=20,selectedTabIndex=1;
+  private String nextYouTubePage="";
   private String loadedCategory="";
   private Runnable youtubeDebounce;
 
@@ -379,44 +380,57 @@ final class NativeSourceSheet {
     }else loadYoutube(youtubeQuery);
   }
   private void loadYoutube(String query){
+    nextYouTubePage="";shownYouTube=20;
+    fetchYouTubePage(query,"",false);
+  }
+  private void fetchYouTubePage(String query,String pageToken,boolean append){
     int generation=++youtubeRequest;
     if(providerView==null||!"youtube".equals(currentTab))return;
-    providerView.removeAllViews();
+    if(!append)providerView.removeAllViews();
     if(query.trim().length()<2){
       add(providerView,label("Enter at least two characters.",12,MUTED,false),12);return;
     }
-    add(providerView,label("Searching YouTube…",13,MUTED,false),12);
     if(roomToken.isEmpty()){
       providerView.removeAllViews();
-      add(providerView,label("Reconnect the room before searching.",13,MUTED,false),12);return;
+      add(providerView,label("Reconnect your room to search videos.",13,MUTED,false),12);return;
     }
-    Request req=new Request.Builder().url(backend+"/api/search?q="+urlEncode(query))
+    if(!append)add(providerView,label("Searching YouTube…",13,MUTED,false),12);
+    String endpoint=backend+"/api/search?q="+urlEncode(query);
+    if(pageToken!=null&&!pageToken.isEmpty())endpoint+="&pageToken="+urlEncode(pageToken);
+    Request req=new Request.Builder().url(endpoint)
       .header("Authorization","Bearer "+roomToken).build();
     http.newCall(req).enqueue(new Callback(){
-      @Override public void onFailure(Call c,IOException error){ui.post(()->{
-        if(generation==youtubeRequest&&showing()&&"youtube".equals(currentTab)){
-          providerView.removeAllViews();
-          add(providerView,label("YouTube search unavailable. You can still paste a link or use Browse.",13,MUTED,false),12);
-        }
+      @Override public void onFailure(Call call,IOException error){ui.post(()->{
+        if(generation!=youtubeRequest||!showing()||!"youtube".equals(currentTab))return;
+        if(!append)providerView.removeAllViews();
+        add(providerView,label("YouTube search unavailable. Try again or use Browse.",13,MUTED,false),12);
       });}
-      @Override public void onResponse(Call c,Response response)throws IOException{
+      @Override public void onResponse(Call call,Response response)throws IOException{
         String result;
         try(Response used=response){result=used.body()==null?"{}":used.body().string();}
-        try {
-          JSONObject json=new JSONObject(result);
-          JSONArray items=json.optJSONArray("items");
-          List<JSONObject> list=new ArrayList<>();
-          if(items!=null)for(int i=0;i<items.length()&&i<50;i++){
-            JSONObject v=items.optJSONObject(i);
-            if(v!=null)list.add(v);
+        try{
+          JSONObject data=new JSONObject(result);
+          if(!response.isSuccessful())throw new IOException(data.optString("error","YouTube unavailable"));
+          JSONArray results=data.optJSONArray("items");
+          List<JSONObject> parsed=new ArrayList<>();
+          if(results!=null)for(int i=0;i<results.length()&&i<50;i++){
+            JSONObject video=results.optJSONObject(i);
+            if(video!=null)parsed.add(video);
           }
+          String next=data.optString("nextPageToken","");
           ui.post(()->{
             if(generation!=youtubeRequest||!showing()||!"youtube".equals(currentTab))return;
-            providerView.removeAllViews();
-            ytItems.clear();ytItems.addAll(list);shownYouTube=20;
+            if(!append){ytItems.clear();shownYouTube=20;}
+            for(JSONObject video:parsed){
+              boolean seen=false;String id=video.optString("id");
+              for(JSONObject prior:ytItems)if(id.equals(prior.optString("id"))){seen=true;break;}
+              if(!seen&&ytItems.size()<250)ytItems.add(video);
+            }
+            nextYouTubePage=next;
+            if(append)shownYouTube=Math.min(ytItems.size(),shownYouTube+20);
             renderYoutubeResults();
           });
-        }catch(Exception ignored){onFailure(c,new IOException("Bad search result"));}
+        }catch(Exception error){onFailure(call,new IOException("YouTube search error"));}
       }
     });
   }
@@ -460,6 +474,11 @@ final class NativeSourceSheet {
         shownYouTube+=20;renderYoutubeResults();
       });
       add(providerView,more,10);
+    }
+    else if(!nextYouTubePage.isEmpty()&&ytItems.size()<250){
+      String page=nextYouTubePage;
+      add(providerView,chip("Load next YouTube results",false,()->
+        fetchYouTubePage(youtubeQuery,page,true)),10);
     }
   }
   private static String urlEncode(String text){
