@@ -143,7 +143,7 @@ public final class MainActivity extends Activity {
     LinearLayout box=vertical();box.setPadding(dp(22),dp(26),dp(22),dp(18));
     ScrollView scroller=new ScrollView(this);scroller.setFillViewport(true);scroller.addView(box);
     background.addView(scroller,new FrameLayout.LayoutParams(-1,-1));
-    add(box,appTitle(),dp(24));
+    add(box,appTitle(),24);
     TextView subtitle=text("WATCH · CHAT · TOGETHER",14,ACCENT,true);subtitle.setGravity(Gravity.CENTER);add(box,subtitle,36);
     TextView hero=text("Your room. Your screen. Together.",25,TEXT,true);add(box,hero,15);
     TextView support=text("Native Android preview · room connection and synchronized playback",14,MUTED,false);add(box,support,28);
@@ -248,6 +248,8 @@ public final class MainActivity extends Activity {
   }
   private boolean host(){return room!=null&&myId.equals(room.optString("hostId"));}
   private void showRoom(){
+    // A resumed room may recreate the activity. Do not reuse a source ID with a new decoder.
+    clearPlayback();currentSourceId="";currentType="";youtubeId="";
     buildBackground();
     content=vertical();background.addView(content,new FrameLayout.LayoutParams(-1,-1));
     header=horizontal();header.setPadding(dp(8),dp(8),dp(8),dp(8));header.setBackgroundColor(0xee161321);
