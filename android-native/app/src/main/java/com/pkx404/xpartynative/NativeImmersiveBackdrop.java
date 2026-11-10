@@ -116,7 +116,7 @@ final class NativeImmersiveBackdrop {
   private void onFrame(int result){
     if(result!=PixelCopy.SUCCESS||!running||!enabled){busy=false;return;}
     int[] pixels=new int[W*H];input.getPixels(pixels,0,W,0,0,W,H);
-    worker.execute(()->{
+    try{worker.execute(()->{
       try{
         Bitmap blur=gradeAndBlur(pixels);
         ui.post(()->{
@@ -130,7 +130,7 @@ final class NativeImmersiveBackdrop {
           busy=false;
         });
       }catch(Throwable error){busy=false;}
-    });
+    });}catch(java.util.concurrent.RejectedExecutionException stopped){busy=false;}
   }
   private Bitmap gradeAndBlur(int[] pixels){
     final int N=W*H;
