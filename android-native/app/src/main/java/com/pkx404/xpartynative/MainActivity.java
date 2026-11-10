@@ -192,7 +192,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public void onRenderedFirstFrame(){
         renderedVideo=true;
         runOnUiThread(()->{
-          if(videoState!=null&&!"youtube".equals(sourceType))videoState.setText("Picture ready");
+          if(videoState!=null&&!"youtube".equals(sourceType)&&source!=null)
+            videoState.setText(source.optString("title","Video"));
           if(immersive!=null)immersive.refresh();
         });
       }
@@ -211,7 +212,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           videoState.setText("Loading picture…");
         }else if(state==Player.STATE_READY){
           sendReady("Ready");
-          if(renderedVideo)videoState.setText("Picture ready");
+          if(renderedVideo&&source!=null)videoState.setText(source.optString("title","Video"));
           // Match original XParty: newly chosen IPTV starts for the host once ready.
           if("iptv".equals(sourceType)&&isHost&&playback!=null
              &&!playback.optBoolean("playing")&&!nativeRecoveryUsed){
@@ -441,14 +442,62 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       "Your XParty "+(tab==1?"friends":"direct messages")+" will appear here when signed-in accounts are enabled.");
   }
   private void showHomeSettings(){
-    String[] options={"Change display name","Sources","Information"};
+    String[] options={"Change display name","Sources","Crash diagnostics","Information"};
     new AlertDialog.Builder(this).setTitle("XParty settings")
       .setItems(options,(d,i)->{
         if(i==0)showProfileHome();
         if(i==1)openHomeSourceSheet("all");
-        if(i==2)new AlertDialog.Builder(this).setTitle("XParty")
+        if(i==2)showLastCrashDetails();
+        if(i==3)new AlertDialog.Builder(this).setTitle("XParty")
           .setMessage("Android-native watch-party app. Room synchronization runs through the XParty Native backend.")
           .setPositiveButton("Close",null).show();
+      }).show();
+  }
+  private void showLastCrashDetails(){
+    if(android.os.Build.VERSION.SDK_INT<30){
+      toast("Android crash history is unavailable on this device.");return;
+    }
+    String report="XParty Native diagnostics\\n";
+    try{
+      android.app.ActivityManager manager=
+        (android.app.ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
+      java.util.List<android.app.ApplicationExitInfo> exits=
+        manager.getHistoricalProcessExitReasons(getPackageName(),0,10);
+      boolean found=false;
+      for(android.app.ApplicationExitInfo info:exits){
+        if(info.getReason()!=android.app.ApplicationExitInfo.REASON_CRASH_NATIVE
+           &&info.getReason()!=android.app.ApplicationExitInfo.REASON_CRASH
+           &&info.getReason()!=android.app.ApplicationExitInfo.REASON_ANR)continue;
+        found=true;
+        report+="Time: "+new java.util.Date(info.getTimestamp())+
+          "\\nProcess: "+info.getProcessName()+
+          "\\nReason: "+info.getReason()+
+          "\\nSignal/status: "+info.getStatus()+
+          "\\nDescription: "+info.getDescription()+"\\n";
+        // Android 12+ may expose a binary crash tombstone for the owning app.
+        // Never send crash data automatically; sharing remains the user's choice.
+        try(java.io.InputStream stream=info.getTraceInputStream()){
+          if(stream!=null){
+            byte[] snippet=new byte[8192];int n=stream.read(snippet);
+            if(n>0)report+="Crash trace (base64): "+
+              android.util.Base64.encodeToString(
+                java.util.Arrays.copyOf(snippet,n),android.util.Base64.NO_WRAP)+"\\n";
+          }
+        }catch(Exception ignored){}
+        break;
+      }
+      if(!found)report+="No Android crash record was found for this app.";
+    }catch(Exception failure){
+      report+="Unable to read device crash history: "+failure.getClass().getSimpleName();
+    }
+    final String details=report;
+    new AlertDialog.Builder(this).setTitle("XParty · Last crash")
+      .setMessage(details.length()>650?"Crash record is available. Tap Copy report to share it for debugging.":details)
+      .setNegativeButton("Close",null)
+      .setPositiveButton("Copy report",(d,w)->{
+        ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE))
+          .setPrimaryClip(ClipData.newPlainText("XParty crash report",details));
+        toast("Crash report copied. Paste it into ChatGPT.");
       }).show();
   }
   private void openHomeSourceSheet(String type){
@@ -1247,7 +1296,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if(roomPane!=null)roomPane.setVisibility(View.VISIBLE);
       if(roomFooter!=null)roomFooter.setVisibility(isLandscapeLayout?View.GONE:View.VISIBLE);
       if(chatComposer!=null)chatComposer.setVisibility(showChat?View.VISIBLE:View.GONE);
-      if(attachmentStatus!=null&&attachmentStatus.length()>0)attachmentStatus.setVisibility(View.VISIBLE);
+      if(attachmentStatus!=null&&attachmentStatus.getText().length()>0)attachmentStatus.setVisibility(View.VISIBLE);
       ViewGroup.LayoutParams stage=roomStage.getLayoutParams();
       if(stage instanceof LinearLayout.LayoutParams){
         LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)stage;
