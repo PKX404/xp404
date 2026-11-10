@@ -10,6 +10,9 @@
     <application android:icon="@drawable/xparty_xp_user_logo" android:allowBackup="false" android:usesCleartextTraffic="false"
        android:label="XParty" android:theme="@style/XPartyTheme"
        android:hardwareAccelerated="true">
+       <!-- Native mic probe crashes are isolated from the main room process. -->
+       <service android:name=".MicPreflightService" android:exported="false"
+          android:process=":micprobe" />
        <activity android:name=".MainActivity" android:exported="true"
           android:windowSoftInputMode="adjustResize" android:configChanges="orientation|screenSize|keyboardHidden">
           <intent-filter>
