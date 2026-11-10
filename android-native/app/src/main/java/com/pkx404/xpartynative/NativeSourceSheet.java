@@ -202,7 +202,7 @@ final class NativeSourceSheet {
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
     sheetRoot=new LinearLayout(activity);sheetRoot.setOrientation(LinearLayout.VERTICAL);
     LinearLayout root=sheetRoot;
-    root.setBackground(specialSearch?rounded(0xFF101017,18):NativeImmersiveBackdrop.sheetSkin());
+    root.setBackground(NativeImmersiveBackdrop.sheetSkin());
     root.setPadding(dp(specialSearch?5:9),dp(5),dp(specialSearch?5:9),dp(6));
     TextView handle=label("━",12,0xFF6E677F,true);
     handle.setGravity(Gravity.CENTER);
