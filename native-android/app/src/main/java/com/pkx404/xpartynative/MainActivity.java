@@ -83,7 +83,11 @@ public final class MainActivity extends Activity {
   private long lastFrame=0,lastSyncRequest=0,lastPingAt=0;
   private double serverOffsetMs=0;
   private String connectionRequest="create",joinCode="";
-  private FrameLayout background,stage;
+  private FrameLayout background,stage,callVideoPanel;
+  private NativeCallManager nativeCall;
+  private JSONArray rtcIceServers=new JSONArray();
+  private TextView micIcon,cameraIcon,callSeatIcon;
+  private String lastCallMessage="";
   private ImageView ambient;
   private LinearLayout content,chatRows,composer,header;
   private ScrollView chatScroll;
@@ -139,6 +143,7 @@ public final class MainActivity extends Activity {
     TextView v=text("  xparty  ",27,TEXT,true);v.setGravity(Gravity.CENTER);v.setLetterSpacing(-.07f);return v;
   }
   private void showLobby(){
+    stopNativeCall();
     clearPlayback();room=null;myId="";currentSourceId="";buildBackground();
     LinearLayout box=vertical();box.setPadding(dp(22),dp(26),dp(22),dp(18));
     ScrollView scroller=new ScrollView(this);scroller.setFillViewport(true);scroller.addView(box);
@@ -213,6 +218,7 @@ public final class MainActivity extends Activity {
       switch(kind){
         case "welcome":{
           myId=m.optString("id");token=m.optString("token");room=m.optJSONObject("room");
+          rtcIceServers=m.optJSONArray("iceServers")==null?new JSONArray():m.optJSONArray("iceServers");
           roomCode=room.optString("code");
           getPreferences(0).edit().putString("token",token).putString("room",roomCode).apply();
           retries=0;
@@ -233,6 +239,12 @@ public final class MainActivity extends Activity {
           }}break;
         }
         case "chat":chatHistory.put(m);if(chatRows!=null)renderChat();break;
+        case "signal":if(nativeCall!=null)nativeCall.onSignal(m.optString("from"),m.optJSONObject("signal"));break;
+        case "moderation":case "owner-moderation":
+          if(nativeCall!=null&&"mute".equals(m.optString("action")))nativeCall.setMic(false);
+          if(nativeCall!=null&&"camera-off".equals(m.optString("action")))nativeCall.setCamera(false);
+          statusMessage("Host updated call permissions");break;
+        case "call-seat-status":statusMessage("Call seat: "+m.optString("status"));break;
         case "pong":{long sent=m.optLong("sent",0);long at=m.optLong("serverTime",0);
           if(sent>0&&at>0)serverOffsetMs=((sent+System.currentTimeMillis())/2.0)-at;break;}
         case "resume-failed":token="";getPreferences(0).edit().remove("token").apply();statusMessage("Room expired. Create or join again.");showLobby();break;
@@ -249,7 +261,7 @@ public final class MainActivity extends Activity {
   private boolean host(){return room!=null&&myId.equals(room.optString("hostId"));}
   private void showRoom(){
     // A resumed room may recreate the activity. Do not reuse a source ID with a new decoder.
-    clearPlayback();currentSourceId="";currentType="";youtubeId="";
+    stopNativeCall();clearPlayback();currentSourceId="";currentType="";youtubeId="";
     buildBackground();
     content=vertical();background.addView(content,new FrameLayout.LayoutParams(-1,-1));
     header=horizontal();header.setPadding(dp(8),dp(8),dp(8),dp(8));header.setBackgroundColor(0xee161321);
@@ -292,12 +304,26 @@ public final class MainActivity extends Activity {
     controls.addView(button("▣",()->showSourceSheet()),new LinearLayout.LayoutParams(dp(52),dp(44)));
     content.addView(controls,new LinearLayout.LayoutParams(-1,dp(60)));
     roomInfo=text("  Live room · "+roomCode+"     Video call     Chat",13,MUTED,true);
-    content.addView(roomInfo,new LinearLayout.LayoutParams(-1,dp(45)));
+    content.addView(roomInfo,new LinearLayout.LayoutParams(-1,dp(32)));
+    LinearLayout callStrip=horizontal();callStrip.setBackgroundColor(0xe6191428);
+    callVideoPanel=new FrameLayout(this);callVideoPanel.setBackgroundColor(0xff181526);
+    callStrip.addView(callVideoPanel,new LinearLayout.LayoutParams(0,dp(91),1));
+    micIcon=button("♩ Mic",()->microphone());callStrip.addView(micIcon,new LinearLayout.LayoutParams(dp(75),dp(75)));
+    cameraIcon=button("▣ Cam",()->camera());callStrip.addView(cameraIcon,new LinearLayout.LayoutParams(dp(75),dp(75)));
+    callSeatIcon=button("☎",()->toggleCallSeat());callStrip.addView(callSeatIcon,new LinearLayout.LayoutParams(dp(53),dp(75)));
+    content.addView(callStrip,new LinearLayout.LayoutParams(-1,dp(95)));
+    try{
+      nativeCall=new NativeCallManager(this,callVideoPanel,new NativeCallManager.Events(){
+        @Override public void sendSignal(String to,JSONObject signal){send("signal",obj("to",to,"signal",signal));}
+        @Override public void sendMedia(boolean mic,boolean camera){send("media",obj("mic",mic,"camera",camera));updateCallIcons();}
+        @Override public void showStatus(String message){lastCallMessage=message;if(roomInfo!=null)roomInfo.setText("  Room "+roomCode+"   •   "+message);}
+      });
+    }catch(Throwable error){nativeCall=null;lastCallMessage="Calling unavailable on this device";}
     chatScroll=new ScrollView(this);chatScroll.setFillViewport(true);chatRows=vertical();
     chatRows.setPadding(dp(12),dp(12),dp(12),dp(10));chatScroll.addView(chatRows);
     content.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1));
     composer=horizontal();composer.setPadding(dp(4),dp(5),dp(4),dp(5));composer.setBackgroundColor(0xee21182b);
-    composer.addView(button("🎙",()->microphone()),new LinearLayout.LayoutParams(dp(53),dp(50)));
+    composer.addView(button("＋",()->showSourceSheet()),new LinearLayout.LayoutParams(dp(53),dp(50)));
     chatField=new EditText(this);chatField.setSingleLine(false);chatField.setMaxLines(3);
     chatField.setTextSize(15);chatField.setTextColor(TEXT);chatField.setHintTextColor(MUTED);
     chatField.setHint("Message");chatField.setBackground(shape(PANEL,0,15));chatField.setPadding(dp(8),dp(6),dp(8),dp(6));
@@ -311,6 +337,7 @@ public final class MainActivity extends Activity {
       boolean keyboard=hidden>dp(155);header.setVisibility(keyboard?View.GONE:View.VISIBLE);
     });
     ui.postDelayed(this::syncLoop,1800);
+    updateCallIcons();
   }
   private void leaveRoom(){
     send("leave",null);generation++;if(socket!=null){socket.close(1000,"Leave");socket=null;}
@@ -329,6 +356,8 @@ public final class MainActivity extends Activity {
     }
     JSONObject skip=room.optJSONObject("skipVoting");
     skipButton.setVisibility(skip!=null&&skip.optBoolean("enabled")?View.VISIBLE:View.GONE);
+    if(nativeCall!=null)nativeCall.updateRoom(myId,room,rtcIceServers);
+    updateCallIcons();
     renderChat();
   }
   private void clearSource(){
@@ -462,15 +491,51 @@ public final class MainActivity extends Activity {
     if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));
   }
   private void microphone(){
-    if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+    if(nativeCall==null){toast("Calling unavailable on this device");return;}
+    if(!nativeCall.canStartMedia()){toast("Join a call seat first");return;}
+    if(room!=null){JSONArray people=room.optJSONArray("people");if(people!=null)for(int i=0;i<people.length();i++){
+      JSONObject p=people.optJSONObject(i);if(p!=null&&myId.equals(p.optString("id"))&&p.optBoolean("micBlocked")){toast("The host has disabled your microphone");return;}
+    }}
+    if(!nativeCall.isMicOn()&&checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
       requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},101);return;
     }
-    toast("Mic permission ready; native voice calling is not yet connected");
+    nativeCall.setMic(!nativeCall.isMicOn());updateCallIcons();
   }
+  private void camera(){
+    if(nativeCall==null){toast("Calling unavailable on this device");return;}
+    if(!nativeCall.canStartMedia()){toast("Join a call seat first");return;}
+    if(!nativeCall.isCameraOn()&&checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){
+      requestPermissions(new String[]{Manifest.permission.CAMERA},102);return;
+    }
+    if(room!=null&&!host()){
+      JSONArray people=room.optJSONArray("people");if(people!=null)for(int i=0;i<people.length();i++){
+        JSONObject p=people.optJSONObject(i);if(p!=null&&myId.equals(p.optString("id"))&&!p.optBoolean("cameraAllowed")){
+          send("request-camera",null);toast("Camera approval requested from host");return;
+        }
+      }
+    }
+    nativeCall.setCamera(!nativeCall.isCameraOn());updateCallIcons();
+  }
+  private void toggleCallSeat(){
+    if(room==null)return;
+    JSONArray people=room.optJSONArray("people");if(people==null)return;
+    for(int i=0;i<people.length();i++){JSONObject p=people.optJSONObject(i);
+      if(p!=null&&myId.equals(p.optString("id"))){send(p.optBoolean("inCall")||p.optBoolean("seatRequested")?"call-leave":"call-join",null);break;}}
+  }
+  private void updateCallIcons(){
+    if(nativeCall==null){if(micIcon!=null)micIcon.setText("Mic off");return;}
+    if(micIcon!=null)micIcon.setText(nativeCall.isMicOn()?"🎙 On":"♩ Mic");
+    if(cameraIcon!=null)cameraIcon.setText(nativeCall.isCameraOn()?"▣ On":"▣ Cam");
+    if(callSeatIcon!=null)callSeatIcon.setText(nativeCall.canStartMedia()?"☎︎✓":"☎");
+  }
+  private void stopNativeCall(){if(nativeCall!=null){try{nativeCall.close();}catch(Throwable ignored){}nativeCall=null;}}
   @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){
     super.onRequestPermissionsResult(request,permissions,results);
-    if(request==101)toast(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED?
-      "Mic permission granted · voice calling not yet active":"Mic permission not granted");
+    boolean allowed=results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED;
+    if(!allowed){toast(request==101?"Microphone permission denied":"Camera permission denied");return;}
+    if(request==101&&nativeCall!=null&&nativeCall.canStartMedia())nativeCall.setMic(true);
+    if(request==102&&nativeCall!=null&&nativeCall.canStartMedia())camera();
+    updateCallIcons();
   }
   private void emojiPicker(){
     if(chatField==null)return;
@@ -723,7 +788,7 @@ public final class MainActivity extends Activity {
     else super.onBackPressed();
   }
   @Override protected void onDestroy(){
-    destroyed=true;generation++;if(socket!=null)socket.cancel();clearPlayback();
+    destroyed=true;generation++;if(socket!=null)socket.cancel();stopNativeCall();clearPlayback();
     ui.removeCallbacksAndMessages(null);io.shutdownNow();http.dispatcher().executorService().shutdown();
     super.onDestroy();
   }
