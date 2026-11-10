@@ -1,6 +1,7 @@
 package com.pkx404.xpartynative;
 
 import android.app.Activity;
+import android.content.res.Configuration;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.ClipData;
@@ -99,6 +100,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private boolean changingSource=false;
   private LinearLayout roomHeader,roomStage,roomPane,chatComposer,roomControls,roomNativeRoot,hostNotice;
   private FrameLayout videoContainer;
+  private LinearLayout landscapeRow,landscapeRight;
+  private TextView roomFooter;
+  private boolean landscapeRoom=false;
+  private View participantOverlay=null;
   private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
   private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
   private SeekBar progress;
@@ -945,8 +950,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     footer.setGravity(Gravity.CENTER);footer.setLetterSpacing(.15f);
     footer.setBackgroundColor(0xFF1C1228);
     roomNativeRoot.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
+    roomFooter=footer;
     // Connection state remains in the participant header; branded footer stays fixed.
     updatePlayIcon(false);
+    applyRoomOrientation();
     roomNativeRoot.getViewTreeObserver().addOnGlobalLayoutListener(()->{
       if(roomNativeRoot==null||!roomActive)return;
       Rect visible=new Rect();roomNativeRoot.getWindowVisibleDisplayFrame(visible);
@@ -955,9 +962,76 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if(shown!=imeShown){imeShown=shown;setTypingLayout(shown);}
     });
   }
+  /**
+   * Preserve the SAME native WebView/Media3 surface while rotating.
+   * In landscape XParty v31.6 places video at 61% width and chat/call at 39%.
+   * Reparent the existing views: never rebuild playback or the socket.
+   */
+  private void detachFromParent(View v){
+    if(v!=null&&v.getParent() instanceof ViewGroup)((ViewGroup)v.getParent()).removeView(v);
+  }
+  private void applyRoomOrientation(){
+    if(!roomActive||roomNativeRoot==null||playerFrame==null)return;
+    final boolean horizontal=getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE;
+    if(horizontal==landscapeRoom&&landscapeRow!=null)return;
+    // Close a transient participant sheet before changing the active layout.
+    if(participantOverlay!=null){detachFromParent(participantOverlay);participantOverlay=null;}
+    detachFromParent(roomStage);detachFromParent(roomPane);
+    detachFromParent(attachmentStatus);detachFromParent(chatComposer);
+    if(landscapeRow!=null)detachFromParent(landscapeRow);
+    landscapeRoom=horizontal;
+    if(horizontal){
+      landscapeRow=new LinearLayout(this);
+      landscapeRow.setOrientation(LinearLayout.HORIZONTAL);
+      landscapeRow.setGravity(Gravity.FILL);
+      landscapeRow.setBackgroundColor(0xFF080A15);
+      landscapeRight=column();
+      landscapeRight.setBackgroundColor(0xFF141022);
+      landscapeRow.addView(roomStage,new LinearLayout.LayoutParams(0,-1,61));
+      landscapeRow.addView(landscapeRight,new LinearLayout.LayoutParams(0,-1,39));
+      landscapeRight.addView(roomPane,new LinearLayout.LayoutParams(-1,0,1));
+      landscapeRight.addView(attachmentStatus,new LinearLayout.LayoutParams(-1,-2));
+      landscapeRight.addView(chatComposer,new LinearLayout.LayoutParams(-1,dp(55)));
+      roomNativeRoot.addView(landscapeRow,1,new LinearLayout.LayoutParams(-1,0,1));
+      if(roomHeader!=null)roomHeader.setVisibility(View.GONE);
+      if(roomFooter!=null)roomFooter.setVisibility(View.GONE);
+      LinearLayout.LayoutParams videoParams=(LinearLayout.LayoutParams)playerFrame.getLayoutParams();
+      videoParams.height=-1;
+      playerFrame.setLayoutParams(videoParams);
+      // More compact than portrait: avoid taking 75% of the right panel for metadata.
+      View tabs=roomPane.getChildAt(0);
+      if(tabs!=null)tabs.getLayoutParams().height=dp(49);
+      if(hostNotice!=null)hostNotice.getLayoutParams().height=dp(57);
+      View watching=roomPane.getChildAt(2);
+      if(watching!=null)watching.getLayoutParams().height=dp(75);
+    }else{
+      landscapeRow=null;landscapeRight=null;
+      roomNativeRoot.addView(roomStage,1,new LinearLayout.LayoutParams(-1,-2));
+      roomNativeRoot.addView(roomPane,2,new LinearLayout.LayoutParams(-1,0,1));
+      roomNativeRoot.addView(attachmentStatus,3,new LinearLayout.LayoutParams(-1,-2));
+      roomNativeRoot.addView(chatComposer,4,new LinearLayout.LayoutParams(-1,dp(65)));
+      if(roomHeader!=null)roomHeader.setVisibility(imeShown?View.GONE:View.VISIBLE);
+      if(roomFooter!=null)roomFooter.setVisibility(View.VISIBLE);
+      LinearLayout.LayoutParams videoParams=(LinearLayout.LayoutParams)playerFrame.getLayoutParams();
+      videoParams.height=savedVideoHeight;
+      playerFrame.setLayoutParams(videoParams);
+      if(roomPane.getChildCount()>0)roomPane.getChildAt(0).getLayoutParams().height=dp(58);
+      if(hostNotice!=null)hostNotice.getLayoutParams().height=dp(73);
+      if(roomPane.getChildCount()>2)roomPane.getChildAt(2).getLayoutParams().height=dp(66);
+    }
+    if(immersive!=null)immersive.refresh();
+    roomNativeRoot.requestLayout();
+  }
+  @Override public void onConfigurationChanged(Configuration config){
+    super.onConfigurationChanged(config);
+    if(roomActive){
+      applyRoomOrientation();
+      if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));
+    }
+  }
   private void setTypingLayout(boolean typing){
     if(roomHeader==null||chatComposer==null)return;
-    roomHeader.setVisibility(typing?View.GONE:View.VISIBLE);
+    roomHeader.setVisibility((typing||landscapeRoom)?View.GONE:View.VISIBLE);
     if(micIcon!=null)micIcon.setVisibility(typing?View.GONE:View.VISIBLE);
     if(mentionIcon!=null)mentionIcon.setVisibility(typing?View.GONE:View.VISIBLE);
     if(cameraIcon!=null)cameraIcon.setVisibility(typing?View.GONE:View.VISIBLE);
@@ -993,14 +1067,22 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     return calls;
   }
   private void toggleNativeMic(){
-    NativeCallController c=ensureCalls();
-    if(c!=null)c.toggleMic();
+    try{
+      NativeCallController c=ensureCalls();
+      if(c!=null)c.toggleMic();
+    }catch(Throwable error){
+      android.util.Log.e("XPartyNative","Mic initialization failure",error);
+      toast("Microphone unavailable; video and chat stay connected.");
+    }
   }
   private void showRoomTab(boolean chat){
     showChat=chat;
     if(tabChat!=null)tabChat.setTextColor(chat?WHITE:0xFFB4A6CB);
     if(tabCall!=null)tabCall.setTextColor(chat?0xFFB4A6CB:WHITE);
-    if(!chat)ensureCalls();
+    if(!chat){
+      try{ensureCalls();}
+      catch(Throwable err){toast("Unable to start native video call. Room remains connected.");}
+    }
     if(chatScroll!=null)chatScroll.setVisibility(chat?View.VISIBLE:View.GONE);
     if(callPanel!=null)callPanel.setVisibility(chat?View.GONE:View.VISIBLE);
     if(chatComposer!=null)chatComposer.setVisibility(chat?View.VISIBLE:View.GONE);
