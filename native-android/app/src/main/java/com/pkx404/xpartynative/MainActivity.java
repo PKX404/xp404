@@ -229,7 +229,7 @@ public final class MainActivity extends Activity {
         }
         case "chat":chatHistory.put(m);if(chatRows!=null)renderChat();break;
         case "pong":{long sent=m.optLong("sent",0);long at=m.optLong("serverTime",0);
-          if(sent>0&&at>0)serverOffsetMs=(System.currentTimeMillis()-(sent+System.currentTimeMillis())/2.0-at+at);break;}
+          if(sent>0&&at>0)serverOffsetMs=((sent+System.currentTimeMillis())/2.0)-at;break;}
         case "resume-failed":token="";getPreferences(0).edit().remove("token").apply();statusMessage("Room expired. Create or join again.");showLobby();break;
         case "ended":case "kicked":statusMessage(m.optString("message","Room closed"));showLobby();break;
         case "error":statusMessage(m.optString("message","Request failed"));break;
@@ -246,8 +246,6 @@ public final class MainActivity extends Activity {
     buildBackground();
     content=vertical();background.addView(content,new FrameLayout.LayoutParams(-1,-1));
     header=horizontal();header.setPadding(dp(8),dp(8),dp(8),dp(8));header.setBackgroundColor(0xee161321);
-    rowItem(header,button("✕",()->leaveRoom()),0); // weighted below
-    header.removeViewAt(0);
     header.addView(button("✕",()->leaveRoom()),new LinearLayout.LayoutParams(dp(46),dp(46)));
     header.addView(button("⚙",()->showSettings()),new LinearLayout.LayoutParams(dp(48),dp(46)));
     header.addView(button("⌕",()->showSourceSheet()),new LinearLayout.LayoutParams(dp(48),dp(46)));
@@ -305,7 +303,7 @@ public final class MainActivity extends Activity {
   }
   private void renderRoomState(){
     if(room==null)return;
-    roomInfo.setText("  Room "+room.optString("code")+"   •   "+room.optJSONArray("people").length()+" watching   •   Chat");
+    roomInfo.setText("  Room "+room.optString("code")+"   •   "+(room.optJSONArray("people")==null?0:room.optJSONArray("people").length())+" watching   •   Chat");
     JSONObject source=room.optJSONObject("source");
     if(source==null){watchTitle.setText("Choose a video");clearSource();playbackStatus.setText("Waiting for video");}
     else{
@@ -516,7 +514,7 @@ public final class MainActivity extends Activity {
     refreshSourceSheet();
   }
   private LinearLayout sheetBody(){
-    View v=sourceDialog.findViewWithTag("sheetBody");return v instanceof LinearLayout?(LinearLayout)v:null;
+    View v=sourceDialog.getWindow().getDecorView().findViewWithTag("sheetBody");return v instanceof LinearLayout?(LinearLayout)v:null;
   }
   private void refreshSourceSheet(){
     LinearLayout body=sheetBody();if(body==null)return;body.removeAllViews();
@@ -639,7 +637,7 @@ public final class MainActivity extends Activity {
             add(body,button("←  Categories",()->{results.clear();refreshSourceSheet();}),10);
             add(body,text(cat.toUpperCase()+" · "+list.size()+" channels    🟡 Unverified",13,MUTED,true),8);addTiles(body,results);
           }
-        }});
+        });
       }catch(Exception e){ui.post(()->toast("Channel directory unavailable · check network"));}
     });
   }
