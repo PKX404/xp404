@@ -539,7 +539,7 @@ final class NativeSourceSheet {
     // The browser is nested in the source sheet ScrollView. Without this
     // the parent intercepts the touch gesture and YouTube cannot scroll.
     web.setOnTouchListener((v,event)->{
-      View parent=(View)v.getParent();
+      android.view.ViewParent parent=v.getParent();
       if(parent!=null&&(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN
           ||event.getActionMasked()==android.view.MotionEvent.ACTION_MOVE))
         parent.requestDisallowInterceptTouchEvent(true);
