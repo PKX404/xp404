@@ -30,7 +30,7 @@ import org.webrtc.SoftwareVideoEncoderFactory;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
 import org.webrtc.MediaConstraints;
-import org.webrtc.JavaAudioDeviceModule;
+import org.webrtc.audio.JavaAudioDeviceModule;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
