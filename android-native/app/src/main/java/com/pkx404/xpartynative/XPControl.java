@@ -68,9 +68,21 @@ public final class XPControl extends View {
         circle(c,10,18,3);circle(c,27,9,3);circle(c,27,28,3);
         line(c,13,16,24,10);line(c,13,20,24,27);break;
       case "people":
-        circle(c,13,12,5);circle(c,26,14,4);
-        c.drawArc(new RectF(4,17,23,33),205,130,false,p);
-        c.drawArc(new RectF(20,19,34,31),205,130,false,p);break;
+        // Complete, centered two-person outline; no right-edge clipped half-avatar.
+        circle(c,13,12.5f,4.5f);circle(c,25,13.5f,4f);
+        c.drawArc(new RectF(3.5f,17,22,33),193,155,false,p);
+        c.drawArc(new RectF(20,18.5f,33,31.5f),197,145,false,p);
+        break;
+      case "attachment":
+        path(c,24,13,17,22,13,24,9,23,7,20,8,17,19,7,22,6,27,8,29,13,28,17,18,29,14,31,9,28);break;
+      case "gallery":
+        c.drawRoundRect(new RectF(5,7,31,29),3,3,p);
+        circle(c,13,14,2.5f);path(c,7,25,15,18,20,22,24,17,29,25);break;
+      case "photo":
+        c.drawRoundRect(new RectF(5,11,31,27),3,3,p);
+        path(c,10,11,13,8,23,8,26,11);circle(c,18,19,5);break;
+      case "extra":
+        circle(c,9,18,2.5f);circle(c,18,18,2.5f);circle(c,27,18,2.5f);break;
       case "fullscreen":
         path(c,14,7,7,7,7,14);line(c,7,7,15,15);
         path(c,22,29,29,29,29,22);line(c,22,22,29,29);break;
