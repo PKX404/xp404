@@ -72,6 +72,21 @@ jobs:
             sleep 2
             adb shell pidof com.pkx404.xpartynative
             echo "XParty Native v0.5 optimized release launched twice"
+            # Real configuration event: an Activity must survive rotation, not recreate video.
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+            sleep 3
+            adb shell pidof com.pkx404.xpartynative
+            adb exec-out screencap -p > output/native-v0.5-landscape.png
+            adb shell settings put system user_rotation 0
+            sleep 2
+            adb shell pidof com.pkx404.xpartynative
+            # A Java exception or tombstone is evidence the build must not be called crash-free.
+            adb logcat -d -v brief > output/native-v0.5-logcat.txt || true
+            if grep -E 'FATAL EXCEPTION|Fatal signal.*com.pkx404.xpartynative' output/native-v0.5-logcat.txt; then
+              echo "XParty native process crash detected" >&2
+              exit 1
+            fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
