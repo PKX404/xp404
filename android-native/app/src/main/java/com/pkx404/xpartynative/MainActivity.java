@@ -121,7 +121,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(source==null)return;
     if(roomControls!=null)roomControls.setVisibility(View.GONE);
     if(progress!=null)progress.setVisibility(View.GONE);
-    if(fullscreenNative){
+    if(this.fullscreenNative){
       if(fullscreenControl!=null)fullscreenControl.setVisibility(View.GONE);
       if(videoPill!=null)videoPill.setVisibility(View.GONE);
     }
