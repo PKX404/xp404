@@ -422,6 +422,7 @@ final class NativeSourceSheet {
   }
   private void renderYoutubeResults(){
     if(providerView==null)return;
+    providerView.removeAllViews();
     if(ytItems.isEmpty()){
       add(providerView,label("No videos returned. Search another term or paste a YouTube URL.",13,MUTED,false),10);return;
     }
