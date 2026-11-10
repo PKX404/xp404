@@ -1,7 +1,7 @@
-name: Build XParty Native v0.4.1 optimized APKs
+name: XParty Native v0.4.3 UX and Call QA
 on:
   push:
-    branches: [feature/xparty-native-v041-stability-landscape-20261110]
+    branches: [fix/native-v043-room-ux-screen-mention-20261110]
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-fully-native-android.yml'
@@ -39,21 +39,21 @@ jobs:
           test -s android-native/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: XParty-Native-v0.4.1-Optimized-Release-APKs
+          name: XParty-Native-v0.4.2-AudioOnlyMic-Release-APKs
           path: android-native/app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: error
   startup-smoke:
     needs: android-native
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: XParty-Native-v0.4.1-Optimized-Release-APKs
+          name: XParty-Native-v0.4.2-AudioOnlyMic-Release-APKs
           path: output
       - uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -66,20 +66,31 @@ jobs:
             set -e
             adb install -r output/app-universal-release.apk
             adb logcat -c
-            adb shell am start -W -n com.pkx404.xpartynative/.MainActivity
+            adb shell am start -W -n com.pkx404.xpartynative.micfix2/com.pkx404.xpartynative.MainActivity
             sleep 6
-            adb shell pidof com.pkx404.xpartynative
-            adb exec-out screencap -p > output/native-v0.4.1-home.png
+            adb shell pidof com.pkx404.xpartynative.micfix2
+            adb exec-out screencap -p > output/native-v0.4.2-home.png
             adb shell uiautomator dump /sdcard/v04.xml >/dev/null 2>&1 || true
-            adb pull /sdcard/v04.xml output/native-v0.4.1-window.xml >/dev/null 2>&1 || true
-            adb shell am force-stop com.pkx404.xpartynative
-            adb shell am start -W -n com.pkx404.xpartynative/.MainActivity
+            adb pull /sdcard/v04.xml output/native-v0.4.2-window.xml >/dev/null 2>&1 || true
+            adb shell am force-stop com.pkx404.xpartynative.micfix2
+            adb shell am start -W -n com.pkx404.xpartynative.micfix2/com.pkx404.xpartynative.MainActivity
             sleep 2
-            adb shell pidof com.pkx404.xpartynative
-            echo "XParty Native v0.4.1 optimized release launched twice"
+            adb shell pidof com.pkx404.xpartynative.micfix2
+            echo "XParty Native v0.4.2 audio-only release launched twice"
+            adb shell am force-stop com.pkx404.xpartynative.micfix2
+            adb shell pm grant com.pkx404.xpartynative.micfix2 android.permission.RECORD_AUDIO
+            adb logcat -c
+            # Try the actual WebRTC audio factory + audio-only offer, not just startup.
+            timeout 45s adb shell am start -n com.pkx404.xpartynative.micfix2/com.pkx404.xpartynative.MainActivity --ez xparty_native_mic_selftest true || true
+            sleep 8
+            adb logcat -d -s XPartyMicProbe:V AndroidRuntime:E libc:E DEBUG:E > output/native-v0.4.2-mic-log.txt
+            cat output/native-v0.4.2-mic-log.txt
+            adb shell pidof com.pkx404.xpartynative.micfix2
+            grep -q "ALIVE after microphone startup: true" output/native-v0.4.2-mic-log.txt
+            echo "WebRTC microphone startup did not kill the app on x86_64 emulator"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: XParty-Native-v0.4.1-Home-Screenshot
-          path: output/native-v0.4.1-*
+          name: XParty-Native-v0.4.2-Mic-Diagnostics
+          path: output/native-v0.4.2-*
           retention-days: 7
