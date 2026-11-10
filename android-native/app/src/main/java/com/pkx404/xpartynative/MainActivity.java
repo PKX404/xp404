@@ -10,6 +10,10 @@ import android.media.AudioManager;
 import android.graphics.Rect;
 import android.view.inputmethod.InputMethodManager;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.os.Build;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -45,6 +49,12 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.HttpDataSource;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.common.MimeTypes;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
@@ -114,6 +124,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   };
   private View micIcon,mentionIcon,emojiIcon,cameraIcon,plusIcon;
   private boolean liked=false,imeShown=false,fullscreenNative=false,showChat=true;
+  private FrameLayout fullscreenOverlay;
+  private ViewGroup fullscreenSourceParent;
+  private ViewGroup.LayoutParams fullscreenSourceParams;
+  private int fullscreenSourceIndex=-1,fullscreenPreviousUiFlags=0,fullscreenPreviousOrientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+  private int fullscreenPreviousScale=AspectRatioFrameLayout.RESIZE_MODE_FIT;
+  private int liveRetryCount=0;
+  private Runnable liveRetry;
+  private static final int MAX_LIVE_RETRIES=2;
   private int playerFit=AspectRatioFrameLayout.RESIZE_MODE_FIT;
   private int savedVideoHeight=0;
   private final Runnable progressTicker=new Runnable(){
@@ -167,7 +185,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     // Quick first frame; still retain enough rebuffer protection for live HLS.
     DefaultLoadControl fastStart=new DefaultLoadControl.Builder()
       .setBufferDurationsMs(3000,35000,700,1700).build();
-    player=new ExoPlayer.Builder(this).setLoadControl(fastStart).build();
+    // Explicit HLS + predictable HTTP timeouts; follow normal provider redirects.
+    DefaultHttpDataSource.Factory network=new DefaultHttpDataSource.Factory()
+      .setUserAgent("XParty/0.4.7 (Android; XPTV)")
+      .setConnectTimeoutMs(6500).setReadTimeoutMs(9000);
+    DefaultDataSource.Factory sources=new DefaultDataSource.Factory(this,network);
+    player=new ExoPlayer.Builder(this)
+      .setMediaSourceFactory(new DefaultMediaSourceFactory(sources))
+      .setLoadControl(fastStart).build();
     playbackSheet=new NativePlaybackSheet(this,player,new NativePlaybackSheet.Actions(){
       @Override public void playback(){togglePlayback();}
       @Override public void scale(){cycleVideoScaling();}
@@ -194,6 +219,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         renderedVideo=true;
         runOnUiThread(()->{
           if(videoState!=null&&!"youtube".equals(sourceType))videoState.setText("Picture ready");
+          if("iptv".equals(sourceType))directory.markWorking(sourceUrl);
           if(immersive!=null)immersive.refresh();
         });
       }
@@ -201,8 +227,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         if(size.width>0&&videoState!=null)videoState.setText("Video "+size.width+"×"+size.height);
       }
       @Override public void onPlayerError(androidx.media3.common.PlaybackException e){
-        if(videoState!=null)videoState.setText("Playback error: "+e.getErrorCodeName());
-        toast("Player unable to decode this stream. Try another channel.");
+        onNativePlayerError(e);
       }
       @Override public void onPlaybackStateChanged(int state){
         if(videoState==null||"youtube".equals(sourceType))return;
@@ -1672,6 +1697,54 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       });
     }
   }
+  private int serverHttpCode(Throwable error){
+    for(Throwable cause=error;cause!=null;cause=cause.getCause()){
+      if(cause instanceof HttpDataSource.InvalidResponseCodeException)
+        return ((HttpDataSource.InvalidResponseCodeException)cause).responseCode;
+    }
+    return 0;
+  }
+  private void onNativePlayerError(PlaybackException error){
+    if(!roomActive||source==null||player==null)return;
+    if(!"iptv".equals(sourceType)){
+      if(videoState!=null)videoState.setText("Video unavailable · "+error.getErrorCodeName());
+      toast("Video could not play. Check the source and connection.");
+      return;
+    }
+    final int code=serverHttpCode(error);
+    boolean temporary=code==408||code==429||code==500||code==502||code==503||code==504||
+      (code==0&&(error.errorCode==PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+        ||error.errorCode==PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT));
+    if(temporary&&liveRetryCount<MAX_LIVE_RETRIES){
+      final String failedSource=sourceId;
+      final int attempt=++liveRetryCount;
+      long wait=attempt==1?650:1700;
+      if(videoState!=null)videoState.setText("XPTV reconnecting · "+attempt+"/"+MAX_LIVE_RETRIES);
+      liveRetry=()->{
+        if(!roomActive||player==null||!failedSource.equals(sourceId)||!"iptv".equals(sourceType))return;
+        try{
+          player.prepare();
+          // Preserve room playback state: retry does not broadcast a new source.
+          if(playback!=null)player.setPlayWhenReady(playback.optBoolean("playing",false));
+        }catch(Exception trouble){
+          android.util.Log.w("XPTV","Stream retry unavailable",trouble);
+        }
+      };
+      handler.postDelayed(liveRetry,wait);
+      return;
+    }
+    directory.markFailed(sourceUrl,code);
+    String message;
+    if(code==401||code==403)message="XPTV restricted by channel provider ("+code+")";
+    else if(code==404||code==410)message="XPTV stream offline ("+code+")";
+    else if(code==429)message="XPTV server busy (429) · try later";
+    else if(code>=500)message="XPTV provider unavailable ("+code+")";
+    else if(code>0)message="XPTV channel returned HTTP "+code;
+    else message="XPTV stream unavailable · check internet or try another";
+    if(videoState!=null)videoState.setText(message);
+    android.util.Log.w("XPTV","Live channel failure: "+message+" "+error.getErrorCodeName());
+    toast(message);
+  }
   private void sendReady(String status){
     if(sourceId==null||sourceId.isEmpty()||sourceId.equals(nativeReadySource))return;
     nativeReadySource=sourceId;
@@ -1687,6 +1760,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   private void loadSource(){
     if(player==null)return;
+    if(liveRetry!=null){handler.removeCallbacks(liveRetry);liveRetry=null;}
+    liveRetryCount=0;
     player.stop();player.clearMediaItems();
     renderedVideo=false;youtubeReady=false;nativeReadySource="";nativeRecoveryUsed=false;
     youtubeDurationSeconds=0;
@@ -1708,11 +1783,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(immersive!=null)immersive.setSource(sourceType,true);
     getPreferences(MODE_PRIVATE).edit().putString("last_source",sourceType).apply();
     sourceUrl=source.optString("url","");
-    if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● LIVE":
+    if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● XPTV":
       "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
     if(artwork!=null&&nativeChannelLogo!=null)
       artwork.show(source.optString("logo",""),nativeChannelLogo);
-    playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")
+    playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"XPTV  ":"")
       +source.optString("title","Video"));
     boolean isYouTube="youtube".equals(sourceType);
     // v0.3 hid ALL playback controls for YouTube. Keep the same overlay for all sources.
@@ -1780,9 +1855,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",html,"text/html","UTF-8",null);
     }else if("iptv".equals(sourceType)||"direct".equals(sourceType)){
       if(!sourceUrl.startsWith("https://")){videoState.setText("Unsupported media URL");return;}
-      player.setMediaItem(new MediaItem.Builder().setUri(sourceUrl).build());
+      MediaItem.Builder item=new MediaItem.Builder().setUri(sourceUrl);
+      if("iptv".equals(sourceType))item.setMimeType(MimeTypes.APPLICATION_M3U8);
+      player.setMediaItem(item.build());
       player.prepare();
-      videoState.setText("Loading native picture…");
+      videoState.setText("iptv".equals(sourceType)?"Connecting to XPTV…":"Loading native picture…");
     }else{
       videoState.setText("This video source is not yet supported by the native player.");
     }
@@ -1835,6 +1912,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     socket.disconnect(true);
     roomActive=false;
     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    if(fullscreenNative)exitNativeFullscreen();
     if(homeOverlay!=null){
       ViewGroup overlayParent=(ViewGroup)homeOverlay.getParent();
       if(overlayParent!=null)overlayParent.removeView(homeOverlay);
