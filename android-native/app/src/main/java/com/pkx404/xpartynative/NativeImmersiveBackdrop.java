@@ -8,6 +8,9 @@ import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.RadialGradient;
 import android.graphics.drawable.GradientDrawable;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Iterator;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
@@ -35,13 +38,66 @@ import java.util.concurrent.Executors;
  */
 final class NativeImmersiveBackdrop {
   // Small source texture + broad blur stops recognizable video copies in the chat panel.
-  private static final int W=80,H=45,R=8;
-  private static final long FRAME_INTERVAL_MS=115;
+  // Low resolution keeps video frame sampling cheap even on older Android devices.
+  private static final int W=72,H=40,R=6;
+  private static final long FRAME_INTERVAL_MS=80;
   private static volatile int ambientTop=0xFF283E67,ambientMid=0xFF1E2A50,ambientEnd=0xFF2E1B4F;
-  static GradientDrawable sheetSkin(){
-    GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-      new int[]{ambientTop,ambientMid,ambientEnd});
-    d.setCornerRadius(28f);d.setStroke(1,0xFF64547E);return d;
+  // Unlike GradientDrawable snapshots, these skins repaint when video colours change.
+  // Weak references avoid retaining Activity windows after a sheet is dismissed.
+  private static final ArrayList<WeakReference<AmbientPanelDrawable>> skins=new ArrayList<>();
+  private static volatile boolean colorsEnabled=false;
+  static Drawable sheetSkin(){return new AmbientPanelDrawable(true);}
+  static Drawable headerSkin(){return new AmbientPanelDrawable(false);}
+  private static int mix(int a,int b,float amount){
+    float keep=1f-amount;
+    return Color.rgb(
+      clamp(Color.red(a)*amount+Color.red(b)*keep),
+      clamp(Color.green(a)*amount+Color.green(b)*keep),
+      clamp(Color.blue(a)*amount+Color.blue(b)*keep));
+  }
+  private static void invalidateSkins(){
+    synchronized(skins){
+      Iterator<WeakReference<AmbientPanelDrawable>> it=skins.iterator();
+      while(it.hasNext()){
+        AmbientPanelDrawable d=it.next().get();
+        if(d==null)it.remove();
+        else d.invalidateSelf();
+      }
+    }
+  }
+  private static final class AmbientPanelDrawable extends Drawable {
+    private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final boolean rounded;
+    AmbientPanelDrawable(boolean rounded){
+      this.rounded=rounded;
+      synchronized(skins){skins.add(new WeakReference<>(this));}
+    }
+    @Override public void draw(Canvas canvas){
+      Rect b=getBounds();
+      if(b.isEmpty())return;
+      int top=colorsEnabled?ambientTop:0xFF29203D;
+      int mid=colorsEnabled?ambientMid:0xFF1F2540;
+      int end=colorsEnabled?ambientEnd:0xFF261C39;
+      // Tinted dark glass makes the video palette visible but preserves icon contrast.
+      int[] colors={
+        mix(top,0xFF0D0C18,.75f),
+        mix(mid,0xFF111427,.72f),
+        mix(end,0xFF130D20,.77f)
+      };
+      paint.setStyle(Paint.Style.FILL);
+      paint.setColor(Color.WHITE);
+      paint.setAlpha(255);
+      paint.setShader(new LinearGradient(b.left,b.top,b.right,b.bottom,
+        colors,null,Shader.TileMode.CLAMP));
+      if(rounded){
+        float radius=Math.min(b.width(),b.height())*.055f;
+        canvas.drawRoundRect(new RectF(b),Math.min(radius,24f),Math.min(radius,24f),paint);
+      }else canvas.drawRect(b,paint);
+      paint.setShader(null);
+    }
+    @Override public void setAlpha(int alpha){}
+    @Override public void setColorFilter(ColorFilter filter){}
+    @Override public int getOpacity(){return PixelFormat.OPAQUE;}
   }
   private final Activity activity;
   private final View target;
@@ -81,15 +137,20 @@ final class NativeImmersiveBackdrop {
     ui.removeCallbacks(loop);
     worker.shutdownNow();
     drawable.frame=null;target.invalidate();
+    colorsEnabled=false;invalidateSkins();
   }
   void setEnabled(boolean yes){
-    enabled=yes;
+    enabled=yes;colorsEnabled=yes&&hasSource;
     if(!yes){drawable.frame=null;target.invalidate();}
-    else refresh();
+    invalidateSkins();
+    if(yes)refresh();
   }
   void setSource(String type,boolean selected){
     hasSource=selected;usingYoutube="youtube".equals(type);
-    drawable.frame=null;target.invalidate();refresh();
+    colorsEnabled=enabled&&selected;
+    drawable.frame=null;target.invalidate();
+    invalidateSkins();
+    refresh();
   }
   void refresh(){if(running&&enabled&&hasSource)ui.post(this::sample);}
   private void sample(){
@@ -133,6 +194,7 @@ final class NativeImmersiveBackdrop {
             ambientMid=extractColor(blur,blur.getWidth()/3,blur.getWidth()*2/3);
             ambientEnd=extractColor(blur,blur.getWidth()*2/3,blur.getWidth());
             target.invalidate();
+            invalidateSkins();
           }
           busy=false;
         });
