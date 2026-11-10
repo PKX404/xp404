@@ -1265,7 +1265,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private android.widget.PopupWindow emojiPopup,plusPopup;
   private android.widget.PopupWindow popupPanel(LinearLayout content,int width,int height,int right){
     android.widget.PopupWindow pop=new android.widget.PopupWindow(content,dp(width),dp(height),true);
-    pop.setBackgroundDrawable(shape(0xF41A1429,18));
+    pop.setBackgroundDrawable(NativeImmersiveBackdrop.sheetSkin());
     pop.setElevation(dp(10));
     pop.setOutsideTouchable(true);
     pop.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
