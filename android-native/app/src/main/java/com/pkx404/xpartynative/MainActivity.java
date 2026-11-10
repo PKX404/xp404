@@ -141,6 +141,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private final java.util.Map<String,JSONObject> knownChats=new java.util.HashMap<>();
   private final java.util.Map<String,TextView> chatBubbles=new java.util.HashMap<>();
   private String replyToId=null;
+  private String privateRecipientId=null,privateRecipientName=null;
+  private String pendingMediaCaption=null;
   private long lastTypingAt=0;
 
   @Override public void onCreate(Bundle saved){
@@ -991,11 +993,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public void afterTextChanged(android.text.Editable value){}
     });
     chatComposer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(50),1));
-    XPControl mention=xpIcon("at",()->chatInput.getText().insert(chatInput.getSelectionStart(),"@"));
+    XPControl mention=xpIcon("at",this::showMentionPicker);
     mentionIcon=mention;iconIn(chatComposer,mention,40,52);
     XPControl emoji=xpIcon("smile",this::showEmojiMenu);
     emojiIcon=emoji;iconIn(chatComposer,emoji,40,52);
-    XPControl camera=xpIcon("camera",this::showChatAttachments);
+    XPControl camera=xpIcon("camera",this::showVideoCallInvites);
     cameraIcon=camera;iconIn(chatComposer,camera,40,52);
     XPControl send=xpIcon("send",()->{
       String v=chatInput.getText().toString().trim();
@@ -1475,7 +1477,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(body.isEmpty())return;
     boolean self=myId.equals(data.optString("from"));
     String author=self?"You":data.optString("name","Member");
-    String text=author+"  ·  "+body;
+    String text=(data.optString("to","").isEmpty()?"":"🔒 Private · ")+author+"  ·  "+body;
     JSONObject reactions=data.optJSONObject("reactions");
     if(reactions!=null){
       java.util.Iterator<String> keys=reactions.keys();
@@ -1566,18 +1568,30 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       JSONObject data=new JSONObject().put("type","chat").put("text",body)
         .put("clientId",java.util.UUID.randomUUID().toString());
       if(replyToId!=null&&!replyToId.isEmpty())data.put("replyTo",replyToId);
-      replyToId=null;chatInput.setHint("Message");
+      if(privateRecipientId!=null&&!privateRecipientId.isEmpty())
+        data.put("to",privateRecipientId);
+      replyToId=null;
+      chatInput.setHint(privateRecipientName==null?"Message":"Private · "+privateRecipientName);
       socket.send(data);
     }catch(Exception ignored){}
   }
   private void updateRoom(JSONObject data){
     room=data;roomCode=data.optString("code",roomCode);isHost=myId.equals(data.optString("hostId"));
     if(roomTitle!=null)roomTitle.setText("ROOM  ·  "+roomCode+(isHost?"  ★":""));
-    if(hostStatus!=null)hostStatus.setText((isHost?"Host":"Guest")+" joined the room");
+    if(hostStatus!=null)hostStatus.setText(data.optBoolean("hostReconnecting",false)?"Host reconnecting · temporary controls":(isHost?"Host":"Guest")+" joined the room");
     JSONArray members=data.optJSONArray("people");int count=0;
     if(members!=null)for(int i=0;i<members.length();i++)if(members.optJSONObject(i).optBoolean("online"))count++;
     if(people!=null)people.setText(count+" online  ·  "+(isHost?"You're the host":"Watching together"));
     if(memberBadge!=null)memberBadge.setText(count>9?"9+":String.valueOf(count));
+    if(privateRecipientId!=null){
+      boolean targetOnline=false;
+      if(members!=null)for(int i=0;i<members.length();i++){
+        JSONObject member=members.optJSONObject(i);
+        if(member!=null&&privateRecipientId.equals(member.optString("id"))&&member.optBoolean("online"))targetOnline=true;
+      }
+      if(!targetOnline){privateRecipientId=null;privateRecipientName=null;
+        if(chatInput!=null)chatInput.setHint("Message");}
+    }
     if(calls!=null)calls.syncRoom(room,myId);
     playback=data.optJSONObject("playback");
     JSONObject next=data.optJSONObject("source");
