@@ -103,7 +103,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private TextView roomFooter;
   private boolean isLandscapeLayout=false;
   private FrameLayout videoContainer;
-  private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
+  private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon,sourcePlaceholderIcon;
   private TextView videoPill,watchingLabel,hostStatus,hostAvatar,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
   private SeekBar progress;
   private final Runnable hidePlaybackUi=()->{
@@ -982,6 +982,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     watching.setPadding(dp(13),dp(2),dp(11),dp(2));
     FrameLayout artworkSlot=new FrameLayout(this);
     XPControl currentSource=xpIcon("play",this::openSourceChooser);
+    sourcePlaceholderIcon=currentSource;
     currentSource.tint(0xFFEAE2FF);
     artworkSlot.addView(currentSource,new FrameLayout.LayoutParams(-1,-1));
     nativeChannelLogo=new android.widget.ImageView(this);
@@ -1919,6 +1920,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       videoState.setText("Choose a video");
       playerLabel.setText("Now watching · Select a video");
       if(immersive!=null)immersive.setSource("",false);
+      if(nativeChannelLogo!=null)nativeChannelLogo.setVisibility(View.GONE);
+      if(sourcePlaceholderIcon!=null)sourcePlaceholderIcon.setVisibility(View.VISIBLE);
       return;
     }
     sourceType=source.optString("type","");
@@ -1927,8 +1930,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     sourceUrl=source.optString("url","");
     if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● LIVE":
       "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
-    if(artwork!=null&&nativeChannelLogo!=null)
-      artwork.show(source.optString("logo",""),nativeChannelLogo);
+    String sourceArt=source.optString("logo","");
+    boolean hasArt=sourceArt.startsWith("https://");
+    if(sourcePlaceholderIcon!=null)sourcePlaceholderIcon.setVisibility(hasArt?View.GONE:View.VISIBLE);
+    if(nativeChannelLogo!=null)nativeChannelLogo.setVisibility(hasArt?View.VISIBLE:View.GONE);
+    if(hasArt&&artwork!=null&&nativeChannelLogo!=null)
+      artwork.show(sourceArt,nativeChannelLogo);
     playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")
       +source.optString("title","Video"));
     boolean isYouTube="youtube".equals(sourceType);
