@@ -2,6 +2,7 @@ package com.pkx404.xpartynative;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -9,13 +10,12 @@ import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.content.Context;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.webrtc.AudioSource;
@@ -25,12 +25,9 @@ import org.webrtc.Camera2Enumerator;
 import org.webrtc.CameraEnumerator;
 import org.webrtc.CameraVideoCapturer;
 import org.webrtc.DataChannel;
-import org.webrtc.SoftwareVideoDecoderFactory;
-import org.webrtc.SoftwareVideoEncoderFactory;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
 import org.webrtc.MediaConstraints;
-import org.webrtc.audio.JavaAudioDeviceModule;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
@@ -38,11 +35,13 @@ import org.webrtc.RtpReceiver;
 import org.webrtc.RtpTransceiver;
 import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
+import org.webrtc.SoftwareVideoDecoderFactory;
+import org.webrtc.SoftwareVideoEncoderFactory;
 import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.SurfaceViewRenderer;
-import org.webrtc.VideoCapturer;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
+import org.webrtc.audio.JavaAudioDeviceModule;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -52,436 +51,534 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Genuine Android WebRTC peer media and server-compatible XParty JSON signaling.
- * No WebView, JavaScript or video-file simulation is used for microphone/camera.
+ * Independent native calling engine v0.4.6. Rebuilt without WebView capture or
+ * old renderer state. Room presence alone never starts WebRTC JNI, mic or camera.
+ * Permissions, call seat, audio and video have separate, explicit lifecycles.
  */
 final class NativeCallController {
   interface Events {
-    void signal(String target,JSONObject payload);
+    void signal(String recipient,JSONObject payload);
     void sendMedia(boolean mic,boolean camera);
     void action(String type);
-    void status(String text);
+    void status(String message);
   }
+  private static final String TAG="XPartyCallV2";
+  private static final int WHITE=0xFFF5F1FF, ACCENT=0xFFB9A3EF;
+  private static boolean nativeInitialized=false;
   private final Activity activity;
   private final Events events;
+  private final AudioManager audio;
   private final Handler main=new Handler(Looper.getMainLooper());
   private final Map<String,Peer> peers=new HashMap<>();
-  private final List<PeerConnection.IceServer> ice=new ArrayList<>();
+  private final ArrayList<PeerConnection.IceServer> ice=new ArrayList<>();
+  private final Set<String> inRoom=new HashSet<>();
+  private FrameLayout callRoot,videoStage;
+  private LinearLayout videos,buttons;
+  private TextView status,placeholder,micLabel,cameraLabel;
+  private XPControl micControl,cameraControl,speakerControl;
+  private JSONObject lastRoom;
+  private String self="";
+  private boolean inCall=false,micOn=false,cameraOn=false,speaker=true,joining=false,stopped=false;
+  private boolean pendingMic=false,pendingCamera=false,booted=false,captureActive=false;
   private PeerConnectionFactory factory;
-  private EglBase egl;
   private AudioSource audioSource;
   private AudioTrack audioTrack;
   private VideoSource videoSource;
   private VideoTrack videoTrack;
+  private EglBase egl;
   private SurfaceTextureHelper captureHelper;
-  private CameraVideoCapturer cameraCapturer;
-  private SurfaceViewRenderer localRenderer,remoteRenderer;
-  private FrameLayout callRoot;
-  private TextView statusText,micButton,cameraButton,speakerButton;
-  private String me="";
-  private JSONObject latestRoom;
-  private boolean initialized=false,micOn=false,cameraOn=false,speakerOn=true,inCall=false,cameraStarted=false;
-  private boolean destroyed=false;
-  private boolean pendingMicEnable=false;
-  private final AudioManager audio;
-  private static final int BG=0xFF141029,CARD=0xFF32234F,WHITE=0xFFF7F4FF;
+  private CameraVideoCapturer capturer;
+  private SurfaceViewRenderer localView;
   private final class Peer {
     final String id;
-    final PeerConnection connection;
+    final PeerConnection pc;
     final boolean initiator;
-    final List<IceCandidate> pending=new ArrayList<>();
-    VideoTrack incomingVideo;
-    Peer(String id,PeerConnection connection,boolean initiator){
-      this.id=id;this.connection=connection;this.initiator=initiator;
+    final List<IceCandidate> iceQueue=new ArrayList<>();
+    VideoTrack remoteVideo;
+    SurfaceViewRenderer view;
+    Peer(String id,PeerConnection pc,boolean initiator){
+      this.id=id;this.pc=pc;this.initiator=initiator;
     }
   }
-  NativeCallController(Activity activity,Events events){
+
+  NativeCallController(Activity activity,Events events) {
     this.activity=activity;this.events=events;
-    audio=(AudioManager)activity.getSystemService(Context.AUDIO_SERVICE);
+    this.audio=(AudioManager)activity.getSystemService(Context.AUDIO_SERVICE);
+    addIce("stun:stun.l.google.com:19302","","");
   }
-  private int dp(float n){return Math.round(n*activity.getResources().getDisplayMetrics().density);}
-  private void report(String message){
-    main.post(()->{if(!destroyed){if(statusText!=null)statusText.setText(message);events.status(message);}});
+  private int dp(int value){return Math.round(value*activity.getResources().getDisplayMetrics().density);}
+  private void onMain(Runnable task) {
+    if(Looper.myLooper()==Looper.getMainLooper())task.run();else main.post(task);
   }
-  private TextView control(String label,Runnable command){
-    TextView button=new TextView(activity);
-    button.setText(label);button.setTextColor(WHITE);button.setTextSize(12);
-    button.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-    button.setGravity(Gravity.CENTER);
-    android.graphics.drawable.GradientDrawable background=new android.graphics.drawable.GradientDrawable();
-    background.setColor(CARD);background.setCornerRadius(dp(15));
-    background.setStroke(dp(1),0xFF68538B);
-    button.setBackground(background);button.setOnClickListener(v->command.run());button.setMinHeight(dp(48));
-    return button;
+  private void log(String stage){Log.i(TAG,stage);}
+  private void status(String message){
+    log(message);
+    onMain(()->{
+      if(stopped)return;
+      if(status!=null)status.setText(message);
+      events.status(message);
+    });
+  }
+  private TextView text(String value,int size){
+    TextView view=new TextView(activity);
+    view.setText(value);view.setTextSize(size);view.setTextColor(WHITE);
+    view.setGravity(Gravity.CENTER);
+    return view;
+  }
+  private XPControl icon(String kind,String description,Runnable click){
+    XPControl icon=new XPControl(activity,kind);
+    icon.setContentDescription(description);
+    icon.setOnClickListener(v->click.run());
+    return icon;
   }
   void attach(FrameLayout frame){
-    callRoot=frame;
-    frame.removeAllViews();
-    frame.setBackgroundColor(0xFF171127);
-    statusText=new TextView(activity);
-    statusText.setTextColor(WHITE);statusText.setTextSize(12);
-    statusText.setText("Tap Join Call; microphone and camera start OFF");
-    statusText.setPadding(dp(12),dp(17),dp(10),dp(8));
-    frame.addView(statusText,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
-    LinearLayout buttons=new LinearLayout(activity);
-    buttons.setPadding(dp(6),dp(6),dp(6),dp(7));buttons.setGravity(Gravity.CENTER_VERTICAL);
-    micButton=control("MIC OFF",this::toggleMic);
-    cameraButton=control("CAM OFF",this::toggleCamera);
-    speakerButton=control("SPEAKER",this::toggleSpeaker);
-    TextView flip=control("FLIP",this::flipCamera);
-    TextView hangup=control("LEAVE CALL",this::leaveSeat);
-    TextView[] all={micButton,cameraButton,speakerButton,flip,hangup};
-    for(int i=0;i<all.length;i++){
-      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(48),1);
-      if(i>0)lp.leftMargin=dp(4);
-      buttons.addView(all[i],lp);
+    if(stopped)return;
+    callRoot=frame;frame.removeAllViews();
+    frame.setBackground(NativeImmersiveBackdrop.sheetSkin());
+    LinearLayout root=new LinearLayout(activity);root.setOrientation(LinearLayout.VERTICAL);
+    frame.addView(root,new FrameLayout.LayoutParams(-1,-1));
+    status=text("Join a call to start. Microphone and camera are off.",12);
+    status.setGravity(Gravity.CENTER_VERTICAL);
+    status.setPadding(dp(12),dp(4),dp(8),dp(4));
+    root.addView(status,new LinearLayout.LayoutParams(-1,dp(43)));
+    videoStage=new FrameLayout(activity);
+    root.addView(videoStage,new LinearLayout.LayoutParams(-1,0,1));
+    placeholder=text("◉\nVoice & video call\nMic and camera start off",15);
+    placeholder.setTextColor(0xFFD2C4EF);
+    videoStage.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
+    videos=new LinearLayout(activity);videos.setOrientation(LinearLayout.VERTICAL);
+    videoStage.addView(videos,new FrameLayout.LayoutParams(-1,-1));
+    buttons=new LinearLayout(activity);buttons.setGravity(Gravity.CENTER);
+    buttons.setPadding(dp(5),dp(2),dp(5),dp(4));
+    buttons.setBackground(NativeImmersiveBackdrop.headerSkin());
+    root.addView(buttons,new LinearLayout.LayoutParams(-1,dp(60)));
+    micControl=icon("mic_off","Microphone on or off",this::toggleMic);
+    cameraControl=icon("camera","Camera on or off",this::toggleCamera);
+    speakerControl=icon("volume","Toggle speaker",this::toggleSpeaker);
+    addButton(micControl);
+    addButton(cameraControl);
+    addButton(speakerControl);
+    TextView flip=text("↻",23);flip.setContentDescription("Switch camera");
+    flip.setOnClickListener(v->flipCamera());
+    addButton(flip);
+    TextView leave=text("Leave",12);leave.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    leave.setTextColor(0xFFFFBBC7);leave.setContentDescription("Leave call seat");
+    leave.setOnClickListener(v->leaveSeat());
+    addButton(leave);
+    updateButtons();
+    // Critically: no PeerConnectionFactory.initialize() in attach or tab switch.
+  }
+  private void addButton(View control){
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(48),1);
+    lp.leftMargin=dp(3);buttons.addView(control,lp);
+  }
+  private void updateButtons(){
+    if(micControl!=null){
+      micControl.active(micOn);
+      micControl.setContentDescription(micOn?"Mute microphone":"Turn on microphone");
     }
-    frame.addView(buttons,new FrameLayout.LayoutParams(-1,dp(62),Gravity.BOTTOM));
-    // No JNI/EGL/peer initialization here: ordinary mic and tab taps stay safe.
+    if(cameraControl!=null){
+      cameraControl.active(cameraOn);
+      cameraControl.setContentDescription(cameraOn?"Turn off camera":"Turn on camera");
+    }
+    if(speakerControl!=null)speakerControl.active(speaker);
   }
-  private void prepareVideoRenderers(){
-    if(callRoot==null||localRenderer!=null)return;
-    try{
-      if(egl==null)egl=EglBase.create();
-      remoteRenderer=new SurfaceViewRenderer(activity);
-      remoteRenderer.init(egl.getEglBaseContext(),null);
-      remoteRenderer.setEnableHardwareScaler(true);remoteRenderer.setMirror(false);
-      FrameLayout.LayoutParams remoteLp=new FrameLayout.LayoutParams(-1,-1);
-      remoteLp.bottomMargin=dp(70);remoteLp.topMargin=dp(40);
-      callRoot.addView(remoteRenderer,0,remoteLp);
-      localRenderer=new SurfaceViewRenderer(activity);
-      localRenderer.init(egl.getEglBaseContext(),null);
-      localRenderer.setZOrderMediaOverlay(true);localRenderer.setMirror(true);
-      FrameLayout.LayoutParams preview=new FrameLayout.LayoutParams(dp(98),dp(130),Gravity.RIGHT|Gravity.TOP);
-      preview.topMargin=dp(45);preview.rightMargin=dp(10);
-      callRoot.addView(localRenderer,1,preview);
-      localRenderer.setVisibility(View.INVISIBLE);
-      if(videoTrack!=null)videoTrack.addSink(localRenderer);
-    }catch(Throwable e){report("Video renderer is unavailable: "+e.getClass().getSimpleName());}
+
+  void configureIce(JSONArray entries){
+    ice.clear();
+    if(entries!=null){
+      for(int i=0;i<entries.length();i++){
+        JSONObject e=entries.optJSONObject(i);
+        if(e==null)continue;
+        String user=e.optString("username",""),pwd=e.optString("credential","");
+        JSONArray addresses=e.optJSONArray("urls");
+        if(addresses!=null){
+          for(int j=0;j<addresses.length();j++)addIce(addresses.optString(j),user,pwd);
+        } else addIce(e.optString("urls"),user,pwd);
+      }
+    }
+    if(ice.isEmpty())addIce("stun:stun.l.google.com:19302","","");
   }
-  private void ensureSetup(){
-    if(initialized||destroyed)return;
-    PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(activity)
-      .setEnableInternalTracer(false).createInitializationOptions());
-    // Audio-first: avoid loading GPU/EGL hardware codecs when the user taps Mic.
-    // The video renderer is initialized lazily only when Camera is requested.
-    PeerConnectionFactory.Options options=new PeerConnectionFactory.Options();
-    // Use an explicit Android ADM rather than relying on an implicit default.
-    // Hardware AEC/NS can be device-dependent and cause recorder initialization errors.
+  private void addIce(String address,String user,String pwd){
+    if(address==null||!(address.startsWith("stun:")||address.startsWith("turn:")||address.startsWith("turns:")))return;
+    ice.add(PeerConnection.IceServer.builder(address).setUsername(user).setPassword(pwd).createIceServer());
+  }
+  void syncRoom(JSONObject room,String selfId){
+    if(stopped||room==null)return;
+    self=selfId==null?"":selfId;lastRoom=room;
+    JSONArray members=room.optJSONArray("people");
+    if(members==null)return;
+    boolean wasInCall=inCall;
+    inCall=false;inRoom.clear();
+    for(int i=0;i<members.length();i++){
+      JSONObject m=members.optJSONObject(i);
+      if(m==null)continue;
+      String id=m.optString("id","");
+      if(id.equals(self))inCall=m.optBoolean("inCall",false);
+      else if(m.optBoolean("inCall")&&m.optBoolean("online"))inRoom.add(id);
+    }
+    for(String old:new ArrayList<>(peers.keySet()))
+      if(!inCall||!inRoom.contains(old))dropPeer(old);
+    if(!inCall){
+      if(wasInCall){disableMedia();status("Call ended. Microphone and camera are off.");}
+      else if(!joining)status("Tap microphone or camera to request a call seat.");
+      return;
+    }
+    joining=false;
+    if(pendingMic){pendingMic=false;onMain(this::toggleMic);}
+    if(pendingCamera){pendingCamera=false;onMain(this::toggleCamera);}
+    if(booted)connectPeers();
+  }
+  private boolean requireSeat(boolean camera){
+    if(stopped)return false;
+    if(inCall)return true;
+    if(camera)pendingCamera=true;else pendingMic=true;
+    if(!joining){joining=true;events.action("call-join");}
+    status("Joining voice/video call… waiting for room approval");
+    return false;
+  }
+  private boolean requestPermission(String permission,int code){
+    if(Build.VERSION.SDK_INT<23||activity.checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED)return true;
+    activity.requestPermissions(new String[]{permission},code);
+    status("Allow "+(code==2201?"microphone":"camera")+" access to continue");
+    return false;
+  }
+  void onPermissionResult(int code,boolean granted){
+    if(stopped)return;
+    if(!granted){status(code==2201?"Microphone permission denied":"Camera permission denied");return;}
+    if(code==2201&&!micOn)main.post(this::toggleMic);
+    if(code==2202&&!cameraOn)main.post(this::toggleCamera);
+  }
+
+  private void startEngine(){
+    if(booted||stopped)return;
+    if(!inCall)throw new IllegalStateException("Call seat not approved");
+    // Stage log makes any JNI failure attributable, unlike the previous controller.
+    log("RTC_STAGE_1_BEFORE_LOAD");
+    synchronized(NativeCallController.class){
+      if(!nativeInitialized){
+        PeerConnectionFactory.initialize(
+          PeerConnectionFactory.InitializationOptions.builder(activity.getApplicationContext())
+            .setEnableInternalTracer(false).createInitializationOptions());
+        nativeInitialized=true;
+      }
+    }
+    log("RTC_STAGE_2_LOADED");
     JavaAudioDeviceModule adm=JavaAudioDeviceModule.builder(activity.getApplicationContext())
       .setUseHardwareAcousticEchoCanceler(false)
       .setUseHardwareNoiseSuppressor(false)
       .createAudioDeviceModule();
     try{
       factory=PeerConnectionFactory.builder()
-        .setOptions(options)
         .setAudioDeviceModule(adm)
         .setVideoEncoderFactory(new SoftwareVideoEncoderFactory())
         .setVideoDecoderFactory(new SoftwareVideoDecoderFactory())
         .createPeerConnectionFactory();
-    }finally{
-      adm.release();
-    }
-    if(factory==null)throw new IllegalStateException("WebRTC audio factory unavailable");
-    // Audio only on microphone activation. Video JNI is deferred until CAMERA ON.
+    }finally{adm.release();}
+    if(factory==null)throw new IllegalStateException("Failed to create RTC factory");
+    log("RTC_STAGE_3_FACTORY_READY");
     audioSource=factory.createAudioSource(new MediaConstraints());
-    audioTrack=factory.createAudioTrack("xparty-native-audio",audioSource);
+    audioTrack=factory.createAudioTrack("xp-audio",audioSource);
+    if(audioTrack==null)throw new IllegalStateException("Microphone media track unavailable");
     audioTrack.setEnabled(false);
-    initialized=true;
-  }
-  private void ensureVideoTrack(){
-    if(videoTrack!=null)return;
-    if(factory==null)throw new IllegalStateException("Call factory unavailable");
-    videoSource=factory.createVideoSource(false);
-    videoTrack=factory.createVideoTrack("xparty-native-video",videoSource);
-    videoTrack.setEnabled(false);
-    // A peer connected before camera activation must negotiate a new video track.
-    for(Peer peer:new ArrayList<>(peers.values())){
-      try{
-        peer.connection.addTrack(videoTrack,Collections.singletonList("xparty"));
-        if(peer.initiator)offer(peer);
-      }catch(Throwable e){report("Camera negotiation unavailable: "+e.getClass().getSimpleName());}
-    }
-  }
-  void configureIce(JSONArray servers){
-    if(servers==null)return;
-    ice.clear();
-    for(int i=0;i<servers.length();i++){
-      JSONObject entry=servers.optJSONObject(i);
-      if(entry==null)continue;
-      String username=entry.optString("username","");
-      String password=entry.optString("credential","");
-      JSONArray multi=entry.optJSONArray("urls");
-      if(multi!=null){
-        for(int j=0;j<multi.length();j++)addIce(multi.optString(j),username,password);
-      }else addIce(entry.optString("urls"),username,password);
-    }
-    if(ice.isEmpty())addIce("stun:stun.l.google.com:19302","","");
-  }
-  private void addIce(String url,String username,String password){
-    if(!(url.startsWith("stun:")||url.startsWith("turn:")||url.startsWith("turns:")))return;
-    ice.add(PeerConnection.IceServer.builder(url).setUsername(username).setPassword(password).createIceServer());
-  }
-  void syncRoom(JSONObject room,String self){
-    if(destroyed||room==null)return;
-    me=self;latestRoom=room;
-    JSONArray people=room.optJSONArray("people");
-    if(people==null)return;
-    Set<String> eligible=new HashSet<>();
-    inCall=false;
-    for(int i=0;i<people.length();i++){
-      JSONObject p=people.optJSONObject(i);
-      if(p==null)continue;
-      if(self.equals(p.optString("id")))inCall=p.optBoolean("inCall",false);
-      else if(p.optBoolean("inCall")&&p.optBoolean("online"))eligible.add(p.optString("id"));
-    }
-    for(String previous:new ArrayList<>(peers.keySet())){
-      if(!eligible.contains(previous)||!inCall)removePeer(previous);
-    }
-    if(!inCall){
-      if(micOn){micOn=false;if(audioTrack!=null)audioTrack.setEnabled(false);events.sendMedia(false,cameraOn);}
-      if(!pendingMicEnable)report("Join a call seat to use microphone or camera.");
-      return;
-    }
-    if(pendingMicEnable){
-      pendingMicEnable=false;
-      main.post(()->{if(!destroyed&&inCall&&!micOn)toggleMic();});
-    }
-    // Native library loading is deferred until user grants media permission.
-    if(!initialized)return;
-    for(String id:eligible)try{ensurePeer(id);}catch(Throwable e){report("Call peer unavailable: "+e.getClass().getSimpleName());}
-  }
-  private void removePeer(String id){
-    Peer p=peers.remove(id);
-    if(p==null)return;
-    if(p.incomingVideo!=null&&remoteRenderer!=null)p.incomingVideo.removeSink(remoteRenderer);
-    p.connection.close();p.connection.dispose();
-    report("Participant left video call");
-  }
-  private void ensurePeer(String id){
-    if(destroyed||id==null||id.isEmpty()||id.equals(me)||peers.containsKey(id)||factory==null)return;
-    boolean initiator=me.compareTo(id)<0;
-    PeerConnection.RTCConfiguration config=new PeerConnection.RTCConfiguration(new ArrayList<>(ice));
-    config.sdpSemantics=PeerConnection.SdpSemantics.UNIFIED_PLAN;
-    PeerConnection connection=factory.createPeerConnection(config,new PeerConnection.Observer(){
-      @Override public void onSignalingChange(PeerConnection.SignalingState state){}
-      @Override public void onIceConnectionChange(PeerConnection.IceConnectionState state){
-        report("Peer "+state.name().toLowerCase());
-      }
-      @Override public void onIceConnectionReceivingChange(boolean receiving){}
-      @Override public void onIceGatheringChange(PeerConnection.IceGatheringState state){}
-      @Override public void onIceCandidate(IceCandidate candidate){
-        try{
-          JSONObject obj=new JSONObject().put("candidate",candidate.sdp)
-            .put("sdpMid",candidate.sdpMid).put("sdpMLineIndex",candidate.sdpMLineIndex);
-          sendSignal(id,new JSONObject().put("candidate",obj));
-        }catch(Exception ignored){}
-      }
-      @Override public void onIceCandidatesRemoved(IceCandidate[] candidates){}
-      @Override public void onAddStream(MediaStream stream){
-        for(VideoTrack video:stream.videoTracks)attachRemote(id,video);
-      }
-      @Override public void onRemoveStream(MediaStream stream){}
-      @Override public void onDataChannel(DataChannel dataChannel){}
-      @Override public void onRenegotiationNeeded(){}
-      @Override public void onAddTrack(RtpReceiver receiver,MediaStream[] streams){
-        if(receiver.track() instanceof VideoTrack)attachRemote(id,(VideoTrack)receiver.track());
-      }
-      @Override public void onTrack(RtpTransceiver transceiver){
-        if(transceiver.getReceiver().track() instanceof VideoTrack)
-          attachRemote(id,(VideoTrack)transceiver.getReceiver().track());
-      }
-      @Override public void onConnectionChange(PeerConnection.PeerConnectionState state){
-        report("Video peer: "+state.name().toLowerCase());
-      }
-    });
-    if(connection==null){report("Unable to establish peer connection");return;}
-    Peer p=new Peer(id,connection,initiator);
-    peers.put(id,p);
-    if(audioTrack!=null)connection.addTrack(audioTrack,Collections.singletonList("xparty"));
-    if(videoTrack!=null)connection.addTrack(videoTrack,Collections.singletonList("xparty"));
-    if(initiator)offer(p);
-  }
-  private void attachRemote(String id,VideoTrack track){
-    main.post(()->{
-      Peer p=peers.get(id);
-      if(p==null||remoteRenderer==null)return;
-      if(p.incomingVideo==track)return;
-      if(p.incomingVideo!=null)p.incomingVideo.removeSink(remoteRenderer);
-      p.incomingVideo=track;
-      track.addSink(remoteRenderer);
-      report("Remote video connected");
-    });
-  }
-  private void sendSignal(String to,JSONObject payload){
-    if(!destroyed)events.signal(to,payload);
-  }
-  private abstract class Callback implements SdpObserver {
-    @Override public void onCreateSuccess(SessionDescription description){}
-    @Override public void onSetSuccess(){}
-    @Override public void onCreateFailure(String error){report("Call setup: "+error);}
-    @Override public void onSetFailure(String error){report("Call setup: "+error);}
-  }
-  private void offer(Peer p){
-    p.connection.createOffer(new Callback(){
-      @Override public void onCreateSuccess(SessionDescription desc){setLocal(p,desc);}
-    },new MediaConstraints());
-  }
-  private void answer(Peer p){
-    p.connection.createAnswer(new Callback(){
-      @Override public void onCreateSuccess(SessionDescription desc){setLocal(p,desc);}
-    },new MediaConstraints());
-  }
-  private void setLocal(Peer p,SessionDescription desc){
-    p.connection.setLocalDescription(new Callback(){
-      @Override public void onSetSuccess(){
-        try{sendSignal(p.id,new JSONObject().put("description",
-          new JSONObject().put("type",desc.type.canonicalForm()).put("sdp",desc.description)));}
-        catch(Exception ignored){}
-      }
-    },desc);
-  }
-  void signal(String from,JSONObject message){
-    if(destroyed||from==null||message==null)return;
-    if(!inCall||!initialized)return; // Do not load native libraries from unsolicited signaling.
-    try{ensureSetup();}catch(Throwable e){report("WebRTC initialization failed");return;}
-    if(!peers.containsKey(from))ensurePeer(from);
-    Peer p=peers.get(from);
-    if(p==null)return;
-    if(message.optBoolean("restart",false)){if(p.initiator)offer(p);return;}
-    JSONObject descr=message.optJSONObject("description");
-    if(descr!=null){
-      String type=descr.optString("type");
-      if(!"offer".equals(type)&&!"answer".equals(type))return;
-      SessionDescription sd=new SessionDescription(
-        "offer".equals(type)?SessionDescription.Type.OFFER:SessionDescription.Type.ANSWER,
-        descr.optString("sdp"));
-      p.connection.setRemoteDescription(new Callback(){
-        @Override public void onSetSuccess(){
-          synchronized(p.pending){
-            for(IceCandidate ice:p.pending)p.connection.addIceCandidate(ice);
-            p.pending.clear();
-          }
-          if("offer".equals(type))answer(p);
-        }
-      },sd);
-      return;
-    }
-    JSONObject candidate=message.optJSONObject("candidate");
-    if(candidate!=null){
-      IceCandidate parsed=new IceCandidate(candidate.optString("sdpMid"),
-        candidate.optInt("sdpMLineIndex"),
-        candidate.optString("candidate"));
-      if(p.connection.getRemoteDescription()!=null)p.connection.addIceCandidate(parsed);
-      else synchronized(p.pending){p.pending.add(parsed);}
-    }
-    if(message.optBoolean("reset",false)){removePeer(from);ensurePeer(from);}
-  }
-  private boolean askPermission(String permission){
-    if(Build.VERSION.SDK_INT<23||activity.checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED)return true;
-    activity.requestPermissions(new String[]{permission},Manifest.permission.CAMERA.equals(permission)?2202:2201);
-    report("Grant "+(Manifest.permission.CAMERA.equals(permission)?"camera":"microphone")+" permission, then tap again.");
-    return false;
+    booted=true;log("RTC_STAGE_4_AUDIO_READY");
+    connectPeers();
   }
   void toggleMic(){
-    if(destroyed)return;
-    if(!inCall){pendingMicEnable=true;events.action("call-join");report("Joining call · microphone remains off until approved");return;}
-    if(!askPermission(Manifest.permission.RECORD_AUDIO))return;
-    try{
-      ensureSetup();
-      if(audioTrack==null){report("Microphone unavailable on this device");return;}
-      micOn=!micOn;
-      audioTrack.setEnabled(micOn);
-      if(latestRoom!=null)syncRoom(latestRoom,me);
-      if(micButton!=null)micButton.setText(micOn?"MIC ON":"MIC OFF");
-      events.sendMedia(micOn,cameraOn);
-    }catch(Throwable failure){
+    if(!requireSeat(false))return;
+    if(micOn){
       micOn=false;
-      report("Could not initialize microphone: "+failure.getClass().getSimpleName());
+      if(audioTrack!=null)audioTrack.setEnabled(false);
+      if(!cameraOn)audio.setMode(AudioManager.MODE_NORMAL);
+      updateButtons();events.sendMedia(false,cameraOn);status("Microphone off");return;
+    }
+    if(!requestPermission(Manifest.permission.RECORD_AUDIO,2201))return;
+    try{
+      startEngine();
+      audio.setMode(AudioManager.MODE_IN_COMMUNICATION);
+      audio.setSpeakerphoneOn(speaker);
+      micOn=true;audioTrack.setEnabled(true);
+      updateButtons();events.sendMedia(true,cameraOn);
+      status("Microphone on");
+    }catch(Throwable error){
+      micOn=false;
+      Log.e(TAG,"Microphone startup failed",error);
+      status("Microphone unavailable: "+error.getClass().getSimpleName());
+      updateButtons();
     }
   }
-  void onPermissionResult(int code,boolean granted){
-    if(destroyed||!granted||!inCall)return;
-    if(code==2201&&!micOn)main.post(this::toggleMic);
-    if(code==2202&&!cameraOn)main.post(this::toggleCamera);
+
+  private void ensureEgl(){
+    if(egl==null)egl=EglBase.create();
+  }
+  private void prepareLocalRenderer(){
+    if(localView!=null||videoStage==null)return;
+    ensureEgl();
+    localView=new SurfaceViewRenderer(activity);
+    localView.init(egl.getEglBaseContext(),null);
+    localView.setZOrderMediaOverlay(true);
+    localView.setMirror(true);
+    FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(dp(104),dp(138),Gravity.TOP|Gravity.RIGHT);
+    lp.topMargin=dp(8);lp.rightMargin=dp(8);
+    videoStage.addView(localView,lp);
+  }
+  private void createVideoTrack(){
+    if(videoTrack!=null)return;
+    ensureEgl();
+    videoSource=factory.createVideoSource(false);
+    videoTrack=factory.createVideoTrack("xp-video",videoSource);
+    if(videoTrack==null)throw new IllegalStateException("Camera video track unavailable");
+    videoTrack.setEnabled(false);
+    for(Peer p:new ArrayList<>(peers.values())){
+      p.pc.addTrack(videoTrack,Collections.singletonList("xp-call"));
+      if(p.initiator)offer(p);
+      else sendPeer(p.id,new JSONObject().put("restart",true));
+    }
+  }
+  private boolean startCapture(){
+    if(captureActive)return true;
+    try{
+      CameraEnumerator enumeration=Camera2Enumerator.isSupported(activity)
+        ?new Camera2Enumerator(activity):new Camera1Enumerator(false);
+      String chosen=null;
+      for(String name:enumeration.getDeviceNames())if(enumeration.isFrontFacing(name)){chosen=name;break;}
+      if(chosen==null){
+        String[] names=enumeration.getDeviceNames();
+        if(names.length>0)chosen=names[0];
+      }
+      if(chosen==null){status("No camera detected");return false;}
+      capturer=(CameraVideoCapturer)enumeration.createCapturer(chosen,null);
+      if(capturer==null){status("Camera capturer unavailable");return false;}
+      captureHelper=SurfaceTextureHelper.create("XPartyCallCamera",egl.getEglBaseContext());
+      capturer.initialize(captureHelper,activity.getApplicationContext(),videoSource.getCapturerObserver());
+      capturer.startCapture(360,480,15);
+      captureActive=true;return true;
+    }catch(Throwable error){
+      Log.e(TAG,"Camera capture failed",error);
+      status("Camera could not start");
+      return false;
+    }
   }
   void toggleCamera(){
-    if(!inCall){events.action("call-join");report("Requesting a call seat…");return;}
-    if(!askPermission(Manifest.permission.CAMERA))return;
-    try{ensureSetup();ensureVideoTrack();}catch(Throwable e){report("Camera unavailable: "+e.getClass().getSimpleName());return;}
-    if(!cameraOn){
-      prepareVideoRenderers();
-      if(!cameraStarted&&!startCamera())return;
-      cameraOn=true;videoTrack.setEnabled(true);
-      if(localRenderer!=null){videoTrack.addSink(localRenderer);localRenderer.setVisibility(View.VISIBLE);}
-    }else{
-      cameraOn=false;videoTrack.setEnabled(false);
-      if(localRenderer!=null)localRenderer.setVisibility(View.INVISIBLE);
+    if(!requireSeat(true))return;
+    if(cameraOn){
+      cameraOn=false;
+      if(videoTrack!=null)videoTrack.setEnabled(false);
+      if(localView!=null)localView.setVisibility(View.INVISIBLE);
+      if(!micOn)audio.setMode(AudioManager.MODE_NORMAL);
+      updateButtons();events.sendMedia(micOn,false);status("Camera off");return;
     }
-    if(cameraButton!=null)cameraButton.setText(cameraOn?"CAM ON":"CAM OFF");
-    events.sendMedia(micOn,cameraOn);
-  }
-  private boolean startCamera(){
+    if(!requestPermission(Manifest.permission.CAMERA,2202))return;
     try{
-      CameraEnumerator enumerator=Camera2Enumerator.isSupported(activity)
-        ?new Camera2Enumerator(activity):new Camera1Enumerator(false);
-      String front=null,rear=null;
-      for(String name:enumerator.getDeviceNames()){
-        if(enumerator.isFrontFacing(name))front=name;
-        else if(rear==null)rear=name;
+      startEngine();createVideoTrack();prepareLocalRenderer();
+      if(!startCapture())return;
+      cameraOn=true;videoTrack.setEnabled(true);
+      if(localView!=null){
+        videoTrack.removeSink(localView);
+        videoTrack.addSink(localView);
+        localView.setVisibility(View.VISIBLE);
       }
-      String name=front==null?rear:front;
-      if(name==null){report("No camera available");return false;}
-      VideoCapturer capturer=enumerator.createCapturer(name,null);
-      if(!(capturer instanceof CameraVideoCapturer))return false;
-      cameraCapturer=(CameraVideoCapturer)capturer;
-      captureHelper=SurfaceTextureHelper.create("XPartyNativeCamera",egl.getEglBaseContext());
-      cameraCapturer.initialize(captureHelper,activity,videoSource.getCapturerObserver());
-      cameraCapturer.startCapture(360,480,15);
-      cameraStarted=true;return true;
-    }catch(Exception e){report("Could not start camera: "+e.getMessage());return false;}
-  }
-  void flipCamera(){
-    if(cameraCapturer==null||!cameraStarted){report("Turn on the camera first");return;}
-    try{cameraCapturer.switchCamera(null);}catch(Exception e){report("Unable to switch camera");}
+      updateButtons();events.sendMedia(micOn,true);
+      status("Camera on");
+    }catch(Throwable error){
+      cameraOn=false;
+      Log.e(TAG,"Camera startup failed",error);
+      status("Camera unavailable: "+error.getClass().getSimpleName());
+      updateButtons();
+    }
   }
   void toggleSpeaker(){
-    speakerOn=!speakerOn;
+    speaker=!speaker;
     audio.setMode(AudioManager.MODE_IN_COMMUNICATION);
-    audio.setSpeakerphoneOn(speakerOn);
-    if(speakerButton!=null)speakerButton.setText(speakerOn?"SPEAKER":"EARPIECE");
+    audio.setSpeakerphoneOn(speaker);
+    updateButtons();status(speaker?"Speaker on":"Earpiece on");
   }
-  void leaveSeat(){
-    if(!inCall){report("Not currently in a call");return;}
-    pendingMicEnable=false;
+  void flipCamera(){
+    if(capturer==null||!captureActive){status("Start the camera before switching");return;}
+    try{capturer.switchCamera(null);}catch(Throwable error){status("Camera switch unavailable");}
+  }
+  private void disableMedia(){
     micOn=false;cameraOn=false;
     if(audioTrack!=null)audioTrack.setEnabled(false);
     if(videoTrack!=null)videoTrack.setEnabled(false);
-    if(localRenderer!=null)localRenderer.setVisibility(View.INVISIBLE);
-    if(micButton!=null)micButton.setText("MIC OFF");
-    if(cameraButton!=null)cameraButton.setText("CAM OFF");
-    events.sendMedia(false,false);events.action("call-leave");
-    report("Left video call");
+    if(localView!=null)localView.setVisibility(View.INVISIBLE);
+    audio.setMode(AudioManager.MODE_NORMAL);
+    updateButtons();events.sendMedia(false,false);
+  }
+  void leaveSeat(){
+    pendingMic=false;pendingCamera=false;joining=false;
+    disableMedia();
+    for(String id:new ArrayList<>(peers.keySet()))dropPeer(id);
+    if(inCall)events.action("call-leave");
+    inCall=false;status("Left video call");
   }
   boolean isMicOn(){return micOn;}
   boolean isCameraOn(){return cameraOn;}
-  void stop(){
-    destroyed=true;pendingMicEnable=false;
-    for(String id:new ArrayList<>(peers.keySet()))removePeer(id);
-    if(cameraCapturer!=null){
-      try{cameraCapturer.stopCapture();}catch(Exception ignored){}
-      cameraCapturer.dispose();cameraCapturer=null;
+
+  private void connectPeers(){
+    if(!inCall||!booted||stopped)return;
+    for(String id:new ArrayList<>(inRoom)){
+      if(id==null||id.isEmpty()||id.equals(self)||peers.containsKey(id))continue;
+      openPeer(id);
     }
-    if(videoTrack!=null&&localRenderer!=null)videoTrack.removeSink(localRenderer);
-    if(localRenderer!=null){localRenderer.release();localRenderer=null;}
-    if(remoteRenderer!=null){remoteRenderer.release();remoteRenderer=null;}
+  }
+  private void sendPeer(String id,JSONObject message){
+    onMain(()->{if(!stopped)events.signal(id,message);});
+  }
+  private void openPeer(String id){
+    if(peers.containsKey(id)||factory==null||!inCall)return;
+    boolean initiator=self.compareTo(id)<0;
+    PeerConnection.RTCConfiguration cfg=new PeerConnection.RTCConfiguration(new ArrayList<>(ice));
+    cfg.sdpSemantics=PeerConnection.SdpSemantics.UNIFIED_PLAN;
+    PeerConnection pc=factory.createPeerConnection(cfg,new PeerConnection.Observer(){
+      @Override public void onSignalingChange(PeerConnection.SignalingState value){}
+      @Override public void onIceConnectionChange(PeerConnection.IceConnectionState value){
+        status("Call connection: "+value.name().toLowerCase());
+      }
+      @Override public void onIceConnectionReceivingChange(boolean value){}
+      @Override public void onIceGatheringChange(PeerConnection.IceGatheringState value){}
+      @Override public void onIceCandidate(IceCandidate c){
+        try{
+          JSONObject data=new JSONObject().put("candidate",c.sdp)
+             .put("sdpMid",c.sdpMid).put("sdpMLineIndex",c.sdpMLineIndex);
+          sendPeer(id,new JSONObject().put("candidate",data));
+        }catch(Exception ignored){}
+      }
+      @Override public void onIceCandidatesRemoved(IceCandidate[] c){}
+      @Override public void onAddStream(MediaStream stream){
+        for(VideoTrack track:stream.videoTracks)showRemote(id,track);
+      }
+      @Override public void onRemoveStream(MediaStream stream){}
+      @Override public void onDataChannel(DataChannel channel){}
+      @Override public void onRenegotiationNeeded(){}
+      @Override public void onAddTrack(RtpReceiver receiver,MediaStream[] stream){
+        if(receiver.track() instanceof VideoTrack)showRemote(id,(VideoTrack)receiver.track());
+      }
+      @Override public void onTrack(RtpTransceiver transceiver){
+        if(transceiver.getReceiver().track() instanceof VideoTrack)
+          showRemote(id,(VideoTrack)transceiver.getReceiver().track());
+      }
+    });
+    if(pc==null){status("Unable to connect to participant");return;}
+    Peer peer=new Peer(id,pc,initiator);
+    peers.put(id,peer);
+    if(audioTrack!=null)pc.addTrack(audioTrack,Collections.singletonList("xp-call"));
+    if(videoTrack!=null)pc.addTrack(videoTrack,Collections.singletonList("xp-call"));
+    if(initiator)offer(peer);
+  }
+  private void showRemote(String id,VideoTrack track){
+    onMain(()->{
+      if(stopped||videoStage==null)return;
+      Peer peer=peers.get(id);
+      if(peer==null||peer.remoteVideo==track)return;
+      try{
+        ensureEgl();
+        if(peer.view==null){
+          peer.view=new SurfaceViewRenderer(activity);
+          peer.view.init(egl.getEglBaseContext(),null);
+          peer.view.setEnableHardwareScaler(true);
+          peer.view.setMirror(false);
+          LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(200));
+          lp.bottomMargin=dp(5);
+          videos.addView(peer.view,lp);
+        }
+        if(peer.remoteVideo!=null)peer.remoteVideo.removeSink(peer.view);
+        peer.remoteVideo=track;track.addSink(peer.view);
+        if(placeholder!=null)placeholder.setVisibility(View.GONE);
+        status("Video connected");
+      }catch(Throwable error){Log.e(TAG,"Remote video render failed",error);status("Video display unavailable");}
+    });
+  }
+  private abstract class SDP implements SdpObserver {
+    @Override public void onCreateSuccess(SessionDescription desc){}
+    @Override public void onSetSuccess(){}
+    @Override public void onCreateFailure(String error){status("Call negotiation error: "+error);}
+    @Override public void onSetFailure(String error){status("Call negotiation error: "+error);}
+  }
+  private void sendLocal(Peer peer,SessionDescription description){
+    peer.pc.setLocalDescription(new SDP(){
+      @Override public void onSetSuccess(){
+        try{sendPeer(peer.id,new JSONObject().put("description",
+          new JSONObject().put("type",description.type.canonicalForm())
+            .put("sdp",description.description)));}
+        catch(Exception ignored){}
+      }
+    },description);
+  }
+  private void offer(Peer peer){
+    peer.pc.createOffer(new SDP(){
+      @Override public void onCreateSuccess(SessionDescription d){sendLocal(peer,d);}
+    },new MediaConstraints());
+  }
+  private void answer(Peer peer){
+    peer.pc.createAnswer(new SDP(){
+      @Override public void onCreateSuccess(SessionDescription d){sendLocal(peer,d);}
+    },new MediaConstraints());
+  }
+  void signal(String from,JSONObject data){
+    if(stopped||!inCall||!booted||from==null||data==null)return;
+    if(!peers.containsKey(from))openPeer(from);
+    Peer peer=peers.get(from);
+    if(peer==null)return;
+    if(data.optBoolean("reset",false)){dropPeer(from);openPeer(from);return;}
+    if(data.optBoolean("restart",false)){if(peer.initiator)offer(peer);return;}
+    JSONObject description=data.optJSONObject("description");
+    if(description!=null){
+      String kind=description.optString("type","");
+      if(!kind.equals("offer")&&!kind.equals("answer"))return;
+      SessionDescription sdp=new SessionDescription(
+        kind.equals("offer")?SessionDescription.Type.OFFER:SessionDescription.Type.ANSWER,
+        description.optString("sdp",""));
+      peer.pc.setRemoteDescription(new SDP(){
+        @Override public void onSetSuccess(){
+          synchronized(peer.iceQueue){
+            for(IceCandidate candidate:peer.iceQueue)peer.pc.addIceCandidate(candidate);
+            peer.iceQueue.clear();
+          }
+          if(kind.equals("offer"))answer(peer);
+        }
+      },sdp);
+      return;
+    }
+    JSONObject candidate=data.optJSONObject("candidate");
+    if(candidate!=null){
+      IceCandidate value=new IceCandidate(candidate.optString("sdpMid"),
+        candidate.optInt("sdpMLineIndex"),candidate.optString("candidate"));
+      if(peer.pc.getRemoteDescription()!=null)peer.pc.addIceCandidate(value);
+      else synchronized(peer.iceQueue){peer.iceQueue.add(value);}
+    }
+  }
+  private void dropPeer(String id){
+    Peer p=peers.remove(id);if(p==null)return;
+    if(p.remoteVideo!=null&&p.view!=null)p.remoteVideo.removeSink(p.view);
+    if(p.view!=null){
+      onMain(()->{
+        if(videos!=null)videos.removeView(p.view);
+        p.view.release();
+      });
+    }
+    p.pc.close();p.pc.dispose();
+    if(peers.isEmpty()&&placeholder!=null)placeholder.setVisibility(View.VISIBLE);
+  }
+  void stop(){
+    if(stopped)return;
+    pendingMic=false;pendingCamera=false;
+    disableMedia();stopped=true;
+    for(String id:new ArrayList<>(peers.keySet()))dropPeer(id);
+    if(capturer!=null){
+      try{capturer.stopCapture();}catch(Exception ignored){}
+      capturer.dispose();capturer=null;
+    }
+    if(videoTrack!=null&&localView!=null)videoTrack.removeSink(localView);
+    if(localView!=null){localView.release();localView=null;}
     if(captureHelper!=null){captureHelper.dispose();captureHelper=null;}
-    if(audioTrack!=null)audioTrack.dispose();
-    if(videoTrack!=null)videoTrack.dispose();
-    if(audioSource!=null)audioSource.dispose();
-    if(videoSource!=null)videoSource.dispose();
-    if(factory!=null)factory.dispose();
-    if(egl!=null)egl.release();
+    if(videoTrack!=null){videoTrack.dispose();videoTrack=null;}
+    if(videoSource!=null){videoSource.dispose();videoSource=null;}
+    if(audioTrack!=null){audioTrack.dispose();audioTrack=null;}
+    if(audioSource!=null){audioSource.dispose();audioSource=null;}
+    if(factory!=null){factory.dispose();factory=null;}
+    if(egl!=null){egl.release();egl=null;}
     audio.setMode(AudioManager.MODE_NORMAL);
+    main.removeCallbacksAndMessages(null);
   }
 }
