@@ -30,6 +30,7 @@ import org.webrtc.SoftwareVideoEncoderFactory;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
 import org.webrtc.MediaConstraints;
+import org.webrtc.JavaAudioDeviceModule;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
@@ -165,19 +166,42 @@ final class NativeCallController {
     // Audio-first: avoid loading GPU/EGL hardware codecs when the user taps Mic.
     // The video renderer is initialized lazily only when Camera is requested.
     PeerConnectionFactory.Options options=new PeerConnectionFactory.Options();
-    factory=PeerConnectionFactory.builder()
-      .setOptions(options)
-      .setVideoEncoderFactory(new SoftwareVideoEncoderFactory())
-      .setVideoDecoderFactory(new SoftwareVideoDecoderFactory())
-      .createPeerConnectionFactory();
-    // Media tracks stay off until the user explicitly activates microphone/camera.
+    // Use an explicit Android ADM rather than relying on an implicit default.
+    // Hardware AEC/NS can be device-dependent and cause recorder initialization errors.
+    JavaAudioDeviceModule adm=JavaAudioDeviceModule.builder(activity.getApplicationContext())
+      .setUseHardwareAcousticEchoCanceler(false)
+      .setUseHardwareNoiseSuppressor(false)
+      .createAudioDeviceModule();
+    try{
+      factory=PeerConnectionFactory.builder()
+        .setOptions(options)
+        .setAudioDeviceModule(adm)
+        .setVideoEncoderFactory(new SoftwareVideoEncoderFactory())
+        .setVideoDecoderFactory(new SoftwareVideoDecoderFactory())
+        .createPeerConnectionFactory();
+    }finally{
+      adm.release();
+    }
+    if(factory==null)throw new IllegalStateException("WebRTC audio factory unavailable");
+    // Audio only on microphone activation. Video JNI is deferred until CAMERA ON.
     audioSource=factory.createAudioSource(new MediaConstraints());
     audioTrack=factory.createAudioTrack("xparty-native-audio",audioSource);
     audioTrack.setEnabled(false);
+    initialized=true;
+  }
+  private void ensureVideoTrack(){
+    if(videoTrack!=null)return;
+    if(factory==null)throw new IllegalStateException("Call factory unavailable");
     videoSource=factory.createVideoSource(false);
     videoTrack=factory.createVideoTrack("xparty-native-video",videoSource);
     videoTrack.setEnabled(false);
-    initialized=true;
+    // A peer connected before camera activation must negotiate a new video track.
+    for(Peer peer:new ArrayList<>(peers.values())){
+      try{
+        peer.connection.addTrack(videoTrack,Collections.singletonList("xparty"));
+        if(peer.initiator)offer(peer);
+      }catch(Throwable e){report("Camera negotiation unavailable: "+e.getClass().getSimpleName());}
+    }
   }
   void configureIce(JSONArray servers){
     if(servers==null)return;
@@ -274,8 +298,8 @@ final class NativeCallController {
     if(connection==null){report("Unable to establish peer connection");return;}
     Peer p=new Peer(id,connection,initiator);
     peers.put(id,p);
-    connection.addTrack(audioTrack,Collections.singletonList("xparty"));
-    connection.addTrack(videoTrack,Collections.singletonList("xparty"));
+    if(audioTrack!=null)connection.addTrack(audioTrack,Collections.singletonList("xparty"));
+    if(videoTrack!=null)connection.addTrack(videoTrack,Collections.singletonList("xparty"));
     if(initiator)offer(p);
   }
   private void attachRemote(String id,VideoTrack track){
@@ -384,7 +408,7 @@ final class NativeCallController {
   void toggleCamera(){
     if(!inCall){events.action("call-join");report("Requesting a call seat…");return;}
     if(!askPermission(Manifest.permission.CAMERA))return;
-    try{ensureSetup();}catch(Throwable e){report("Camera unavailable: "+e.getClass().getSimpleName());return;}
+    try{ensureSetup();ensureVideoTrack();}catch(Throwable e){report("Camera unavailable: "+e.getClass().getSimpleName());return;}
     if(!cameraOn){
       prepareVideoRenderers();
       if(!cameraStarted&&!startCamera())return;
