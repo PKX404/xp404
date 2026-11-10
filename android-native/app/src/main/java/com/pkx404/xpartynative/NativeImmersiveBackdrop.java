@@ -188,7 +188,7 @@ final class NativeImmersiveBackdrop {
     volatile Bitmap frame;
     @Override public void draw(Canvas canvas){
       Rect b=getBounds();if(b.isEmpty())return;
-      canvas.drawColor(0xFF101027);
+      canvas.drawColor(0xFF21182C);
       Bitmap image=frame;
       if(image!=null&&!image.isRecycled()){
         // CSS .immersive-frame: inset:-6%; width:112%; object-fit:cover.
@@ -203,7 +203,7 @@ final class NativeImmersiveBackdrop {
           int height=Math.round(image.getWidth()/targetRatio);
           y0=(image.getHeight()-height)/2;y1=y0+height;
         }
-        paint.setAlpha(105);paint.setShader(null);
+        paint.setAlpha(215);paint.setShader(null);
         canvas.drawBitmap(image,new Rect(x0,y0,x1,y1),
           new RectF(b.left-overX,b.top-overY,b.right+overX,b.bottom+overY),paint);
       }
@@ -211,18 +211,18 @@ final class NativeImmersiveBackdrop {
       paint.setAlpha(255);
       paint.setShader(new RadialGradient(b.width()*.18f,b.height()*.15f,
         Math.max(b.width(),b.height())*.88f,
-        new int[]{0xAA233766,0x502A244B,0x00212B4F},
+        new int[]{0x66233766,0x222A244B,0x00212B4F},
         new float[]{0f,.50f,1f},Shader.TileMode.CLAMP));
       canvas.drawRect(b,paint);paint.setShader(null);
       // Conceptual overlay from v31.6 ambient.css:
       // #05081275 -> #06091238 (35%) -> #070a128f
       paint.setAlpha(255);
       paint.setShader(new LinearGradient(0,b.top,0,b.bottom,
-        new int[]{0x75050812,0x38060912,0x8F070A12},
+        new int[]{0x38050812,0x14060912,0x4A070A12},
         new float[]{0,.35f,1},Shader.TileMode.CLAMP));
       canvas.drawRect(b,paint);paint.setShader(null);
       // Original XParty chat surface is a semi-transparent #0b1026a6.
-      paint.setColor(0x620B1026);
+      paint.setColor(0x220B1026);
       canvas.drawRect(b,paint);paint.setColor(Color.WHITE);
     }
     @Override public void setAlpha(int alpha){}
