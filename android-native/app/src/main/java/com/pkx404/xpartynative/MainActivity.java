@@ -104,7 +104,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private TextView roomFooter;
   private boolean isLandscapeLayout=false;
   private FrameLayout videoContainer;
-  private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
+  private XPControl playIcon,pauseIcon,likeIcon,secondaryLikeIcon,callIcon,shareIcon,memberIcon;
   private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
   private SeekBar progress;
   private final Runnable hidePlaybackUi=()->{
@@ -933,8 +933,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     playerLabel=text("Now watching · Choose a video",14,WHITE,true);
     playerLabel.setGravity(Gravity.CENTER_VERTICAL);
     watching.addView(playerLabel,new LinearLayout.LayoutParams(0,dp(52),1));
-    XPControl heart=xpIcon("heart",this::toggleVideoLike);
-    iconIn(watching,heart,44,50);
+    secondaryLikeIcon=xpIcon("heart",this::toggleVideoLike);
+    secondaryLikeIcon.active(liked);
+    iconIn(watching,secondaryLikeIcon,44,50);
     XPControl next=xpIcon("next",()->{
       if(isHost)send("next");else toast("Only the host can skip the video.");
     });
@@ -1137,6 +1138,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(sourceId==null||sourceId.isEmpty()){toast("Play a video to like it.");return;}
     liked=!liked;
     if(likeIcon!=null)likeIcon.active(liked);
+    if(secondaryLikeIcon!=null)secondaryLikeIcon.active(liked);
     try{socket.send(new JSONObject().put("type","video-like").put("sourceId",sourceId).put("liked",liked));}
     catch(Exception ignored){}
   }
@@ -1440,7 +1442,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         else toast("Camera is unavailable.");
       }catch(Exception error){toast("Could not open camera");}
     }else if(action==3){
-      if(sourceSheet!=null)sourceSheet.open("youtube",token,"");
+      if(sourceSheet!=null)sourceSheet.open("special",token,"");
     }else{
       new AlertDialog.Builder(this).setTitle("Share more")
         .setItems(new String[]{"Video","Image","Document"},(dialog,n)->
@@ -1689,6 +1691,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     renderedVideo=false;youtubeReady=false;nativeReadySource="";nativeRecoveryUsed=false;
     youtubeDurationSeconds=0;
     resetPlaybackControls();
+    liked=false;
+    if(likeIcon!=null)likeIcon.active(false);
+    if(secondaryLikeIcon!=null)secondaryLikeIcon.active(false);
     mediaReadyAt=SystemClock.uptimeMillis();
     youtube.stopLoading();youtube.loadUrl("about:blank");youtube.setVisibility(View.GONE);
     playerView.setVisibility(View.VISIBLE);
