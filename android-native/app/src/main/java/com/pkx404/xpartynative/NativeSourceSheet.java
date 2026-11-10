@@ -2,6 +2,7 @@ package com.pkx404.xpartynative;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
@@ -69,6 +70,7 @@ final class NativeSourceSheet {
   private final List<JSONObject> ytItems=new ArrayList<>();
   private int categoryRequest=0,youtubeRequest=0,shownChannels=28,shownYouTube=20,selectedTabIndex=1;
   private String nextYouTubePage="";
+  private String tileMode="grid2";
   private String loadedCategory="";
   private Runnable youtubeDebounce;
 
@@ -76,6 +78,7 @@ final class NativeSourceSheet {
     this.activity=activity;this.directory=directory;this.artwork=artwork;this.actions=actions;this.backend=backend;
     prefs=activity.getPreferences(Context.MODE_PRIVATE);
     category=prefs.getString("last_iptv_category","Movies");
+    tileMode=prefs.getString("native_source_tile_layout","grid2");
   }
   private int dp(float n){return Math.round(n*activity.getResources().getDisplayMetrics().density);}
   private GradientDrawable rounded(int color,int radius){
@@ -105,6 +108,30 @@ final class NativeSourceSheet {
     parent.addView(child,lp);
   }
   private String title(String text){return text==null?"":text;}
+  private int tileColumns(){
+    switch(tileMode){
+      case "grid3":return 3;
+      case "grid4":return 4;
+      case "list":case "poster":return 1;
+      default:return 2;
+    }
+  }
+  private boolean tileList(){return "list".equals(tileMode);}
+  private void selectTileLayout(){
+    final String[] keys={"grid2","grid3","grid4","poster","list"};
+    final String[] labels={"2-column tiles (recommended)","3-column compact","4-column mini","Large posters","Detailed list"};
+    int selected=0;
+    for(int i=0;i<keys.length;i++)if(keys[i].equals(tileMode)){selected=i;break;}
+    new AlertDialog.Builder(activity).setTitle("Source tile layout")
+      .setSingleChoiceItems(labels,selected,(dialog,which)->{
+        tileMode=keys[which];
+        prefs.edit().putString("native_source_tile_layout",tileMode).apply();
+        dialog.dismiss();
+        if("youtube".equals(currentTab))renderYoutubeResults();
+        else if("iptv".equals(currentTab))renderIPTV();
+        else if("all".equals(currentTab))showProviders();
+      }).setNegativeButton("Cancel",null).show();
+  }
   private JSONArray saved(){
     try{return new JSONArray(prefs.getString("favorite_sources","[]"));}
     catch(Exception ignored){return new JSONArray();}
@@ -146,8 +173,6 @@ final class NativeSourceSheet {
     root.setPadding(dp(12),dp(15),dp(12),dp(12));
     // Drag handle visually connects this dialog to the v31.6 source sheet.
     TextView handle=label("━━━━",15,0xFF6E677F,true);handle.setGravity(Gravity.CENTER);add(root,handle,5);
-    TextView heading=label("Find something to watch",22,WHITE,true);
-    heading.setPadding(dp(8),dp(3),0,dp(5));add(root,heading,12);
     LinearLayout tabs=new LinearLayout(activity);tabs.setGravity(Gravity.CENTER_VERTICAL);
     TextView quick=chip("Quick Search",false,()->showQuick());
     TextView all=chip("All sources",true,()->showProviders());
@@ -157,6 +182,10 @@ final class NativeSourceSheet {
     tabs.addView(all,middle);
     LinearLayout.LayoutParams right=new LinearLayout.LayoutParams(0,dp(48),1);right.leftMargin=dp(6);
     tabs.addView(savedChip,right);
+    TextView tiling=chip("▦",false,this::selectTileLayout);
+    tiling.setContentDescription("Choose source tile layout");
+    LinearLayout.LayoutParams tilingLp=new LinearLayout.LayoutParams(dp(43),dp(47));
+    tilingLp.leftMargin=dp(5);tabs.addView(tiling,tilingLp);
     XPControl close=new XPControl(activity,"exit");close.setOnClickListener(v->dismiss());
     LinearLayout.LayoutParams closeLp=new LinearLayout.LayoutParams(dp(43),dp(47));
     tabs.addView(close,closeLp);add(root,tabs,8);
@@ -218,9 +247,10 @@ final class NativeSourceSheet {
       R.drawable.xp_brand_twitch,R.drawable.xp_brand_soundcloud,R.drawable.xp_brand_vimeo,
       R.drawable.xp_brand_drive,R.drawable.xp_brand_link,R.drawable.xp_brand_files};
     LinearLayout row=null;
+    final int columns=tileColumns();
     for(int i=0;i<labels.length;i++){
       final int index=i;
-      if(i%4==0){row=new LinearLayout(activity);row.setOrientation(LinearLayout.HORIZONTAL);add(body,row,dp(16));}
+      if(i%columns==0){row=new LinearLayout(activity);row.setOrientation(LinearLayout.HORIZONTAL);add(body,row,dp(10));}
       LinearLayout tile=new LinearLayout(activity);tile.setOrientation(LinearLayout.VERTICAL);
       tile.setGravity(Gravity.CENTER);tile.setPadding(dp(1),dp(14),dp(1),dp(11));
       ImageView icon=new ImageView(activity);
@@ -232,8 +262,8 @@ final class NativeSourceSheet {
       TextView txt=label(labels[i],12,WHITE,true);txt.setGravity(Gravity.CENTER);txt.setMaxLines(2);
       tile.addView(txt,new LinearLayout.LayoutParams(-1,dp(42)));
       tile.setBackground(rounded(0xFF191527,13));tile.setOnClickListener(v->selectService(index));
-      LinearLayout.LayoutParams tileLp=new LinearLayout.LayoutParams(0,dp(134),1);
-      if(i%4!=0)tileLp.leftMargin=dp(7);row.addView(tile,tileLp);
+      LinearLayout.LayoutParams tileLp=new LinearLayout.LayoutParams(0,dp(columns>=4?118:134),1);
+      if(i%columns!=0)tileLp.leftMargin=dp(6);row.addView(tile,tileLp);
     }
   }
   private void selectService(int index){
@@ -386,16 +416,15 @@ final class NativeSourceSheet {
   }
   private void showYoutube(boolean browse){
     clear();currentTab="youtube";
-    add(body,label("YOUTUBE   ·   SEARCH & WATCH TOGETHER",13,PURPLE,true),10);
-    youtubeSearch=input("Search YouTube, music, videos, creators");
+    LinearLayout searchRow=new LinearLayout(activity);searchRow.setGravity(Gravity.CENTER_VERTICAL);
+    youtubeSearch=input("Search YouTube videos");
     youtubeSearch.setText(youtubeQuery);
-    add(body,youtubeSearch,10);
-    LinearLayout buttons=new LinearLayout(activity);
-    TextView browseButton=chip("Browse YouTube",false,this::showYouTubeBrowse);
-    TextView linkButton=chip("Paste video link",false,()->{dismiss();actions.enterLink("youtube");});
-    buttons.addView(browseButton,new LinearLayout.LayoutParams(0,dp(44),1));
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);lp.leftMargin=dp(8);
-    buttons.addView(linkButton,lp);add(body,buttons,14);
+    searchRow.addView(youtubeSearch,new LinearLayout.LayoutParams(0,dp(52),1));
+    TextView browseButton=chip("▶",false,this::showYouTubeBrowse);
+    browseButton.setContentDescription("Browse YouTube");
+    LinearLayout.LayoutParams browseLp=new LinearLayout.LayoutParams(dp(52),dp(48));
+    browseLp.leftMargin=dp(8);searchRow.addView(browseButton,browseLp);
+    add(body,searchRow,12);
     providerView=new LinearLayout(activity);providerView.setOrientation(LinearLayout.VERTICAL);
     add(body,providerView,10);
     youtubeSearch.addTextChangedListener(new TextWatcher(){

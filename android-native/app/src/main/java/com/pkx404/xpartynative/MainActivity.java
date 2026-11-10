@@ -60,6 +60,7 @@ import java.util.regex.Pattern;
 public final class MainActivity extends Activity implements RoomSocket.Events {
   private static final int BG=0xFF090E1C, CARD=0xFF151B31, CARD2=0xFF1D2846;
   private static final int PURPLE=0xFF9878FF, BLUE=0xFF4F9FFF, WHITE=0xFFF6F6FF, MUTED=0xFFB6BED7;
+  private boolean micSmokeMode=false;
   private static final int REQUEST_FILE=73, REQUEST_CHAT_GALLERY=74, REQUEST_CHAT_FILE=75, REQUEST_CHAT_CAMERA=76;
   private final Handler handler=new Handler(Looper.getMainLooper());
   private final ChannelCatalog directory=new ChannelCatalog();
@@ -145,6 +146,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
 
   @Override public void onCreate(Bundle saved){
     super.onCreate(saved);
+    if(getIntent()!=null&&getIntent().getBooleanExtra("xparty_mic_smoke",false)){
+      micSmokeMode=true;
+      runMicrophoneSmoke();
+      return;
+    }
     getWindow().setStatusBarColor(BG);
     getWindow().setNavigationBarColor(BG);
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
@@ -1067,11 +1073,50 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     calls.syncRoom(room,myId);
     return calls;
   }
+  // QA-only, intentionally inaccessible from the normal app UI. Exercises the
+  // identical NativeCallController.toggleMic path against a synthetic call seat.
+  private void runMicrophoneSmoke(){
+    android.widget.FrameLayout qaFrame=new android.widget.FrameLayout(this);
+    setContentView(qaFrame);
+    calls=new NativeCallController(this,new NativeCallController.Events(){
+      @Override public void signal(String target,JSONObject payload){}
+      @Override public void sendMedia(boolean mic,boolean camera){
+        android.util.Log.i("XPartyMicSmoke","MEDIA_STATE mic="+mic+" camera="+camera);
+      }
+      @Override public void action(String type){
+        android.util.Log.i("XPartyMicSmoke","ACTION "+type);
+      }
+      @Override public void status(String value){
+        android.util.Log.i("XPartyMicSmoke","STATUS "+value);
+      }
+    });
+    calls.attach(qaFrame);
+    try{
+      JSONObject self=new JSONObject().put("id","microphone-qa").put("inCall",true).put("online",true);
+      JSONObject synthetic=new JSONObject().put("people",new JSONArray().put(self));
+      calls.syncRoom(synthetic,"microphone-qa");
+    }catch(Exception error){android.util.Log.e("XPartyMicSmoke","Cannot set up mock call",error);}
+    handler.postDelayed(()->{
+      android.util.Log.i("XPartyMicSmoke","MIC_TAP_BEGIN");
+      calls.toggleMic();
+      android.util.Log.i("XPartyMicSmoke","MIC_TAP_RETURNED");
+    },650L);
+    handler.postDelayed(()->{
+      if(calls!=null&&calls.isMicOn())android.util.Log.i("XPartyMicSmoke","MIC_ACTIVE_PASS");
+      else android.util.Log.e("XPartyMicSmoke","MIC_NOT_ACTIVE");
+    },5000L);
+  }
   private void toggleNativeMic(){
-    NativeCallController c=ensureCalls();
-    if(c==null){toast("Unable to open native video call.");return;}
-    if(showChat)showRoomTab(false); // Expose actual call buttons and status.
-    c.toggleMic();
+    // Opening the mic must not construct an EGL/video renderer before permission.
+    try{
+      NativeCallController c=ensureCalls();
+      if(c==null){toast("Unable to open native video call.");return;}
+      if(showChat)showRoomTab(false);
+      c.toggleMic();
+    }catch(Throwable error){
+      android.util.Log.e("XPartyMic","Microphone action failed",error);
+      toast("Microphone could not start on this device.");
+    }
   }
   private void showRoomTab(boolean chat){
     showChat=chat;
@@ -1823,6 +1868,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       toast("Playing locally. Other room members cannot access this file yet.");
     }
   }
+  @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
+    super.onRequestPermissionsResult(request,permissions,grants);
+    if(request==2201||request==2202){
+      boolean allowed=grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED;
+      if(calls!=null)calls.onPermissionResult(request,allowed);
+      if(!allowed)toast(request==2201?"Microphone permission was denied":"Camera permission was denied");
+    }
+  }
   @Override public void onBackPressed(){
     if(homeOverlay!=null){returnToRoom();return;}
     if(fullscreenNative){toggleNativeFullscreen();return;}
@@ -1836,6 +1889,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   @Override protected void onPause(){super.onPause();if(youtube!=null)youtube.onPause();}
   @Override protected void onResume(){super.onResume();if(youtube!=null)youtube.onResume();}
   @Override protected void onDestroy(){
+    if(micSmokeMode){if(calls!=null){calls.stop();calls=null;}super.onDestroy();return;}
     closing=true;
     handler.removeCallbacks(progressTicker);
     handler.removeCallbacks(hidePlaybackUi);
