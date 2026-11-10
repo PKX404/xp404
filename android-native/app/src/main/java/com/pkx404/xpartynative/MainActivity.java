@@ -37,6 +37,7 @@ import android.widget.SeekBar;
 import android.widget.PopupMenu;
 import android.view.ViewTreeObserver;
 import android.view.MotionEvent;
+import android.content.res.Configuration;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -98,6 +99,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private JSONObject room,source,playback;
   private boolean changingSource=false;
   private LinearLayout roomHeader,roomStage,roomPane,chatComposer,roomControls,roomNativeRoot,hostNotice;
+  private LinearLayout landscapeBody;
+  private TextView roomFooter;
+  private boolean isLandscapeLayout=false;
   private FrameLayout videoContainer;
   private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
   private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
@@ -693,6 +697,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     d.setCornerRadius(dp(radius));return d;
   }
   private void showRoom(){
+    isLandscapeLayout=false;
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     roomActive=true;imeShown=false;fullscreenNative=false;showChat=true;
     roomNativeRoot=column();
@@ -942,10 +947,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     roomNativeRoot.addView(chatComposer,new LinearLayout.LayoutParams(-1,dp(65)));
 
     TextView footer=text("A PKX404 PRODUCT",10,0xFF857991,true);
+    roomFooter=footer;
     footer.setGravity(Gravity.CENTER);footer.setLetterSpacing(.15f);
     footer.setBackgroundColor(0xFF1C1228);
     roomNativeRoot.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
     // Connection state remains in the participant header; branded footer stays fixed.
+    applyRoomOrientation(getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE);
     updatePlayIcon(false);
     roomNativeRoot.getViewTreeObserver().addOnGlobalLayoutListener(()->{
       if(roomNativeRoot==null||!roomActive)return;
@@ -955,9 +962,66 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if(shown!=imeShown){imeShown=shown;setTypingLayout(shown);}
     });
   }
+  /**
+   * Match v31.6 landscape: uninterrupted left-side 16:9-ish video,
+   * right-side ambient call/chat panel, anchored right-side composer.
+   * Reparent existing views rather than re-creating player, chat or WebRTC.
+   */
+  private void applyRoomOrientation(boolean landscape){
+    if(!roomActive||roomNativeRoot==null||roomStage==null||roomPane==null)return;
+    if(isLandscapeLayout==landscape&&landscapeBody!=null)return;
+    isLandscapeLayout=landscape;
+    if(roomStage.getParent() instanceof android.view.ViewGroup)
+      ((android.view.ViewGroup)roomStage.getParent()).removeView(roomStage);
+    if(roomPane.getParent() instanceof android.view.ViewGroup)
+      ((android.view.ViewGroup)roomPane.getParent()).removeView(roomPane);
+    if(chatComposer.getParent() instanceof android.view.ViewGroup)
+      ((android.view.ViewGroup)chatComposer.getParent()).removeView(chatComposer);
+    if(attachmentStatus!=null&&attachmentStatus.getParent() instanceof android.view.ViewGroup)
+      ((android.view.ViewGroup)attachmentStatus.getParent()).removeView(attachmentStatus);
+    if(landscapeBody!=null&&landscapeBody.getParent()==roomNativeRoot)
+      roomNativeRoot.removeView(landscapeBody);
+    if(landscape){
+      landscapeBody=new LinearLayout(this);
+      landscapeBody.setOrientation(LinearLayout.HORIZONTAL);
+      landscapeBody.setBaselineAligned(false);
+      roomNativeRoot.addView(landscapeBody,1,new LinearLayout.LayoutParams(-1,0,1));
+      landscapeBody.addView(roomStage,new LinearLayout.LayoutParams(0,-1,.60f));
+      landscapeBody.addView(roomPane,new LinearLayout.LayoutParams(0,-1,.40f));
+      if(attachmentStatus!=null)roomPane.addView(attachmentStatus,new LinearLayout.LayoutParams(-1,-2));
+      roomPane.addView(chatComposer,new LinearLayout.LayoutParams(-1,dp(58)));
+      if(roomHeader!=null)roomHeader.setVisibility(View.GONE);
+      if(roomFooter!=null)roomFooter.setVisibility(View.GONE);
+      if(playerFrame!=null){
+        playerFrame.setLayoutParams(new LinearLayout.LayoutParams(-1,-1));
+        playerFrame.requestLayout();
+      }
+      // In landscape the panel and the video must never overlap during keyboard changes.
+      roomStage.setBackgroundColor(Color.BLACK);
+    }else{
+      landscapeBody=null;
+      roomNativeRoot.addView(roomStage,1,new LinearLayout.LayoutParams(-1,-2));
+      roomNativeRoot.addView(roomPane,2,new LinearLayout.LayoutParams(-1,0,1));
+      if(attachmentStatus!=null)roomNativeRoot.addView(attachmentStatus,3,new LinearLayout.LayoutParams(-1,-2));
+      roomNativeRoot.addView(chatComposer,4,new LinearLayout.LayoutParams(-1,dp(65)));
+      if(roomHeader!=null)roomHeader.setVisibility(imeShown?View.GONE:View.VISIBLE);
+      if(roomFooter!=null)roomFooter.setVisibility(View.VISIBLE);
+      savedVideoHeight=Math.round(getResources().getDisplayMetrics().widthPixels*9f/16f);
+      if(playerFrame!=null){
+        playerFrame.setLayoutParams(new LinearLayout.LayoutParams(-1,savedVideoHeight));
+        playerFrame.requestLayout();
+      }
+    }
+    if(chatComposer!=null)chatComposer.setVisibility(showChat?View.VISIBLE:View.GONE);
+    if(roomNativeRoot!=null)roomNativeRoot.requestLayout();
+  }
+  @Override public void onConfigurationChanged(Configuration config){
+    super.onConfigurationChanged(config);
+    applyRoomOrientation(config.orientation==Configuration.ORIENTATION_LANDSCAPE);
+  }
   private void setTypingLayout(boolean typing){
     if(roomHeader==null||chatComposer==null)return;
-    roomHeader.setVisibility(typing?View.GONE:View.VISIBLE);
+    roomHeader.setVisibility(typing||isLandscapeLayout?View.GONE:View.VISIBLE);
     if(micIcon!=null)micIcon.setVisibility(typing?View.GONE:View.VISIBLE);
     if(mentionIcon!=null)mentionIcon.setVisibility(typing?View.GONE:View.VISIBLE);
     if(cameraIcon!=null)cameraIcon.setVisibility(typing?View.GONE:View.VISIBLE);
