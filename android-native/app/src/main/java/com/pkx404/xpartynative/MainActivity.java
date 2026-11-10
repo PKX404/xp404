@@ -911,11 +911,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     hostStatus.setBackground(shape(0xFF2D234F,18));
     hostStatus.setPadding(dp(10),dp(5),dp(10),dp(5));
     hostNotice.addView(hostStatus,new LinearLayout.LayoutParams(-2,-2));
-    XPControl crown=xpIcon("crown",this::openParticipants);crown.tint(0xFFE2BF6F);
-    iconIn(hostNotice,crown,39,42);
+    FrameLayout hostBadge=new FrameLayout(this);
     TextView avatar=text("H",15,WHITE,true);avatar.setGravity(Gravity.CENTER);
     avatar.setBackground(shape(0xFF685880,44));
-    hostNotice.addView(avatar,new LinearLayout.LayoutParams(dp(42),dp(42)));
+    FrameLayout.LayoutParams avatarLp=new FrameLayout.LayoutParams(dp(42),dp(42),Gravity.BOTTOM|Gravity.RIGHT);
+    hostBadge.addView(avatar,avatarLp);
+    XPControl crown=xpIcon("crown",this::openParticipants);crown.tint(0xFFFFD676);
+    FrameLayout.LayoutParams crownLp=new FrameLayout.LayoutParams(dp(28),dp(28),Gravity.TOP|Gravity.LEFT);
+    hostBadge.addView(crown,crownLp);
+    hostNotice.addView(hostBadge,new LinearLayout.LayoutParams(dp(58),dp(52)));
     roomPane.addView(hostNotice,new LinearLayout.LayoutParams(-1,dp(73)));
     connection=text("Room connected",10,0xFFD9C8F5,false);
     connection.setPadding(dp(10),0,dp(8),0);
@@ -929,12 +933,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     artworkSlot.addView(currentSource,new FrameLayout.LayoutParams(-1,-1));
     nativeChannelLogo=new android.widget.ImageView(this);
     nativeChannelLogo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-    nativeChannelLogo.setPadding(dp(3),dp(5),dp(3),dp(5));
+    nativeChannelLogo.setPadding(dp(4),dp(5),dp(4),dp(5));
+    // White logos require a neutral translucent canvas over any immersive color.
+    nativeChannelLogo.setBackground(shape(0xD6EDF0F6,12));
     nativeChannelLogo.setVisibility(View.GONE);
     artworkSlot.addView(nativeChannelLogo,new FrameLayout.LayoutParams(-1,-1));
     watching.addView(artworkSlot,new LinearLayout.LayoutParams(dp(48),dp(52)));
     playerLabel=text("Now watching · Choose a video",14,WHITE,true);
     playerLabel.setGravity(Gravity.CENTER_VERTICAL);
+    playerLabel.setMaxLines(2);
+    playerLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    playerLabel.setPadding(dp(7),0,dp(3),0);
     watching.addView(playerLabel,new LinearLayout.LayoutParams(0,dp(52),1));
     XPControl heart=xpIcon("heart",this::toggleVideoLike);
     iconIn(watching,heart,44,50);
@@ -1210,23 +1219,41 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       playback!=null&&playback.optBoolean("playing",false));
   }
   private void toggleNativeFullscreen(){
+    if(roomStage==null||playerFrame==null||roomNativeRoot==null)return;
     fullscreenNative=!fullscreenNative;
     if(fullscreenNative){
-      getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+      getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN|WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+      getWindow().getDecorView().setSystemUiVisibility(
+        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_FULLSCREEN);
       if(roomHeader!=null)roomHeader.setVisibility(View.GONE);
       if(roomPane!=null)roomPane.setVisibility(View.GONE);
+      if(roomFooter!=null)roomFooter.setVisibility(View.GONE);
       if(chatComposer!=null)chatComposer.setVisibility(View.GONE);
-      if(playerFrame!=null){
-        playerFrame.getLayoutParams().height=getResources().getDisplayMetrics().heightPixels-dp(160);
-        playerFrame.requestLayout();
+      if(attachmentStatus!=null)attachmentStatus.setVisibility(View.GONE);
+      ViewGroup.LayoutParams stage=roomStage.getLayoutParams();
+      if(stage instanceof LinearLayout.LayoutParams){
+        LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)stage;
+        lp.height=0;lp.weight=1;roomStage.setLayoutParams(lp);
       }
+      playerFrame.setLayoutParams(new LinearLayout.LayoutParams(-1,0,1));
     }else{
       getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-      if(roomHeader!=null)roomHeader.setVisibility(imeShown?View.GONE:View.VISIBLE);
+      getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+      if(roomHeader!=null)roomHeader.setVisibility(imeShown||isLandscapeLayout?View.GONE:View.VISIBLE);
       if(roomPane!=null)roomPane.setVisibility(View.VISIBLE);
+      if(roomFooter!=null)roomFooter.setVisibility(isLandscapeLayout?View.GONE:View.VISIBLE);
       if(chatComposer!=null)chatComposer.setVisibility(showChat?View.VISIBLE:View.GONE);
-      if(playerFrame!=null){playerFrame.getLayoutParams().height=savedVideoHeight;playerFrame.requestLayout();}
+      if(attachmentStatus!=null&&attachmentStatus.length()>0)attachmentStatus.setVisibility(View.VISIBLE);
+      ViewGroup.LayoutParams stage=roomStage.getLayoutParams();
+      if(stage instanceof LinearLayout.LayoutParams){
+        LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)stage;
+        lp.height=isLandscapeLayout?-1:ViewGroup.LayoutParams.WRAP_CONTENT;
+        lp.weight=0;roomStage.setLayoutParams(lp);
+      }
+      playerFrame.setLayoutParams(new LinearLayout.LayoutParams(-1,isLandscapeLayout?-1:savedVideoHeight));
     }
+    roomNativeRoot.requestLayout();
+    revealPlaybackControls();
   }
   private void shareRoom(){
     if(roomCode==null||roomCode.isEmpty()){toast("Create a room first.");return;}
