@@ -34,6 +34,10 @@ final class NativeAttachments {
     void downloaded(String path);
     void error(String message);
   }
+  interface PreviewListener {
+    void ready(String cachePath,String mime);
+    void error(String message);
+  }
   private static final int MAX=20*1024*1024;
   private final Activity activity;
   private final Handler ui=new Handler(Looper.getMainLooper());
@@ -93,6 +97,36 @@ final class NativeAttachments {
       if(attachment==null||attachment.optString("id").isEmpty())throw new Exception("Upload receipt missing");
       ui.post(()->listener.uploaded(attachment.optString("id"),attachment.optString("name",name)));
     }
+  }
+  void preview(String attachmentId,String filename,String token,PreviewListener listener){
+    if(!attachmentId.matches("[a-fA-F0-9-]{36}")){
+      ui.post(()->listener.error("Invalid attachment"));return;
+    }
+    worker.execute(()->{
+      try{
+        Request request=new Request.Builder().url(backend+"/api/attachment/"+attachmentId)
+          .header("Authorization","Bearer "+token).build();
+        byte[] bytes;String mime;
+        try(Response response=http.newCall(request).execute()){
+          if(!response.isSuccessful())throw new Exception("Media is unavailable or expired");
+          if(response.body()==null)throw new Exception("Empty media response");
+          mime=response.header("Content-Type","application/octet-stream").split(";")[0];
+          try(InputStream input=response.body().byteStream()){bytes=readBounded(input);}
+        }
+        if(!mime.startsWith("image/")&&!mime.startsWith("video/")){
+          String lower=filename.toLowerCase(java.util.Locale.ROOT);
+          if(lower.matches(".*\\.(jpe?g|png|gif|webp)$"))mime="image/jpeg";
+          else if(lower.matches(".*\\.(mp4|webm|m4v|mov)$"))mime="video/mp4";
+          else throw new Exception("Preview unsupported; download to view");
+        }
+        File temp=File.createTempFile("xparty-media-",".tmp",activity.getCacheDir());
+        try(OutputStream out=new FileOutputStream(temp)){out.write(bytes);}
+        String readyPath=temp.getAbsolutePath(),readyMime=mime;
+        ui.post(()->listener.ready(readyPath,readyMime));
+      }catch(Exception error){
+        ui.post(()->listener.error(error.getMessage()));
+      }
+    });
   }
   void download(String attachmentId,String filename,String token,Listener listener){
     if(!attachmentId.matches("[a-fA-F0-9-]{36}")){error(listener,"Invalid attachment");return;}
