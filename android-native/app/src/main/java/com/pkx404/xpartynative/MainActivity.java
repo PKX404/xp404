@@ -737,6 +737,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     isLandscapeLayout=false;
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     roomActive=true;imeShown=false;fullscreenNative=false;showChat=true;
+    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     roomNativeRoot=column();
     roomNativeRoot.setBackgroundColor(0xFF0B0D1C);
     setContentView(roomNativeRoot);
@@ -971,10 +972,13 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         try{socket.send(new JSONObject().put("type","typing").put("active",s.length()>0));}
         catch(Exception ignored){}
       }
-      @Override public void afterTextChanged(android.text.Editable value){}
+      @Override public void afterTextChanged(android.text.Editable value){
+        if(value!=null&&value.length()>0&&value.charAt(value.length()-1)=='@')
+          chatInput.post(MainActivity.this::showMentionPicker);
+      }
     });
     chatComposer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(50),1));
-    XPControl mention=xpIcon("at",()->chatInput.getText().insert(chatInput.getSelectionStart(),"@"));
+    XPControl mention=xpIcon("at",this::showMentionPicker);
     mentionIcon=mention;iconIn(chatComposer,mention,40,52);
     XPControl emoji=xpIcon("smile",this::showEmojiMenu);
     emojiIcon=emoji;iconIn(chatComposer,emoji,40,52);
@@ -1133,26 +1137,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     catch(Exception ignored){}
   }
   private void cycleVideoScaling(){
+    // One tap = next scale mode; never open a modal over active playback.
     final int[] modes={
       AspectRatioFrameLayout.RESIZE_MODE_FIT,
-      AspectRatioFrameLayout.RESIZE_MODE_FILL,
       AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-      AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
-      AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+      AspectRatioFrameLayout.RESIZE_MODE_FILL
     };
-    final String[] names={"Fit · original ratio","Stretch · fill panel","Zoom · crop edges",
-      "Fixed width","Fixed height"};
-    int selected=0;
-    for(int i=0;i<modes.length;i++)if(playerFit==modes[i])selected=i;
-    new AlertDialog.Builder(this).setTitle("Video scaling")
-      .setSingleChoiceItems(names,selected,(dialog,which)->{
-        playerFit=modes[which];
-        if(playerView!=null)playerView.setResizeMode(playerFit);
-        getPreferences(MODE_PRIVATE).edit().putInt("video_scale",playerFit).apply();
-        if("youtube".equals(sourceType))
-          toast("YouTube uses the official player's own aspect-ratio constraints.");
-        dialog.dismiss();
-      }).setNegativeButton("Cancel",null).show();
+    int index=0;
+    for(int i=0;i<modes.length;i++)if(playerFit==modes[i])index=i;
+    playerFit=modes[(index+1)%modes.length];
+    if(playerView!=null)playerView.setResizeMode(playerFit);
+    getPreferences(MODE_PRIVATE).edit().putInt("video_scale",playerFit).apply();
   }
   private void showVolume(){
     AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
@@ -1317,6 +1312,51 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     pop.showAtLocation(roomNativeRoot,Gravity.BOTTOM|Gravity.RIGHT,dp(right),dp(98));
     return pop;
   }
+  private void showMentionPicker(){
+    if(room==null||chatInput==null)return;
+    JSONArray members=room.optJSONArray("people");
+    if(members==null||members.length()==0)return;
+    java.util.ArrayList<JSONObject> choices=new java.util.ArrayList<>();
+    java.util.ArrayList<String> labels=new java.util.ArrayList<>();
+    for(int i=0;i<members.length();i++){
+      JSONObject m=members.optJSONObject(i);
+      if(m==null||!m.optBoolean("online",false))continue;
+      String name=m.optString("name","").trim();
+      if(name.isEmpty())continue;
+      choices.add(m);
+      labels.add(name);
+    }
+    if(choices.isEmpty())return;
+    final android.app.AlertDialog dialog=new AlertDialog.Builder(this)
+      .setTitle("Mention participant")
+      .setItems(labels.toArray(new String[0]),(d,index)->{
+        String name=labels.get(index);
+        android.text.Editable value=chatInput.getText();
+        int cursor=Math.max(0,chatInput.getSelectionStart());
+        if(cursor>0&&value.charAt(cursor-1)=='@')value.delete(cursor-1,cursor);
+        int at=Math.max(0,chatInput.getSelectionStart());
+        value.insert(at,"@"+name+" ");
+        chatInput.requestFocus();
+      }).create();
+    dialog.setOnShowListener(d->{
+      android.widget.ListView list=dialog.getListView();
+      if(list!=null)list.setOnItemLongClickListener((parent,view,position,id)->{
+        JSONObject member=choices.get(position);
+        dialog.dismiss();
+        showPrivateChatFor(member);
+        return true;
+      });
+    });
+    dialog.show();
+  }
+  private void showPrivateChatFor(JSONObject member){
+    String name=member.optString("name","Member");
+    String id=member.optString("id","");
+    if(id.isEmpty())return;
+    new AlertDialog.Builder(this).setTitle("Private chat · "+name)
+      .setMessage("Private messaging needs a server-authorized direct-message channel. It will not send a private message into the public room.")
+      .setPositiveButton("OK",null).show();
+  }
   private void showEmojiMenu(){
     if(emojiPopup!=null&&emojiPopup.isShowing()){emojiPopup.dismiss();return;}
     if(plusPopup!=null)plusPopup.dismiss();
@@ -1368,9 +1408,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(emojiPopup!=null)emojiPopup.dismiss();
     LinearLayout list=column();
     list.setPadding(dp(6),dp(6),dp(6),dp(6));
-    String[] options={"Attachment","Gallery","Camera","Extra"};
-    String[] symbols={"file","gallery","camera","plus"};
-    for(int i=0;i<4;i++){
+    String[] options={"Attachment","Gallery","Camera","Quick search","Extra"};
+    String[] symbols={"file","gallery","camera","search","plus"};
+    for(int i=0;i<options.length;i++){
       final int action=i;
       LinearLayout line=new LinearLayout(this);
       line.setGravity(Gravity.CENTER_VERTICAL);
@@ -1382,7 +1422,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       line.setOnClickListener(v->launchAttachment(action));
       list.addView(line,new LinearLayout.LayoutParams(-1,dp(48)));
     }
-    plusPopup=popupPanel(list,178,209,7);
+    plusPopup=popupPanel(list,178,258,7);
   }
   private void launchAttachment(int action){
     if(plusPopup!=null)plusPopup.dismiss();
@@ -1395,6 +1435,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           startActivityForResult(intent,REQUEST_CHAT_CAMERA);
         else toast("Camera is unavailable.");
       }catch(Exception error){toast("Could not open camera");}
+    }else if(action==3){
+      if(sourceSheet!=null)sourceSheet.open("youtube",token,"");
     }else{
       new AlertDialog.Builder(this).setTitle("Share more")
         .setItems(new String[]{"Video","Image","Document"},(dialog,n)->
@@ -1403,9 +1445,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
   }
   private void openChatPicker(String mime,int request){
-    Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    Intent pick=new Intent(request==REQUEST_CHAT_GALLERY
+      ?Intent.ACTION_GET_CONTENT:Intent.ACTION_OPEN_DOCUMENT);
     pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType(mime);
-    startActivityForResult(pick,request);
+    startActivityForResult(Intent.createChooser(pick,request==REQUEST_CHAT_GALLERY?"Choose from Gallery":"Choose file"),request);
   }
   private void setAttachmentStatus(String text){
     if(attachmentStatus==null)return;
@@ -1782,6 +1825,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!roomActive)return;
     socket.disconnect(true);
     roomActive=false;
+    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     if(homeOverlay!=null){
       ViewGroup overlayParent=(ViewGroup)homeOverlay.getParent();
       if(overlayParent!=null)overlayParent.removeView(homeOverlay);
