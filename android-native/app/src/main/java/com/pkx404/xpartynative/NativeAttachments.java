@@ -34,6 +34,10 @@ final class NativeAttachments {
     void downloaded(String path);
     void error(String message);
   }
+  interface PreviewListener {
+    void ready(String cachePath,String mime);
+    void error(String message);
+  }
   private static final int MAX=20*1024*1024;
   private final Activity activity;
   private final Handler ui=new Handler(Looper.getMainLooper());
@@ -45,6 +49,9 @@ final class NativeAttachments {
   private void status(Listener listener,String value){ui.post(()->listener.status(value));}
   private void error(Listener listener,String value){ui.post(()->listener.error(value));}
   void upload(Uri uri,String token,Listener listener){
+    upload(uri,token,null,listener);
+  }
+  void upload(Uri uri,String token,String recipient,Listener listener){
     worker.execute(()->{
       try{
         String name=fileName(uri);
@@ -53,28 +60,33 @@ final class NativeAttachments {
           if(in==null)throw new Exception("Selected file cannot be opened");
           bytes=readBounded(in);
         }
-        uploadData(name,bytes,token,listener);
+        uploadData(name,bytes,token,recipient,listener);
       }catch(Exception e){error(listener,"Attachment: "+e.getMessage());}
     });
   }
   void uploadCamera(Bitmap bitmap,String token,Listener listener){
+    uploadCamera(bitmap,token,null,listener);
+  }
+  void uploadCamera(Bitmap bitmap,String token,String recipient,Listener listener){
     if(bitmap==null){error(listener,"Camera did not return a picture");return;}
     worker.execute(()->{
       try{
         ByteArrayOutputStream out=new ByteArrayOutputStream();
         bitmap.compress(Bitmap.CompressFormat.JPEG,86,out);
-        uploadData("XParty-camera-"+System.currentTimeMillis()+".jpg",out.toByteArray(),token,listener);
+        uploadData("XParty-camera-"+System.currentTimeMillis()+".jpg",out.toByteArray(),token,recipient,listener);
       }catch(Exception e){error(listener,"Camera: "+e.getMessage());}
     });
   }
-  private void uploadData(String name,byte[] bytes,String token,Listener listener)throws Exception{
+  private void uploadData(String name,byte[] bytes,String token,String recipient,Listener listener)throws Exception{
     if(bytes.length<1||bytes.length>MAX)throw new Exception("Select an attachment under 20 MB");
     if(token==null||token.isEmpty())throw new Exception("Room connection is offline");
     status(listener,"Uploading "+name+"…");
     String encoded=URLEncoder.encode(name,"UTF-8").replace("+","%20");
-    Request req=new Request.Builder().url(backend+"/api/attachment")
+    Request.Builder request=new Request.Builder().url(backend+"/api/attachment")
       .header("Authorization","Bearer "+token)
-      .header("X-Attachment-Name",encoded)
+      .header("X-Attachment-Name",encoded);
+    if(recipient!=null&&!recipient.isEmpty())request.header("X-Attachment-To",recipient);
+    Request req=request
       .post(RequestBody.create(MediaType.parse("application/octet-stream"),bytes)).build();
     try(Response response=http.newCall(req).execute()){
       String body=response.body()==null?"{}":response.body().string();
@@ -85,6 +97,36 @@ final class NativeAttachments {
       if(attachment==null||attachment.optString("id").isEmpty())throw new Exception("Upload receipt missing");
       ui.post(()->listener.uploaded(attachment.optString("id"),attachment.optString("name",name)));
     }
+  }
+  void preview(String attachmentId,String filename,String token,PreviewListener listener){
+    if(!attachmentId.matches("[a-fA-F0-9-]{36}")){
+      ui.post(()->listener.error("Invalid attachment"));return;
+    }
+    worker.execute(()->{
+      try{
+        Request request=new Request.Builder().url(backend+"/api/attachment/"+attachmentId)
+          .header("Authorization","Bearer "+token).build();
+        byte[] bytes;String mime;
+        try(Response response=http.newCall(request).execute()){
+          if(!response.isSuccessful())throw new Exception("Media is unavailable or expired");
+          if(response.body()==null)throw new Exception("Empty media response");
+          mime=response.header("Content-Type","application/octet-stream").split(";")[0];
+          try(InputStream input=response.body().byteStream()){bytes=readBounded(input);}
+        }
+        if(!mime.startsWith("image/")&&!mime.startsWith("video/")){
+          String lower=filename.toLowerCase(java.util.Locale.ROOT);
+          if(lower.matches(".*\\.(jpe?g|png|gif|webp)$"))mime="image/jpeg";
+          else if(lower.matches(".*\\.(mp4|webm|m4v|mov)$"))mime="video/mp4";
+          else throw new Exception("Preview unsupported; download to view");
+        }
+        File temp=File.createTempFile("xparty-media-",".tmp",activity.getCacheDir());
+        try(OutputStream out=new FileOutputStream(temp)){out.write(bytes);}
+        String readyPath=temp.getAbsolutePath(),readyMime=mime;
+        ui.post(()->listener.ready(readyPath,readyMime));
+      }catch(Exception error){
+        ui.post(()->listener.error(error.getMessage()));
+      }
+    });
   }
   void download(String attachmentId,String filename,String token,Listener listener){
     if(!attachmentId.matches("[a-fA-F0-9-]{36}")){error(listener,"Invalid attachment");return;}

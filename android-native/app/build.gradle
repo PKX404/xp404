@@ -6,8 +6,8 @@ android {
         applicationId 'com.pkx404.xpartynative'
         minSdk 26
         targetSdk 35
-        versionCode 41
-        versionName '0.4.1-native-stability-landscape'
+        versionCode 43
+        versionName '0.4.3-native-immersive-ux'
     }
     splits {
         abi {
@@ -19,9 +19,11 @@ android {
     }
     buildTypes {
         release {
+            applicationIdSuffix '.immersiveqa'
+            versionNameSuffix '-immersiveqa'
             signingConfig signingConfigs.debug
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

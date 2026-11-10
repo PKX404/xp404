@@ -53,6 +53,7 @@ final class NativeImmersiveBackdrop {
   private final float[] weights=new float[R+1];
   private volatile boolean enabled=true,running=false,hasSource=false,usingYoutube=false,busy=false;
   private long lastCopy=0;
+  private boolean nativeCopyPending=false;
   private final Runnable loop=new Runnable(){
     @Override public void run(){
       if(!running)return;
@@ -102,18 +103,34 @@ final class NativeImmersiveBackdrop {
     if(!nativeSurface&&(video==null||!video.isShown()))return;
     busy=true;lastCopy=SystemClock.uptimeMillis();
     try{
+      nativeCopyPending=nativeSurface;
       if(nativeSurface){
         PixelCopy.request((SurfaceView)surface,input,this::onFrame,ui);
       }else{
-        int[] xy=new int[2];video.getLocationInWindow(xy);
-        int w=video.getWidth(),h=video.getHeight();
-        if(w<1||h<1){busy=false;return;}
-        PixelCopy.request(activity.getWindow(),new Rect(xy[0],xy[1],xy[0]+w,xy[1]+h),
-          input,this::onFrame,ui);
+        requestWindowCopy(video);
       }
-    }catch(Exception ignored){busy=false;}
+    }catch(Exception ignored){busy=false;nativeCopyPending=false;}
+  }
+  private void requestWindowCopy(View video){
+    try{
+      if(video==null||!video.isShown()){busy=false;return;}
+      int[] xy=new int[2];video.getLocationInWindow(xy);
+      int w=video.getWidth(),h=video.getHeight();
+      int left=Math.max(0,xy[0]),top=Math.max(0,xy[1]);
+      int right=Math.min(activity.getWindow().getDecorView().getWidth(),xy[0]+w);
+      int bottom=Math.min(activity.getWindow().getDecorView().getHeight(),xy[1]+h);
+      if(right<=left||bottom<=top){busy=false;return;}
+      PixelCopy.request(activity.getWindow(),new Rect(left,top,right,bottom),
+        input,this::onFrame,ui);
+    }catch(Throwable failure){busy=false;}
   }
   private void onFrame(int result){
+    if(result!=PixelCopy.SUCCESS&&nativeCopyPending){
+      nativeCopyPending=false;
+      requestWindowCopy(player);
+      return;
+    }
+    nativeCopyPending=false;
     if(result!=PixelCopy.SUCCESS||!running||!enabled){busy=false;return;}
     int[] pixels=new int[W*H];input.getPixels(pixels,0,W,0,0,W,H);
     try{worker.execute(()->{
@@ -180,7 +197,7 @@ final class NativeImmersiveBackdrop {
     }
     if(total==0)return 0xFF242548;
     // 31.6 scene colours survive, but the glass skin remains dark enough for text.
-    return Color.rgb((int)(rr/total*.62+15),(int)(gg/total*.62+12),(int)(bb/total*.7+28));
+    return Color.rgb(clamp((float)(rr/total*.86+11)),clamp((float)(gg/total*.82+9)),clamp((float)(bb/total*.86+11)));
   }
   private static int clamp(float v){return Math.max(0,Math.min(255,Math.round(v)));}
   private static final class RoomDrawable extends Drawable {
@@ -203,26 +220,29 @@ final class NativeImmersiveBackdrop {
           int height=Math.round(image.getWidth()/targetRatio);
           y0=(image.getHeight()-height)/2;y1=y0+height;
         }
-        paint.setAlpha(105);paint.setShader(null);
+        paint.setAlpha(222);paint.setShader(null);
         canvas.drawBitmap(image,new Rect(x0,y0,x1,y1),
           new RectF(b.left-overX,b.top-overY,b.right+overX,b.bottom+overY),paint);
       }
       // Diffuse scene-colour wash, not a stretched ghost image of the video.
       paint.setAlpha(255);
-      paint.setShader(new RadialGradient(b.width()*.18f,b.height()*.15f,
-        Math.max(b.width(),b.height())*.88f,
-        new int[]{0xAA233766,0x502A244B,0x00212B4F},
-        new float[]{0f,.50f,1f},Shader.TileMode.CLAMP));
+      // The previous hard-coded navy wash buried actual red/gold/green scene tones.
+      // Sampled colors now drive the diffuse washes, as in v31.6.
+      int top=ambientTop,mid=ambientMid,end=ambientEnd;
+      paint.setShader(new RadialGradient(b.width()*.18f,b.height()*.22f,
+        Math.max(b.width(),b.height())*.94f,
+        new int[]{(top&0xFFFFFF)|0x96000000,(mid&0xFFFFFF)|0x5C000000,(end&0xFFFFFF)|0x14000000},
+        new float[]{0f,.56f,1f},Shader.TileMode.CLAMP));
       canvas.drawRect(b,paint);paint.setShader(null);
       // Conceptual overlay from v31.6 ambient.css:
       // #05081275 -> #06091238 (35%) -> #070a128f
       paint.setAlpha(255);
       paint.setShader(new LinearGradient(0,b.top,0,b.bottom,
-        new int[]{0x75050812,0x38060912,0x8F070A12},
+        new int[]{0x3C050812,0x21060912,0x52070A12},
         new float[]{0,.35f,1},Shader.TileMode.CLAMP));
       canvas.drawRect(b,paint);paint.setShader(null);
       // Original XParty chat surface is a semi-transparent #0b1026a6.
-      paint.setColor(0x620B1026);
+      paint.setColor(0x340B1026);
       canvas.drawRect(b,paint);paint.setColor(Color.WHITE);
     }
     @Override public void setAlpha(int alpha){}

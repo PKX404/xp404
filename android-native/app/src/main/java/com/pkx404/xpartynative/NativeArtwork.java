@@ -25,7 +25,9 @@ final class NativeArtwork {
   void show(String url,ImageView target){
     final int request=++requestId;
     synchronized(generations){generations.put(target,request);}
-    target.setImageDrawable(null);target.setVisibility(View.INVISIBLE);
+    // A visible fallback avoids empty channel-art slots while a logo loads or fails.
+    target.setImageResource(android.R.drawable.ic_media_play);
+    target.setVisibility(View.VISIBLE);
     if(url==null||!url.startsWith("https://")||url.length()>2048)return;
     Bitmap present=cache.get(url);
     if(present!=null){target.setImageBitmap(present);target.setVisibility(View.VISIBLE);return;}

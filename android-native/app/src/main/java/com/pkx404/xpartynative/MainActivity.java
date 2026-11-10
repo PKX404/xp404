@@ -77,7 +77,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void revealPlaybackControls(){
     if(!roomActive||source==null)return;
     if(roomControls!=null)roomControls.setVisibility(View.VISIBLE);
-    if(progress!=null)progress.setVisibility(View.VISIBLE);
+    if(progress!=null)progress.setVisibility("direct".equals(sourceType)?View.VISIBLE:View.GONE);
     if(videoPill!=null)videoPill.setVisibility(View.VISIBLE);
     if(fullscreenControl!=null)fullscreenControl.setVisibility(View.VISIBLE);
     handler.removeCallbacks(hidePlaybackUi);
@@ -103,8 +103,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private TextView roomFooter;
   private boolean isLandscapeLayout=false;
   private FrameLayout videoContainer;
-  private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon;
-  private TextView videoPill,watchingLabel,hostStatus,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
+  private XPControl playIcon,pauseIcon,likeIcon,callIcon,shareIcon,memberIcon,sourcePlaceholderIcon;
+  private TextView videoPill,watchingLabel,hostStatus,hostAvatar,tabChat,tabCall,composerBrand,memberBadge,mediaTypeBadge;
   private SeekBar progress;
   private final Runnable hidePlaybackUi=()->{
     if(source==null)return;
@@ -141,6 +141,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private final java.util.Map<String,JSONObject> knownChats=new java.util.HashMap<>();
   private final java.util.Map<String,TextView> chatBubbles=new java.util.HashMap<>();
   private String replyToId=null;
+  private String privateRecipientId=null,privateRecipientName=null;
+  private String pendingMediaCaption=null,pendingMediaRecipient=null;
+  private boolean uploadInProgress=false;
   private long lastTypingAt=0;
 
   @Override public void onCreate(Bundle saved){
@@ -189,12 +192,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public void onRenderedFirstFrame(){
         renderedVideo=true;
         runOnUiThread(()->{
-          if(videoState!=null&&!"youtube".equals(sourceType))videoState.setText("Picture ready");
+          if(videoState!=null&&!"youtube".equals(sourceType)&&source!=null)
+            videoState.setText(source.optString("title","Video"));
           if(immersive!=null)immersive.refresh();
         });
       }
       @Override public void onVideoSizeChanged(VideoSize size){
-        if(size.width>0&&videoState!=null)videoState.setText("Video "+size.width+"×"+size.height);
+        // Do not replace the actual channel title with a technical resolution pill.
+        if(size.width>0&&videoState!=null&&source!=null)
+          videoState.setText(source.optString("title","Video"));
       }
       @Override public void onPlayerError(androidx.media3.common.PlaybackException e){
         if(videoState!=null)videoState.setText("Playback error: "+e.getErrorCodeName());
@@ -206,7 +212,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           videoState.setText("Loading picture…");
         }else if(state==Player.STATE_READY){
           sendReady("Ready");
-          if(renderedVideo)videoState.setText("Picture ready");
+          if(renderedVideo&&source!=null)videoState.setText(source.optString("title","Video"));
           // Match original XParty: newly chosen IPTV starts for the host once ready.
           if("iptv".equals(sourceType)&&isHost&&playback!=null
              &&!playback.optBoolean("playing")&&!nativeRecoveryUsed){
@@ -217,6 +223,43 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     });
     showLobby();
     handler.postDelayed(progressTicker,700);
+    // QA-only microphone probe launched by the isolated GitHub emulator workflow.
+    if(getIntent()!=null&&getIntent().getBooleanExtra("xparty_native_mic_selftest",false)){
+      handler.postDelayed(this::runNativeMicSelfTest,800);
+    }
+  }
+  private void runNativeMicSelfTest(){
+    final String tag="XPartyMicProbe";
+    if(android.os.Build.VERSION.SDK_INT>=23
+       &&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+      android.util.Log.e(tag,"FAILED: RECORD_AUDIO permission missing");
+      return;
+    }
+    try{
+      JSONObject self=new JSONObject().put("id","xparty-mic-selftest")
+        .put("inCall",true).put("online",true);
+      JSONObject remote=new JSONObject().put("id","xparty-mic-selftest-remote")
+        .put("inCall",true).put("online",true);
+      JSONObject fake=new JSONObject().put("people",new JSONArray().put(self).put(remote));
+      if(calls!=null){calls.stop();calls=null;}
+      calls=new NativeCallController(this,new NativeCallController.Events(){
+        @Override public void signal(String peer,JSONObject signal){}
+        @Override public void sendMedia(boolean mic,boolean camera){
+          android.util.Log.i(tag,"sendMedia mic="+mic+" camera="+camera);
+        }
+        @Override public void action(String action){android.util.Log.i(tag,"action="+action);}
+        @Override public void status(String value){android.util.Log.i(tag,"status="+value);}
+      });
+      calls.attach(new FrameLayout(this));
+      calls.syncRoom(fake,"xparty-mic-selftest");
+      android.util.Log.i(tag,"STARTING: audio-only WebRTC peer and microphone");
+      calls.toggleMic();
+      handler.postDelayed(()->{
+        android.util.Log.i(tag,"ALIVE after microphone startup: "+(calls!=null&&calls.isMicOn()));
+      },5000);
+    }catch(Throwable error){
+      android.util.Log.e(tag,"FAILED: native microphone init",error);
+    }
   }
   private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
   private GradientDrawable shape(int color,int radius){
@@ -399,14 +442,62 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       "Your XParty "+(tab==1?"friends":"direct messages")+" will appear here when signed-in accounts are enabled.");
   }
   private void showHomeSettings(){
-    String[] options={"Change display name","Sources","Information"};
+    String[] options={"Change display name","Sources","Crash diagnostics","Information"};
     new AlertDialog.Builder(this).setTitle("XParty settings")
       .setItems(options,(d,i)->{
         if(i==0)showProfileHome();
         if(i==1)openHomeSourceSheet("all");
-        if(i==2)new AlertDialog.Builder(this).setTitle("XParty")
+        if(i==2)showLastCrashDetails();
+        if(i==3)new AlertDialog.Builder(this).setTitle("XParty")
           .setMessage("Android-native watch-party app. Room synchronization runs through the XParty Native backend.")
           .setPositiveButton("Close",null).show();
+      }).show();
+  }
+  private void showLastCrashDetails(){
+    if(android.os.Build.VERSION.SDK_INT<30){
+      toast("Android crash history is unavailable on this device.");return;
+    }
+    String report="XParty Native diagnostics\\n";
+    try{
+      android.app.ActivityManager manager=
+        (android.app.ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
+      java.util.List<android.app.ApplicationExitInfo> exits=
+        manager.getHistoricalProcessExitReasons(getPackageName(),0,10);
+      boolean found=false;
+      for(android.app.ApplicationExitInfo info:exits){
+        if(info.getReason()!=android.app.ApplicationExitInfo.REASON_CRASH_NATIVE
+           &&info.getReason()!=android.app.ApplicationExitInfo.REASON_CRASH
+           &&info.getReason()!=android.app.ApplicationExitInfo.REASON_ANR)continue;
+        found=true;
+        report+="Time: "+new java.util.Date(info.getTimestamp())+
+          "\\nProcess: "+info.getProcessName()+
+          "\\nReason: "+info.getReason()+
+          "\\nSignal/status: "+info.getStatus()+
+          "\\nDescription: "+info.getDescription()+"\\n";
+        // Android 12+ may expose a binary crash tombstone for the owning app.
+        // Never send crash data automatically; sharing remains the user's choice.
+        try(java.io.InputStream stream=info.getTraceInputStream()){
+          if(stream!=null){
+            byte[] snippet=new byte[8192];int n=stream.read(snippet);
+            if(n>0)report+="Crash trace (base64): "+
+              android.util.Base64.encodeToString(
+                java.util.Arrays.copyOf(snippet,n),android.util.Base64.NO_WRAP)+"\\n";
+          }
+        }catch(Exception ignored){}
+        break;
+      }
+      if(!found)report+="No Android crash record was found for this app.";
+    }catch(Exception failure){
+      report+="Unable to read device crash history: "+failure.getClass().getSimpleName();
+    }
+    final String details=report;
+    new AlertDialog.Builder(this).setTitle("XParty · Last crash")
+      .setMessage(details.length()>650?"Crash record is available. Tap Copy report to share it for debugging.":details)
+      .setNegativeButton("Close",null)
+      .setPositiveButton("Copy report",(d,w)->{
+        ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE))
+          .setPrimaryClip(ClipData.newPlainText("XParty crash report",details));
+        toast("Crash report copied. Paste it into ChatGPT.");
       }).show();
   }
   private void openHomeSourceSheet(String type){
@@ -700,6 +791,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     isLandscapeLayout=false;
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     roomActive=true;imeShown=false;fullscreenNative=false;showChat=true;
+    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     roomNativeRoot=column();
     roomNativeRoot.setBackgroundColor(0xFF0B0D1C);
     setContentView(roomNativeRoot);
@@ -725,7 +817,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     headerIcon(roomHeader,"people",this::openParticipants,1f);
     roomNativeRoot.addView(roomHeader,new LinearLayout.LayoutParams(-1,dp(58)));
 
-    roomStage=column();roomStage.setBackgroundColor(0xFF11172F);
+    roomStage=column();roomStage.setBackgroundColor(Color.BLACK);
     roomNativeRoot.addView(roomStage,new LinearLayout.LayoutParams(-1,-2));
     playerFrame=new FrameLayout(this);
     playerFrame.setBackgroundColor(Color.BLACK);
@@ -771,10 +863,13 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
 
     videoPill=text("Waiting for video",11,0xFFD8DBEA,true);
     videoPill.setPadding(dp(9),dp(6),dp(9),dp(6));
-    videoPill.setGravity(Gravity.CENTER);
+    videoPill.setGravity(Gravity.CENTER_VERTICAL);
+    videoPill.setSingleLine(true);
+    videoPill.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    videoPill.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels*.63f));
     videoPill.setBackground(shape(0xD511182A,13));
-    FrameLayout.LayoutParams pillParams=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.RIGHT);
-    pillParams.topMargin=dp(12);pillParams.rightMargin=dp(12);
+    FrameLayout.LayoutParams pillParams=new FrameLayout.LayoutParams(-2,dp(34),Gravity.TOP|Gravity.LEFT);
+    pillParams.topMargin=dp(9);pillParams.leftMargin=dp(55);
     playerFrame.addView(videoPill,pillParams);
     videoState=videoPill;
     roomStage.addView(playerFrame,new LinearLayout.LayoutParams(-1,-2));
@@ -844,6 +939,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     // Gradient room panel with native split call/chat affordances.
     roomPane=column();
     if(immersive!=null){immersive.stop();immersive=null;}
+    // Important: this panel must stay transparent; the animated frame is its background.
+    roomPane.setBackgroundColor(Color.TRANSPARENT);
     immersive=new NativeImmersiveBackdrop(this,roomPane,playerView,youtube);
     immersive.setEnabled(getPreferences(MODE_PRIVATE).getBoolean("immersive_background",true));
     immersive.start();
@@ -866,11 +963,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     hostStatus.setBackground(shape(0xFF2D234F,18));
     hostStatus.setPadding(dp(10),dp(5),dp(10),dp(5));
     hostNotice.addView(hostStatus,new LinearLayout.LayoutParams(-2,-2));
-    XPControl crown=xpIcon("crown",this::openParticipants);crown.tint(0xFFE2BF6F);
-    iconIn(hostNotice,crown,39,42);
+    FrameLayout hostBadge=new FrameLayout(this);
     TextView avatar=text("H",15,WHITE,true);avatar.setGravity(Gravity.CENTER);
+    hostAvatar=avatar;
     avatar.setBackground(shape(0xFF685880,44));
-    hostNotice.addView(avatar,new LinearLayout.LayoutParams(dp(42),dp(42)));
+    FrameLayout.LayoutParams avatarLp=new FrameLayout.LayoutParams(dp(42),dp(42),Gravity.BOTTOM|Gravity.RIGHT);
+    hostBadge.addView(avatar,avatarLp);
+    XPControl crown=xpIcon("crown",this::openParticipants);crown.tint(0xFFFFD676);
+    FrameLayout.LayoutParams crownLp=new FrameLayout.LayoutParams(dp(28),dp(28),Gravity.TOP|Gravity.LEFT);
+    hostBadge.addView(crown,crownLp);
+    hostNotice.addView(hostBadge,new LinearLayout.LayoutParams(dp(58),dp(52)));
     roomPane.addView(hostNotice,new LinearLayout.LayoutParams(-1,dp(73)));
     connection=text("Room connected",10,0xFFD9C8F5,false);
     connection.setPadding(dp(10),0,dp(8),0);
@@ -880,16 +982,22 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     watching.setPadding(dp(13),dp(2),dp(11),dp(2));
     FrameLayout artworkSlot=new FrameLayout(this);
     XPControl currentSource=xpIcon("play",this::openSourceChooser);
+    sourcePlaceholderIcon=currentSource;
     currentSource.tint(0xFFEAE2FF);
     artworkSlot.addView(currentSource,new FrameLayout.LayoutParams(-1,-1));
     nativeChannelLogo=new android.widget.ImageView(this);
     nativeChannelLogo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-    nativeChannelLogo.setPadding(dp(3),dp(5),dp(3),dp(5));
+    nativeChannelLogo.setPadding(dp(4),dp(5),dp(4),dp(5));
+    // White logos require a neutral translucent canvas over any immersive color.
+    nativeChannelLogo.setBackground(shape(0xDD787E8C,12));
     nativeChannelLogo.setVisibility(View.GONE);
     artworkSlot.addView(nativeChannelLogo,new FrameLayout.LayoutParams(-1,-1));
     watching.addView(artworkSlot,new LinearLayout.LayoutParams(dp(48),dp(52)));
     playerLabel=text("Now watching · Choose a video",14,WHITE,true);
     playerLabel.setGravity(Gravity.CENTER_VERTICAL);
+    playerLabel.setMaxLines(2);
+    playerLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    playerLabel.setPadding(dp(7),0,dp(3),0);
     watching.addView(playerLabel,new LinearLayout.LayoutParams(0,dp(52),1));
     XPControl heart=xpIcon("heart",this::toggleVideoLike);
     iconIn(watching,heart,44,50);
@@ -908,7 +1016,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatScroll.addView(chatItems);
     roomPane.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1));
     callPanel=new FrameLayout(this);
-    callPanel.setBackgroundColor(0xFF12101E);
+    callPanel.setBackgroundColor(Color.TRANSPARENT);
     callPanel.setVisibility(View.GONE);
     roomPane.addView(callPanel,new LinearLayout.LayoutParams(-1,0,1));
 
@@ -918,7 +1026,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatComposer=new LinearLayout(this);
     chatComposer.setGravity(Gravity.CENTER_VERTICAL);
     chatComposer.setPadding(dp(5),dp(6),dp(5),dp(6));
-    chatComposer.setBackgroundColor(0xFF1A1424);
+    chatComposer.setBackgroundColor(0xB51A1424);
     XPControl mic=xpIcon("mic_off",this::toggleNativeMic);
     mic.tint(0xFFEDE3FF);micIcon=mic;
     iconIn(chatComposer,mic,48,54);
@@ -937,11 +1045,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public void afterTextChanged(android.text.Editable value){}
     });
     chatComposer.addView(chatInput,new LinearLayout.LayoutParams(0,dp(50),1));
-    XPControl mention=xpIcon("at",()->chatInput.getText().insert(chatInput.getSelectionStart(),"@"));
+    XPControl mention=xpIcon("at",this::showMentionPicker);
     mentionIcon=mention;iconIn(chatComposer,mention,40,52);
     XPControl emoji=xpIcon("smile",this::showEmojiMenu);
     emojiIcon=emoji;iconIn(chatComposer,emoji,40,52);
-    XPControl camera=xpIcon("camera",this::showChatAttachments);
+    XPControl camera=xpIcon("camera",this::showVideoCallInvites);
     cameraIcon=camera;iconIn(chatComposer,camera,40,52);
     XPControl send=xpIcon("send",()->{
       String v=chatInput.getText().toString().trim();
@@ -960,7 +1068,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     TextView footer=text("A PKX404 PRODUCT",10,0xFF857991,true);
     roomFooter=footer;
     footer.setGravity(Gravity.CENTER);footer.setLetterSpacing(.15f);
-    footer.setBackgroundColor(0xFF1C1228);
+    footer.setBackgroundColor(0xBF1C1228);
     roomNativeRoot.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
     // Connection state remains in the participant header; branded footer stays fixed.
     applyRoomOrientation(getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE);
@@ -1068,10 +1176,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     return calls;
   }
   private void toggleNativeMic(){
-    NativeCallController c=ensureCalls();
-    if(c==null){toast("Unable to open native video call.");return;}
-    if(showChat)showRoomTab(false); // Expose actual call buttons and status.
-    c.toggleMic();
+    // Opening the mic must not construct an EGL/video renderer before permission.
+    try{
+      NativeCallController c=ensureCalls();
+      if(c==null){toast("Unable to open native video call.");return;}
+      if(showChat)showRoomTab(false);
+      c.toggleMic();
+    }catch(Throwable error){
+      android.util.Log.e("XPartyMic","Microphone action failed",error);
+      toast("Microphone could not start on this device.");
+    }
   }
   private void showRoomTab(boolean chat){
     showChat=chat;
@@ -1090,26 +1204,18 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     catch(Exception ignored){}
   }
   private void cycleVideoScaling(){
-    final int[] modes={
-      AspectRatioFrameLayout.RESIZE_MODE_FIT,
-      AspectRatioFrameLayout.RESIZE_MODE_FILL,
-      AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-      AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
-      AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
-    };
-    final String[] names={"Fit · original ratio","Stretch · fill panel","Zoom · crop edges",
-      "Fixed width","Fixed height"};
+    if("youtube".equals(sourceType)){
+      toast("YouTube player controls its own picture size.");return;
+    }
+    final int[] modes={AspectRatioFrameLayout.RESIZE_MODE_FIT,
+      AspectRatioFrameLayout.RESIZE_MODE_ZOOM,AspectRatioFrameLayout.RESIZE_MODE_FILL,
+      AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT};
     int selected=0;
     for(int i=0;i<modes.length;i++)if(playerFit==modes[i])selected=i;
-    new AlertDialog.Builder(this).setTitle("Video scaling")
-      .setSingleChoiceItems(names,selected,(dialog,which)->{
-        playerFit=modes[which];
-        if(playerView!=null)playerView.setResizeMode(playerFit);
-        getPreferences(MODE_PRIVATE).edit().putInt("video_scale",playerFit).apply();
-        if("youtube".equals(sourceType))
-          toast("YouTube uses the official player's own aspect-ratio constraints.");
-        dialog.dismiss();
-      }).setNegativeButton("Cancel",null).show();
+    playerFit=modes[(selected+1)%modes.length];
+    if(playerView!=null)playerView.setResizeMode(playerFit);
+    getPreferences(MODE_PRIVATE).edit().putInt("video_scale",playerFit).apply();
+    revealPlaybackControls();
   }
   private void showVolume(){
     AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
@@ -1167,23 +1273,41 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       playback!=null&&playback.optBoolean("playing",false));
   }
   private void toggleNativeFullscreen(){
+    if(roomStage==null||playerFrame==null||roomNativeRoot==null)return;
     fullscreenNative=!fullscreenNative;
     if(fullscreenNative){
-      getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+      getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN|WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+      getWindow().getDecorView().setSystemUiVisibility(
+        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_FULLSCREEN);
       if(roomHeader!=null)roomHeader.setVisibility(View.GONE);
       if(roomPane!=null)roomPane.setVisibility(View.GONE);
+      if(roomFooter!=null)roomFooter.setVisibility(View.GONE);
       if(chatComposer!=null)chatComposer.setVisibility(View.GONE);
-      if(playerFrame!=null){
-        playerFrame.getLayoutParams().height=getResources().getDisplayMetrics().heightPixels-dp(160);
-        playerFrame.requestLayout();
+      if(attachmentStatus!=null)attachmentStatus.setVisibility(View.GONE);
+      ViewGroup.LayoutParams stage=roomStage.getLayoutParams();
+      if(stage instanceof LinearLayout.LayoutParams){
+        LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)stage;
+        lp.height=0;lp.weight=1;roomStage.setLayoutParams(lp);
       }
+      playerFrame.setLayoutParams(new LinearLayout.LayoutParams(-1,0,1));
     }else{
       getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-      if(roomHeader!=null)roomHeader.setVisibility(imeShown?View.GONE:View.VISIBLE);
+      getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+      if(roomHeader!=null)roomHeader.setVisibility(imeShown||isLandscapeLayout?View.GONE:View.VISIBLE);
       if(roomPane!=null)roomPane.setVisibility(View.VISIBLE);
+      if(roomFooter!=null)roomFooter.setVisibility(isLandscapeLayout?View.GONE:View.VISIBLE);
       if(chatComposer!=null)chatComposer.setVisibility(showChat?View.VISIBLE:View.GONE);
-      if(playerFrame!=null){playerFrame.getLayoutParams().height=savedVideoHeight;playerFrame.requestLayout();}
+      if(attachmentStatus!=null&&attachmentStatus.getText().length()>0)attachmentStatus.setVisibility(View.VISIBLE);
+      ViewGroup.LayoutParams stage=roomStage.getLayoutParams();
+      if(stage instanceof LinearLayout.LayoutParams){
+        LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)stage;
+        lp.height=isLandscapeLayout?-1:ViewGroup.LayoutParams.WRAP_CONTENT;
+        lp.weight=0;roomStage.setLayoutParams(lp);
+      }
+      playerFrame.setLayoutParams(new LinearLayout.LayoutParams(-1,isLandscapeLayout?-1:savedVideoHeight));
     }
+    roomNativeRoot.requestLayout();
+    revealPlaybackControls();
   }
   private void shareRoom(){
     if(roomCode==null||roomCode.isEmpty()){toast("Create a room first.");return;}
@@ -1274,6 +1398,78 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     pop.showAtLocation(roomNativeRoot,Gravity.BOTTOM|Gravity.RIGHT,dp(right),dp(98));
     return pop;
   }
+  private void showMentionPicker(){
+    if(!roomActive||room==null){toast("Join a room to mention someone.");return;}
+    if(plusPopup!=null)plusPopup.dismiss();
+    if(emojiPopup!=null)emojiPopup.dismiss();
+    JSONArray members=room.optJSONArray("people");
+    if(members==null)return;
+    LinearLayout list=column();
+    list.setPadding(dp(9),dp(7),dp(9),dp(7));
+    TextView heading=text("MENTION · long-press for private chat",11,0xFFE8DEF9,true);
+    add(list,heading,7);
+    if(privateRecipientId!=null){
+      TextView publicChat=text("×  Back to public chat",13,WHITE,true);
+      publicChat.setPadding(dp(7),dp(8),dp(5),dp(8));
+      publicChat.setOnClickListener(v->{
+        privateRecipientId=null;privateRecipientName=null;
+        chatInput.setHint("Message");if(plusPopup!=null)plusPopup.dismiss();
+      });
+      add(list,publicChat,5);
+    }
+    int shown=0;
+    for(int i=0;i<members.length();i++){
+      JSONObject m=members.optJSONObject(i);
+      if(m==null||!m.optBoolean("online")||myId.equals(m.optString("id")))continue;
+      final String targetId=m.optString("id"),name=m.optString("name","Member");
+      TextView option=text("@" + name,13,WHITE,false);
+      option.setPadding(dp(8),dp(9),dp(8),dp(9));
+      option.setOnClickListener(v->{
+        int index=Math.max(0,chatInput.getSelectionStart());
+        chatInput.getText().insert(index,"@"+name+" ");
+        if(plusPopup!=null)plusPopup.dismiss();
+        chatInput.requestFocus();
+      });
+      option.setOnLongClickListener(v->{
+        privateRecipientId=targetId;privateRecipientName=name;
+        chatInput.setHint("Private · "+name);
+        if(plusPopup!=null)plusPopup.dismiss();
+        toast("Private chat · "+name+" · tap @ again to switch");
+        chatInput.requestFocus();return true;
+      });
+      add(list,option,2);shown++;
+    }
+    if(shown==0)add(list,text("No other online participants",12,MUTED,false),12);
+    plusPopup=popupPanel(list,260,Math.min(320,90+shown*49),7);
+  }
+  private void showVideoCallInvites(){
+    if(room==null){toast("Join a room first.");return;}
+    JSONArray members=room.optJSONArray("people");
+    if(members==null)return;
+    LinearLayout list=column();list.setPadding(dp(9),dp(8),dp(9),dp(8));
+    add(list,text("INVITE TO VIDEO CALL",12,WHITE,true),7);
+    int shown=0;
+    for(int i=0;i<members.length();i++){
+      JSONObject member=members.optJSONObject(i);
+      if(member==null||!member.optBoolean("online")||myId.equals(member.optString("id")))continue;
+      final String id=member.optString("id"),name=member.optString("name","Member");
+      TextView item=text((member.optBoolean("inCall")?"✓ ":"＋ ")+name,13,WHITE,false);
+      item.setPadding(dp(8),dp(10),dp(6),dp(10));
+      item.setOnClickListener(v->{
+        if(!isHost){toast("Only the host can invite someone; tap Video call to request a seat.");}
+        else if(member.optBoolean("inCall")){toast(name+" is already in the call.");}
+        else{
+          try{socket.send(new JSONObject().put("type","offer-mic").put("target",id));
+            toast("Call invitation sent to "+name);
+          }catch(Exception e){toast("Could not send call invitation.");}
+        }
+        if(plusPopup!=null)plusPopup.dismiss();
+      });
+      add(list,item,3);shown++;
+    }
+    if(shown==0)add(list,text("No other online participants",12,MUTED,false),10);
+    plusPopup=popupPanel(list,258,Math.min(312,86+shown*50),8);
+  }
   private void showEmojiMenu(){
     if(emojiPopup!=null&&emojiPopup.isShowing()){emojiPopup.dismiss();return;}
     if(plusPopup!=null)plusPopup.dismiss();
@@ -1325,9 +1521,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(emojiPopup!=null)emojiPopup.dismiss();
     LinearLayout list=column();
     list.setPadding(dp(6),dp(6),dp(6),dp(6));
-    String[] options={"Attachment","Gallery","Camera","Extra"};
-    String[] symbols={"file","gallery","camera","plus"};
-    for(int i=0;i<4;i++){
+    String[] options={"Attachment","Gallery","Camera","Extra","Quick YouTube browse"};
+    String[] symbols={"file","gallery","camera","plus","playsearch"};
+    for(int i=0;i<options.length;i++){
       final int action=i;
       LinearLayout line=new LinearLayout(this);
       line.setGravity(Gravity.CENTER_VERTICAL);
@@ -1339,7 +1535,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       line.setOnClickListener(v->launchAttachment(action));
       list.addView(line,new LinearLayout.LayoutParams(-1,dp(48)));
     }
-    plusPopup=popupPanel(list,178,209,7);
+    plusPopup=popupPanel(list,215,264,7);
   }
   private void launchAttachment(int action){
     if(plusPopup!=null)plusPopup.dismiss();
@@ -1352,6 +1548,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           startActivityForResult(intent,REQUEST_CHAT_CAMERA);
         else toast("Camera is unavailable.");
       }catch(Exception error){toast("Could not open camera");}
+    }else if(action==4){
+      if(sourceSheet!=null)sourceSheet.openYouTubeBrowse(token);
     }else{
       new AlertDialog.Builder(this).setTitle("Share more")
         .setItems(new String[]{"Video","Image","Document"},(dialog,n)->
@@ -1360,9 +1558,62 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
   }
   private void openChatPicker(String mime,int request){
-    Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
-    pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType(mime);
-    startActivityForResult(pick,request);
+    Intent pick=new Intent("image/*".equals(mime)||"video/*".equals(mime)?
+      Intent.ACTION_GET_CONTENT:Intent.ACTION_OPEN_DOCUMENT);
+    pick.addCategory(Intent.CATEGORY_OPENABLE);
+    pick.setType(mime);
+    try{startActivityForResult(Intent.createChooser(pick,
+      "image/*".equals(mime)?"Choose from gallery":"Choose file"),request);}
+    catch(Exception failure){toast("No gallery or file app found.");}
+  }
+  private void showMediaPreview(Uri selected,android.graphics.Bitmap captured,String mime){
+    if(uploadInProgress){toast("Finish the current upload first.");return;}
+    // Inspect, caption and explicitly confirm before uploading, as in common chat apps.
+    LinearLayout content=column();
+    content.setPadding(dp(12),dp(8),dp(12),dp(5));
+    content.setBackground(NativeImmersiveBackdrop.sheetSkin());
+    if(mime.startsWith("image/")){
+      android.widget.ImageView preview=new android.widget.ImageView(this);
+      preview.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+      preview.setBackgroundColor(0x60201D32);
+      if(captured!=null)preview.setImageBitmap(captured);
+      else if(selected!=null){
+        try(java.io.InputStream input=getContentResolver().openInputStream(selected)){
+          android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();
+          opts.inSampleSize=4;
+          preview.setImageBitmap(android.graphics.BitmapFactory.decodeStream(input,null,opts));
+        }catch(Exception ignored){preview.setImageResource(android.R.drawable.ic_menu_gallery);}
+      }
+      content.addView(preview,new LinearLayout.LayoutParams(-1,dp(235)));
+    }else{
+      android.widget.VideoView preview=new android.widget.VideoView(this);
+      preview.setBackgroundColor(0xAA161426);
+      content.addView(preview,new LinearLayout.LayoutParams(-1,dp(230)));
+      if(selected!=null){
+        preview.setVideoURI(selected);
+        preview.setOnPreparedListener(media->{
+          media.setVolume(0f,0f);media.setLooping(true);preview.start();
+        });
+        preview.setOnErrorListener((media,what,extra)->{toast("Preview unavailable; file can still be sent.");return true;});
+      }
+    }
+    EditText caption=entry("Add a caption (optional)");
+    caption.setSingleLine(false);caption.setMaxLines(3);
+    add(content,caption,5);
+    AlertDialog box=new AlertDialog.Builder(this).setTitle(
+      mime.startsWith("video/")?"Preview video":"Preview photo")
+      .setView(content).setNegativeButton("Cancel",null)
+      .setPositiveButton("Send",null).create();
+    box.setOnShowListener(unused->box.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+      if(uploadInProgress)return;
+      pendingMediaCaption=caption.getText().toString().trim();
+      pendingMediaRecipient=privateRecipientId;
+      uploadInProgress=true;
+      if(selected!=null)attachments.upload(selected,token,pendingMediaRecipient,attachmentListener);
+      else attachments.uploadCamera(captured,token,pendingMediaRecipient,attachmentListener);
+      box.dismiss();
+    }));
+    box.show();
   }
   private void setAttachmentStatus(String text){
     if(attachmentStatus==null)return;
@@ -1376,13 +1627,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       try{
         JSONObject chat=new JSONObject().put("type","chat").put("attachmentId",id)
           .put("clientId",java.util.UUID.randomUUID().toString());
-        String accompanying=chatInput==null?"":chatInput.getText().toString().trim();
+        String accompanying=pendingMediaCaption==null?"":pendingMediaCaption.trim();
         if(!accompanying.isEmpty())chat.put("text",accompanying);
+        if(pendingMediaRecipient!=null&&!pendingMediaRecipient.isEmpty())
+          chat.put("to",pendingMediaRecipient);
         if(replyToId!=null&&!replyToId.isEmpty())chat.put("replyTo",replyToId);
         socket.send(chat);
-        if(chatInput!=null)chatInput.setText("");
         replyToId=null;
       }catch(Exception e){toast("Upload completed but chat message could not be sent.");}
+      pendingMediaCaption=null;pendingMediaRecipient=null;uploadInProgress=false;
       handler.postDelayed(()->setAttachmentStatus(""),1800);
     }
     @Override public void downloaded(String path){
@@ -1391,9 +1644,37 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
     @Override public void error(String error){
       setAttachmentStatus("");
+      pendingMediaCaption=null;pendingMediaRecipient=null;uploadInProgress=false;
       toast(error);
     }
   };
+  private void showReceivedMediaPreview(String path,String mime,String attachmentId,String attachmentName){
+    if(isFinishing())return;
+    LinearLayout body=column();body.setPadding(dp(8),dp(7),dp(8),dp(8));
+    body.setBackground(NativeImmersiveBackdrop.sheetSkin());
+    if(mime.startsWith("image/")){
+      android.widget.ImageView image=new android.widget.ImageView(this);
+      image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+      android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();
+      options.inSampleSize=3;
+      image.setImageBitmap(android.graphics.BitmapFactory.decodeFile(path,options));
+      body.addView(image,new LinearLayout.LayoutParams(-1,dp(390)));
+    }else{
+      android.widget.VideoView video=new android.widget.VideoView(this);
+      video.setVideoPath(path);
+      body.addView(video,new LinearLayout.LayoutParams(-1,dp(350)));
+      video.setOnPreparedListener(media->{media.setLooping(false);video.start();});
+    }
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle(attachmentName)
+      .setView(body).setNegativeButton("Close",null)
+      .setPositiveButton("Save",(d,which)->
+        attachments.download(attachmentId,attachmentName,token,attachmentListener))
+      .create();
+    dialog.setOnDismissListener(unused->{
+      try{new java.io.File(path).delete();}catch(Exception ignored){}
+    });
+    dialog.show();
+  }
   private void renderMessage(JSONObject data){
     if(data==null||chatItems==null)return;
     final String id=data.optString("id","");
@@ -1405,7 +1686,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(body.isEmpty())return;
     boolean self=myId.equals(data.optString("from"));
     String author=self?"You":data.optString("name","Member");
-    String text=author+"  ·  "+body;
+    String text=(data.optString("to","").isEmpty()?"":"🔒 Private · ")+author+"  ·  "+body;
     JSONObject reactions=data.optJSONObject("reactions");
     if(reactions!=null){
       java.util.Iterator<String> keys=reactions.keys();
@@ -1438,7 +1719,18 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         String attachmentId=attachment.optString("id");
         String attachmentName=attachment.optString("name","Attachment");
         bubble.setOnClickListener(v->{
-          if(attachments!=null)attachments.download(attachmentId,attachmentName,token,attachmentListener);
+          if(attachments==null)return;
+          String lower=attachmentName.toLowerCase(Locale.ROOT);
+          if(lower.matches(".*\\.(jpe?g|png|gif|webp|mp4|webm|m4v|mov)$")){
+            setAttachmentStatus("Opening "+attachmentName+"…");
+            attachments.preview(attachmentId,attachmentName,token,new NativeAttachments.PreviewListener(){
+              @Override public void ready(String path,String mime){
+                setAttachmentStatus("");
+                showReceivedMediaPreview(path,mime,attachmentId,attachmentName);
+              }
+              @Override public void error(String reason){setAttachmentStatus("");toast(reason);}
+            });
+          }else attachments.download(attachmentId,attachmentName,token,attachmentListener);
         });
       }
       if(!self){
@@ -1496,18 +1788,39 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       JSONObject data=new JSONObject().put("type","chat").put("text",body)
         .put("clientId",java.util.UUID.randomUUID().toString());
       if(replyToId!=null&&!replyToId.isEmpty())data.put("replyTo",replyToId);
-      replyToId=null;chatInput.setHint("Message");
+      if(privateRecipientId!=null&&!privateRecipientId.isEmpty())
+        data.put("to",privateRecipientId);
+      replyToId=null;
+      chatInput.setHint(privateRecipientName==null?"Message":"Private · "+privateRecipientName);
       socket.send(data);
     }catch(Exception ignored){}
   }
   private void updateRoom(JSONObject data){
     room=data;roomCode=data.optString("code",roomCode);isHost=myId.equals(data.optString("hostId"));
     if(roomTitle!=null)roomTitle.setText("ROOM  ·  "+roomCode+(isHost?"  ★":""));
-    if(hostStatus!=null)hostStatus.setText((isHost?"Host":"Guest")+" joined the room");
     JSONArray members=data.optJSONArray("people");int count=0;
+    String hostName="Host";
+    if(members!=null)for(int i=0;i<members.length();i++){
+      JSONObject member=members.optJSONObject(i);
+      if(member!=null&&data.optString("hostId","").equals(member.optString("id"))){
+        hostName=member.optString("name","Host");break;
+      }
+    }
+    if(hostStatus!=null)hostStatus.setText(data.optBoolean("hostReconnecting",false)?
+      "Host reconnecting":(isHost?"You're hosting":hostName+" is hosting"));
+    if(hostAvatar!=null&&!hostName.isEmpty())hostAvatar.setText(hostName.substring(0,1).toUpperCase(Locale.ROOT));
     if(members!=null)for(int i=0;i<members.length();i++)if(members.optJSONObject(i).optBoolean("online"))count++;
     if(people!=null)people.setText(count+" online  ·  "+(isHost?"You're the host":"Watching together"));
     if(memberBadge!=null)memberBadge.setText(count>9?"9+":String.valueOf(count));
+    if(privateRecipientId!=null){
+      boolean targetOnline=false;
+      if(members!=null)for(int i=0;i<members.length();i++){
+        JSONObject member=members.optJSONObject(i);
+        if(member!=null&&privateRecipientId.equals(member.optString("id"))&&member.optBoolean("online"))targetOnline=true;
+      }
+      if(!targetOnline){privateRecipientId=null;privateRecipientName=null;
+        if(chatInput!=null)chatInput.setHint("Message");}
+    }
     if(calls!=null)calls.syncRoom(room,myId);
     playback=data.optJSONObject("playback");
     JSONObject next=data.optJSONObject("source");
@@ -1607,6 +1920,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       videoState.setText("Choose a video");
       playerLabel.setText("Now watching · Select a video");
       if(immersive!=null)immersive.setSource("",false);
+      if(nativeChannelLogo!=null)nativeChannelLogo.setVisibility(View.GONE);
+      if(sourcePlaceholderIcon!=null)sourcePlaceholderIcon.setVisibility(View.VISIBLE);
       return;
     }
     sourceType=source.optString("type","");
@@ -1615,14 +1930,18 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     sourceUrl=source.optString("url","");
     if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● LIVE":
       "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
-    if(artwork!=null&&nativeChannelLogo!=null)
-      artwork.show(source.optString("logo",""),nativeChannelLogo);
+    String sourceArt=source.optString("logo","");
+    boolean hasArt=sourceArt.startsWith("https://");
+    if(sourcePlaceholderIcon!=null)sourcePlaceholderIcon.setVisibility(hasArt?View.GONE:View.VISIBLE);
+    if(nativeChannelLogo!=null)nativeChannelLogo.setVisibility(hasArt?View.VISIBLE:View.GONE);
+    if(hasArt&&artwork!=null&&nativeChannelLogo!=null)
+      artwork.show(sourceArt,nativeChannelLogo);
     playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"Live TV  ":"")
       +source.optString("title","Video"));
     boolean isYouTube="youtube".equals(sourceType);
     // v0.3 hid ALL playback controls for YouTube. Keep the same overlay for all sources.
     revealPlaybackControls();
-    videoState.setText("Preparing video…");
+    videoState.setText(source.optString("title","Video"));
     if(isYouTube){
       youtubeId=source.optString("videoId","");
       if(!youtubeId.matches("[A-Za-z0-9_-]{11}")){videoState.setText("Invalid YouTube video ID");return;}
@@ -1739,6 +2058,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!roomActive)return;
     socket.disconnect(true);
     roomActive=false;
+    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     if(homeOverlay!=null){
       ViewGroup overlayParent=(ViewGroup)homeOverlay.getParent();
       if(overlayParent!=null)overlayParent.removeView(homeOverlay);
@@ -1802,13 +2122,22 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(result!=RESULT_OK)return;
     if((request==REQUEST_CHAT_FILE||request==REQUEST_CHAT_GALLERY)&&data!=null&&data.getData()!=null){
       if(!roomActive){toast("Join a room to share files.");return;}
-      attachments.upload(data.getData(),token,attachmentListener);
+      Uri selected=data.getData();
+      String mime=getContentResolver().getType(selected);
+      if(mime!=null&&(mime.startsWith("image/")||mime.startsWith("video/")))
+        showMediaPreview(selected,null,mime);
+      else{
+        if(uploadInProgress){toast("Finish the current upload first.");return;}
+        pendingMediaCaption=null;pendingMediaRecipient=privateRecipientId;
+        uploadInProgress=true;
+        attachments.upload(selected,token,pendingMediaRecipient,attachmentListener);
+      }
       return;
     }
     if(request==REQUEST_CHAT_CAMERA){
       android.graphics.Bitmap snapshot=data!=null&&data.getExtras()!=null
         ?(android.graphics.Bitmap)data.getExtras().get("data"):null;
-      if(snapshot!=null&&roomActive)attachments.uploadCamera(snapshot,token,attachmentListener);
+      if(snapshot!=null&&roomActive)showMediaPreview(null,snapshot,"image/jpeg");
       else toast("Camera did not return a picture.");
       return;
     }
@@ -1823,6 +2152,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       toast("Playing locally. Other room members cannot access this file yet.");
     }
   }
+  @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){
+    super.onRequestPermissionsResult(request,permissions,grants);
+    if(request==2201||request==2202){
+      boolean allowed=grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED;
+      if(calls!=null)calls.onPermissionResult(request,allowed);
+      if(!allowed)toast(request==2201?"Microphone permission was denied":"Camera permission was denied");
+    }
+  }
   @Override public void onBackPressed(){
     if(homeOverlay!=null){returnToRoom();return;}
     if(fullscreenNative){toggleNativeFullscreen();return;}
@@ -1834,9 +2171,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }else super.onBackPressed();
   }
   @Override protected void onPause(){super.onPause();if(youtube!=null)youtube.onPause();}
-  @Override protected void onResume(){super.onResume();if(youtube!=null)youtube.onResume();}
+  @Override protected void onResume(){
+    super.onResume();
+    if(youtube!=null)youtube.onResume();
+    if(roomActive)getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+  }
   @Override protected void onDestroy(){
     closing=true;
+    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     handler.removeCallbacks(progressTicker);
     handler.removeCallbacks(hidePlaybackUi);
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
