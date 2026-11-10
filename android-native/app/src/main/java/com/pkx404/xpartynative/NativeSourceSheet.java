@@ -60,6 +60,8 @@ final class NativeSourceSheet {
   private final OkHttpClient http=new OkHttpClient();
   private final String backend;
   private Dialog dialog;
+  private WebView browseWeb;
+  private final java.util.ArrayList<WebView> popupBrowsers=new java.util.ArrayList<>();
   private LinearLayout body,providerView;
   private EditText channelSearch,youtubeSearch;
   private String roomToken="",currentTab="all",category="All",typedSearch="",youtubeQuery="";
@@ -187,9 +189,25 @@ final class NativeSourceSheet {
     else showProviders();
   }
   boolean showing(){return dialog!=null&&dialog.isShowing();}
-  void dismiss(){if(dialog!=null){dialog.dismiss();dialog=null;}ui.removeCallbacksAndMessages(null);}
+  void dismiss(){
+    if(dialog!=null){dialog.dismiss();dialog=null;}
+    clearBrowser();
+    ui.removeCallbacksAndMessages(null);
+  }
+  private void clearBrowser(){
+    if(browseWeb!=null){
+      try{browseWeb.stopLoading();browseWeb.loadUrl("about:blank");browseWeb.destroy();}
+      catch(Exception ignored){}
+      browseWeb=null;
+    }
+    for(WebView popup:popupBrowsers){
+      try{popup.stopLoading();popup.destroy();}catch(Exception ignored){}
+    }
+    popupBrowsers.clear();
+  }
   private void clear(){
     if(body!=null){body.removeAllViews();channelSearch=null;youtubeSearch=null;}
+    clearBrowser();
   }
   private void showProviders(){
     currentTab="all";clear();
@@ -223,12 +241,27 @@ final class NativeSourceSheet {
       case 0:showIPTV(false);return;
       case 1:showYoutube(false);return;
       case 2:showYouTubeBrowse();return;
+      case 3:openOfficialProvider("Netflix","https://www.netflix.com/browse");return;
+      case 4:openOfficialProvider("Prime Video","https://www.primevideo.com");return;
       case 9:dismiss();actions.enterLink("direct");return;
       case 10:dismiss();actions.pickLocal();return;
       default:
         // Do not claim native third-party DRM integrations work without provider authorization.
         actions.notice("This source requires a supported provider integration. Use Live IPTV, YouTube or Video link.");
     }
+  }
+  private void openOfficialProvider(String name,String url){
+    new android.app.AlertDialog.Builder(activity)
+      .setTitle(name+" · official app")
+      .setMessage("This opens "+name+" through its official app or website. Each viewer must have their own eligible account or subscription. XParty cannot currently synchronize the provider's protected playback without an authorized integration.")
+      .setNegativeButton("Cancel",null)
+      .setPositiveButton("Open official provider",(d,which)->{
+        try{
+          android.content.Intent launch=new android.content.Intent(android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse(url));
+          activity.startActivity(launch);
+        }catch(Exception error){actions.notice("No app can open "+name+" on this device.");}
+      }).show();
   }
   private void showQuick(){
     clear();currentTab="quick";
@@ -510,17 +543,22 @@ final class NativeSourceSheet {
     TextView search=chip("Search inside XParty instead",false,()->showYoutube(false));
     add(body,search,7);
     WebView web=new WebView(activity);
+    browseWeb=web;
     web.setBackgroundColor(Color.BLACK);
     web.setVerticalScrollBarEnabled(true);
     web.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
     // Nested WebView scroll gestures must be handled by YouTube,
     // not intercepted by the containing bottom-sheet ScrollView.
     web.setOnTouchListener((view,event)->{
-      if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN||
-         event.getActionMasked()==android.view.MotionEvent.ACTION_MOVE)
-        view.getParent().requestDisallowInterceptTouchEvent(true);
-      if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP)
-        view.getParent().requestDisallowInterceptTouchEvent(false);
+      android.view.ViewParent parent=view.getParent();
+      if(parent!=null){
+        if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN||
+           event.getActionMasked()==android.view.MotionEvent.ACTION_MOVE)
+          parent.requestDisallowInterceptTouchEvent(true);
+        if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||
+           event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL)
+          parent.requestDisallowInterceptTouchEvent(false);
+      }
       return false;
     });
     web.getSettings().setJavaScriptEnabled(true);
@@ -531,6 +569,7 @@ final class NativeSourceSheet {
       @Override public boolean onCreateWindow(WebView view,boolean dialog,boolean userGesture,
           android.os.Message result){
         WebView popup=new WebView(activity);
+        popupBrowsers.add(popup);
         popup.setWebViewClient(new WebViewClient(){
           @Override public boolean shouldOverrideUrlLoading(WebView child,WebResourceRequest request){
             String url=request.getUrl().toString();
