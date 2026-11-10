@@ -77,7 +77,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void revealPlaybackControls(){
     if(!roomActive||source==null)return;
     if(roomControls!=null)roomControls.setVisibility(View.VISIBLE);
-    if(progress!=null)progress.setVisibility(View.VISIBLE);
+    if(progress!=null)progress.setVisibility("direct".equals(sourceType)?View.VISIBLE:View.GONE);
     if(videoPill!=null)videoPill.setVisibility(View.VISIBLE);
     if(fullscreenControl!=null)fullscreenControl.setVisibility(View.VISIBLE);
     handler.removeCallbacks(hidePlaybackUi);
@@ -194,7 +194,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         });
       }
       @Override public void onVideoSizeChanged(VideoSize size){
-        if(size.width>0&&videoState!=null)videoState.setText("Video "+size.width+"×"+size.height);
+        // Do not replace the actual channel title with a technical resolution pill.
+        if(size.width>0&&videoState!=null&&source!=null)
+          videoState.setText(source.optString("title","Video"));
       }
       @Override public void onPlayerError(androidx.media3.common.PlaybackException e){
         if(videoState!=null)videoState.setText("Playback error: "+e.getErrorCodeName());
@@ -737,6 +739,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     isLandscapeLayout=false;
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     roomActive=true;imeShown=false;fullscreenNative=false;showChat=true;
+    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     roomNativeRoot=column();
     roomNativeRoot.setBackgroundColor(0xFF0B0D1C);
     setContentView(roomNativeRoot);
@@ -762,7 +765,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     headerIcon(roomHeader,"people",this::openParticipants,1f);
     roomNativeRoot.addView(roomHeader,new LinearLayout.LayoutParams(-1,dp(58)));
 
-    roomStage=column();roomStage.setBackgroundColor(0xFF11172F);
+    roomStage=column();roomStage.setBackgroundColor(Color.BLACK);
     roomNativeRoot.addView(roomStage,new LinearLayout.LayoutParams(-1,-2));
     playerFrame=new FrameLayout(this);
     playerFrame.setBackgroundColor(Color.BLACK);
@@ -808,10 +811,13 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
 
     videoPill=text("Waiting for video",11,0xFFD8DBEA,true);
     videoPill.setPadding(dp(9),dp(6),dp(9),dp(6));
-    videoPill.setGravity(Gravity.CENTER);
+    videoPill.setGravity(Gravity.CENTER_VERTICAL);
+    videoPill.setSingleLine(true);
+    videoPill.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    videoPill.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels*.63f));
     videoPill.setBackground(shape(0xD511182A,13));
-    FrameLayout.LayoutParams pillParams=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.RIGHT);
-    pillParams.topMargin=dp(12);pillParams.rightMargin=dp(12);
+    FrameLayout.LayoutParams pillParams=new FrameLayout.LayoutParams(-2,dp(34),Gravity.TOP|Gravity.LEFT);
+    pillParams.topMargin=dp(9);pillParams.leftMargin=dp(55);
     playerFrame.addView(videoPill,pillParams);
     videoState=videoPill;
     roomStage.addView(playerFrame,new LinearLayout.LayoutParams(-1,-2));
@@ -881,6 +887,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     // Gradient room panel with native split call/chat affordances.
     roomPane=column();
     if(immersive!=null){immersive.stop();immersive=null;}
+    // Important: this panel must stay transparent; the animated frame is its background.
+    roomPane.setBackgroundColor(Color.TRANSPARENT);
     immersive=new NativeImmersiveBackdrop(this,roomPane,playerView,youtube);
     immersive.setEnabled(getPreferences(MODE_PRIVATE).getBoolean("immersive_background",true));
     immersive.start();
@@ -945,7 +953,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatScroll.addView(chatItems);
     roomPane.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1));
     callPanel=new FrameLayout(this);
-    callPanel.setBackgroundColor(0xFF12101E);
+    callPanel.setBackgroundColor(Color.TRANSPARENT);
     callPanel.setVisibility(View.GONE);
     roomPane.addView(callPanel,new LinearLayout.LayoutParams(-1,0,1));
 
@@ -955,7 +963,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatComposer=new LinearLayout(this);
     chatComposer.setGravity(Gravity.CENTER_VERTICAL);
     chatComposer.setPadding(dp(5),dp(6),dp(5),dp(6));
-    chatComposer.setBackgroundColor(0xFF1A1424);
+    chatComposer.setBackgroundColor(0xB51A1424);
     XPControl mic=xpIcon("mic_off",this::toggleNativeMic);
     mic.tint(0xFFEDE3FF);micIcon=mic;
     iconIn(chatComposer,mic,48,54);
@@ -997,7 +1005,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     TextView footer=text("A PKX404 PRODUCT",10,0xFF857991,true);
     roomFooter=footer;
     footer.setGravity(Gravity.CENTER);footer.setLetterSpacing(.15f);
-    footer.setBackgroundColor(0xFF1C1228);
+    footer.setBackgroundColor(0xBF1C1228);
     roomNativeRoot.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
     // Connection state remains in the participant header; branded footer stays fixed.
     applyRoomOrientation(getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE);
@@ -1133,26 +1141,18 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     catch(Exception ignored){}
   }
   private void cycleVideoScaling(){
-    final int[] modes={
-      AspectRatioFrameLayout.RESIZE_MODE_FIT,
-      AspectRatioFrameLayout.RESIZE_MODE_FILL,
-      AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-      AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
-      AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
-    };
-    final String[] names={"Fit · original ratio","Stretch · fill panel","Zoom · crop edges",
-      "Fixed width","Fixed height"};
+    if("youtube".equals(sourceType)){
+      toast("YouTube player controls its own picture size.");return;
+    }
+    final int[] modes={AspectRatioFrameLayout.RESIZE_MODE_FIT,
+      AspectRatioFrameLayout.RESIZE_MODE_ZOOM,AspectRatioFrameLayout.RESIZE_MODE_FILL,
+      AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT};
     int selected=0;
     for(int i=0;i<modes.length;i++)if(playerFit==modes[i])selected=i;
-    new AlertDialog.Builder(this).setTitle("Video scaling")
-      .setSingleChoiceItems(names,selected,(dialog,which)->{
-        playerFit=modes[which];
-        if(playerView!=null)playerView.setResizeMode(playerFit);
-        getPreferences(MODE_PRIVATE).edit().putInt("video_scale",playerFit).apply();
-        if("youtube".equals(sourceType))
-          toast("YouTube uses the official player's own aspect-ratio constraints.");
-        dialog.dismiss();
-      }).setNegativeButton("Cancel",null).show();
+    playerFit=modes[(selected+1)%modes.length];
+    if(playerView!=null)playerView.setResizeMode(playerFit);
+    getPreferences(MODE_PRIVATE).edit().putInt("video_scale",playerFit).apply();
+    revealPlaybackControls();
   }
   private void showVolume(){
     AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
@@ -1665,7 +1665,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     boolean isYouTube="youtube".equals(sourceType);
     // v0.3 hid ALL playback controls for YouTube. Keep the same overlay for all sources.
     revealPlaybackControls();
-    videoState.setText("Preparing video…");
+    videoState.setText(source.optString("title","Video"));
     if(isYouTube){
       youtubeId=source.optString("videoId","");
       if(!youtubeId.matches("[A-Za-z0-9_-]{11}")){videoState.setText("Invalid YouTube video ID");return;}
@@ -1782,6 +1782,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!roomActive)return;
     socket.disconnect(true);
     roomActive=false;
+    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     if(homeOverlay!=null){
       ViewGroup overlayParent=(ViewGroup)homeOverlay.getParent();
       if(overlayParent!=null)overlayParent.removeView(homeOverlay);
@@ -1885,9 +1886,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }else super.onBackPressed();
   }
   @Override protected void onPause(){super.onPause();if(youtube!=null)youtube.onPause();}
-  @Override protected void onResume(){super.onResume();if(youtube!=null)youtube.onResume();}
+  @Override protected void onResume(){
+    super.onResume();
+    if(youtube!=null)youtube.onResume();
+    if(roomActive)getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+  }
   @Override protected void onDestroy(){
     closing=true;
+    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     handler.removeCallbacks(progressTicker);
     handler.removeCallbacks(hidePlaybackUi);
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
