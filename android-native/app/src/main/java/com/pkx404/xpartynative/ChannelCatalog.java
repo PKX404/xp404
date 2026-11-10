@@ -31,6 +31,36 @@ final class ChannelCatalog {
     CacheEntry(List<Channel> items){channels=new ArrayList<>(items);savedAt=System.currentTimeMillis();}
   }
   private final Map<String,CacheEntry> cache=new ConcurrentHashMap<>();
+  // HTTP failures belong to the provider, not the entire XPTV category.
+  // Expire negative entries so a restored station can be tried again.
+  private static final long FAILURE_TTL_MS=10*60*1000L;
+  private static final class ChannelFailure {
+    final int status;
+    final long recordedAt;
+    ChannelFailure(int status){this.status=status;this.recordedAt=System.currentTimeMillis();}
+  }
+  private final Map<String,ChannelFailure> unavailable=new ConcurrentHashMap<>();
+  void markFailed(String url,int httpStatus){
+    if(url!=null&&!url.isEmpty())unavailable.put(url,new ChannelFailure(httpStatus));
+  }
+  void markWorking(String url){if(url!=null)unavailable.remove(url);}
+  int failedStatus(String url){
+    ChannelFailure failure=unavailable.get(url);
+    if(failure==null)return 0;
+    if(System.currentTimeMillis()-failure.recordedAt>FAILURE_TTL_MS){
+      unavailable.remove(url,failure);return 0;
+    }
+    return failure.status==0?-1:failure.status;
+  }
+  String failureText(String url){
+    int code=failedStatus(url);
+    if(code==0)return "";
+    if(code==401||code==403)return "Access restricted";
+    if(code==404||code==410)return "Stream offline";
+    if(code==429)return "Rate limited";
+    if(code>=500)return "Provider unavailable";
+    return "Recently failed";
+  }
   private final ExecutorService worker=Executors.newFixedThreadPool(3);
   void load(String category,Result callback){
     CacheEntry hit=cache.get(category);
@@ -47,7 +77,7 @@ final class ChannelCatalog {
       try{
         con=(HttpURLConnection)new URL(endpoint).openConnection();
         con.setConnectTimeout(6000);con.setReadTimeout(8500);
-        con.setRequestProperty("User-Agent","XPartyNative/0.1");
+        con.setRequestProperty("User-Agent","XParty/0.4.7 Android XPTV");
         if(con.getResponseCode()!=200)throw new Exception("Channel list HTTP "+con.getResponseCode());
         try(BufferedReader br=new BufferedReader(new InputStreamReader(con.getInputStream()))){
           String name=null,logo=null,line;int size=0;
@@ -74,5 +104,5 @@ final class ChannelCatalog {
       ui.post(()->callback.loaded(response,message));
     });
   }
-  void shutdown(){worker.shutdownNow();}
+  void shutdown(){worker.shutdownNow();unavailable.clear();}
 }
