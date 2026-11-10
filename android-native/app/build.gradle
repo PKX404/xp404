@@ -6,8 +6,8 @@ android {
         applicationId 'com.pkx404.xpartynative'
         minSdk 26
         targetSdk 35
-        versionCode 44
-        versionName '0.4.4-native-fast-browser'
+        versionCode 45
+        versionName '0.4.5-native-ambient-panels'
     }
     splits {
         abi {
