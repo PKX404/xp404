@@ -1099,6 +1099,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   @Override public void onConfigurationChanged(Configuration config){
     super.onConfigurationChanged(config);
+    if(fullscreenNative){
+      if(fullscreenOverlay!=null)fullscreenOverlay.requestLayout();
+      return;
+    }
     applyRoomOrientation(config.orientation==Configuration.ORIENTATION_LANDSCAPE);
   }
   private void setTypingLayout(boolean typing){
@@ -1236,22 +1240,81 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       playback!=null&&playback.optBoolean("playing",false));
   }
   private void toggleNativeFullscreen(){
-    fullscreenNative=!fullscreenNative;
-    if(fullscreenNative){
-      getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-      if(roomHeader!=null)roomHeader.setVisibility(View.GONE);
-      if(roomPane!=null)roomPane.setVisibility(View.GONE);
-      if(chatComposer!=null)chatComposer.setVisibility(View.GONE);
-      if(playerFrame!=null){
-        playerFrame.getLayoutParams().height=getResources().getDisplayMetrics().heightPixels-dp(160);
-        playerFrame.requestLayout();
+    if(fullscreenNative)exitNativeFullscreen();
+    else enterNativeFullscreen();
+  }
+  private void enterNativeFullscreen(){
+    if(!roomActive||source==null||playerFrame==null){toast("Select a video first");return;}
+    if(!(playerFrame.getParent() instanceof ViewGroup))return;
+    FrameLayout root=findViewById(android.R.id.content);
+    if(root==null)return;
+    fullscreenSourceParent=(ViewGroup)playerFrame.getParent();
+    fullscreenSourceIndex=fullscreenSourceParent.indexOfChild(playerFrame);
+    fullscreenSourceParams=playerFrame.getLayoutParams();
+    fullscreenPreviousScale=playerView==null?playerFit:playerView.getResizeMode();
+    fullscreenPreviousOrientation=getRequestedOrientation();
+    fullscreenPreviousUiFlags=getWindow().getDecorView().getSystemUiVisibility();
+    fullscreenNative=true;
+    fullscreenSourceParent.removeView(playerFrame);
+    fullscreenOverlay=new FrameLayout(this);
+    fullscreenOverlay.setBackgroundColor(Color.BLACK);
+    fullscreenOverlay.addView(playerFrame,new FrameLayout.LayoutParams(-1,-1));
+    root.addView(fullscreenOverlay,new FrameLayout.LayoutParams(-1,-1));
+    if(playerView!=null)playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+    if(fullscreenControl!=null){
+      fullscreenControl.active(true);
+      fullscreenControl.setContentDescription("Exit fullscreen");
+    }
+    getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+    if(Build.VERSION.SDK_INT>=30){
+      getWindow().setDecorFitsSystemWindows(false);
+      WindowInsetsController controller=getWindow().getDecorView().getWindowInsetsController();
+      if(controller!=null){
+        controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.hide(WindowInsets.Type.systemBars());
       }
-    }else{
-      getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-      if(roomHeader!=null)roomHeader.setVisibility(imeShown?View.GONE:View.VISIBLE);
-      if(roomPane!=null)roomPane.setVisibility(View.VISIBLE);
-      if(chatComposer!=null)chatComposer.setVisibility(showChat?View.VISIBLE:View.GONE);
-      if(playerFrame!=null){playerFrame.getLayoutParams().height=savedVideoHeight;playerFrame.requestLayout();}
+    }
+    getWindow().getDecorView().setSystemUiVisibility(
+      View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|
+      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|
+      View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+    revealPlaybackControls();
+  }
+  private void exitNativeFullscreen(){
+    if(!fullscreenNative)return;
+    fullscreenNative=false;
+    if(fullscreenOverlay!=null){
+      fullscreenOverlay.removeView(playerFrame);
+      ViewGroup parent=(ViewGroup)fullscreenOverlay.getParent();
+      if(parent!=null)parent.removeView(fullscreenOverlay);
+      fullscreenOverlay=null;
+    }
+    if(fullscreenSourceParent!=null&&playerFrame!=null){
+      int index=Math.max(0,Math.min(fullscreenSourceIndex,fullscreenSourceParent.getChildCount()));
+      fullscreenSourceParent.addView(playerFrame,index,fullscreenSourceParams);
+    }
+    fullscreenSourceParent=null;fullscreenSourceParams=null;
+    if(playerView!=null)playerView.setResizeMode(fullscreenPreviousScale);
+    if(fullscreenControl!=null){
+      fullscreenControl.active(false);
+      fullscreenControl.setContentDescription("Enter fullscreen");
+    }
+    if(Build.VERSION.SDK_INT>=30){
+      getWindow().setDecorFitsSystemWindows(true);
+      WindowInsetsController controller=getWindow().getDecorView().getWindowInsetsController();
+      if(controller!=null)controller.show(WindowInsets.Type.systemBars());
+    }
+    getWindow().getDecorView().setSystemUiVisibility(fullscreenPreviousUiFlags);
+    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+    setRequestedOrientation(fullscreenPreviousOrientation);
+    if(roomActive){
+      handler.post(()->{
+        if(roomActive&&!fullscreenNative)
+          applyRoomOrientation(getResources().getConfiguration().orientation
+            ==Configuration.ORIENTATION_LANDSCAPE);
+      });
+      revealPlaybackControls();
     }
   }
   private void shareRoom(){
@@ -2023,6 +2086,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     handler.removeCallbacks(hidePlaybackUi);
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     socket.disconnect(false);
+    if(fullscreenNative)exitNativeFullscreen();
     if(calls!=null){calls.stop();calls=null;}
     if(immersive!=null){immersive.stop();immersive=null;}
     if(playbackSheet!=null)playbackSheet.dismiss();
