@@ -1077,10 +1077,26 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     catch(Exception ignored){}
   }
   private void cycleVideoScaling(){
-    playerFit=playerFit==AspectRatioFrameLayout.RESIZE_MODE_FIT
-        ?AspectRatioFrameLayout.RESIZE_MODE_ZOOM:AspectRatioFrameLayout.RESIZE_MODE_FIT;
-    if(playerView!=null)playerView.setResizeMode(playerFit);
-    toast(playerFit==AspectRatioFrameLayout.RESIZE_MODE_FIT?"Video: fit":"Video: fill");
+    final int[] modes={
+      AspectRatioFrameLayout.RESIZE_MODE_FIT,
+      AspectRatioFrameLayout.RESIZE_MODE_FILL,
+      AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+      AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
+      AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+    };
+    final String[] names={"Fit · original ratio","Stretch · fill panel","Zoom · crop edges",
+      "Fixed width","Fixed height"};
+    int selected=0;
+    for(int i=0;i<modes.length;i++)if(playerFit==modes[i])selected=i;
+    new AlertDialog.Builder(this).setTitle("Video scaling")
+      .setSingleChoiceItems(names,selected,(dialog,which)->{
+        playerFit=modes[which];
+        if(playerView!=null)playerView.setResizeMode(playerFit);
+        getPreferences(MODE_PRIVATE).edit().putInt("video_scale",playerFit).apply();
+        if("youtube".equals(sourceType))
+          toast("YouTube uses the official player's own aspect-ratio constraints.");
+        dialog.dismiss();
+      }).setNegativeButton("Cancel",null).show();
   }
   private void showVolume(){
     AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
@@ -1221,41 +1237,114 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       sheet.getWindow().setDimAmount(.40f);
       sheet.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
     }
+    sheet.setOnDismissListener(v->{
+      if(roomNativeRoot!=null)
+        roomNativeRoot.animate().translationX(0f).setDuration(180).start();
+    });
     sheet.show();
+    if(roomNativeRoot!=null)
+      roomNativeRoot.animate().translationX(-getResources().getDisplayMetrics().widthPixels*.12f)
+        .setDuration(180).start();
     if(sheet.getWindow()!=null){
       sheet.getWindow().setGravity(Gravity.RIGHT);
-      sheet.getWindow().setLayout(Math.round(getResources().getDisplayMetrics().widthPixels*.43f),
+      sheet.getWindow().setLayout(Math.round(getResources().getDisplayMetrics().widthPixels*.40f),
         WindowManager.LayoutParams.MATCH_PARENT);
     }
   }
+  private android.widget.PopupWindow emojiPopup,plusPopup;
+  private android.widget.PopupWindow popupPanel(LinearLayout content,int width,int height,int right){
+    android.widget.PopupWindow pop=new android.widget.PopupWindow(content,dp(width),dp(height),true);
+    pop.setBackgroundDrawable(shape(0xF41A1429,18));
+    pop.setElevation(dp(10));
+    pop.setOutsideTouchable(true);
+    pop.setInputMethodMode(android.widget.PopupWindow.INPUT_METHOD_NOT_NEEDED);
+    pop.showAtLocation(roomNativeRoot,Gravity.BOTTOM|Gravity.RIGHT,dp(right),dp(98));
+    return pop;
+  }
   private void showEmojiMenu(){
-    String[] emoji={"😀","😂","❤️","👍","🔥","🎉","😮","👏"};
-    new AlertDialog.Builder(this).setTitle("Emoji").setItems(emoji,(d,index)->{
-      int position=Math.max(0,chatInput.getSelectionStart());
-      chatInput.getText().insert(position,emoji[index]);
-      chatInput.requestFocus();
-    }).show();
+    if(emojiPopup!=null&&emojiPopup.isShowing()){emojiPopup.dismiss();return;}
+    if(plusPopup!=null)plusPopup.dismiss();
+    LinearLayout content=column();
+    content.setPadding(dp(8),dp(8),dp(8),dp(8));
+    LinearLayout tabs=new LinearLayout(this);
+    android.widget.GridLayout grid=new android.widget.GridLayout(this);
+    grid.setColumnCount(6);
+    String[][] groups={
+      {"😀","😃","😁","😄","😅","😂","😊","😍","🥰","😘","😎","🤔","🥳","😮","😭","😴","😡","🤯","😇","😋","🙃","😜","🤩","😷"},
+      {"❤️","🧡","💛","💚","💙","💜","🖤","🤍","💖","💕","💗","💘","💝","💞","💓","💔","❣️","💟"},
+      {"👍","👎","👏","🙌","🤝","🙏","👋","💪","✌️","🤞","👌","🤘","🫶","👀","🔥","💯","✅","⭐"},
+      {"🎉","🎊","🎶","🎬","🍿","🎮","⚡","🌈","✨","💫","🚀","💎","👑","🎂","🥇","💥"}
+    };
+    final Runnable[] renderGroup=new Runnable[1];
+    for(int tab=0;tab<groups.length;tab++){
+      final int group=tab;
+      String[] labels={"Smileys","Hearts","Reactions","Fun"};
+      TextView chip=text(labels[tab],11,WHITE,tab==0);
+      chip.setGravity(Gravity.CENTER);
+      chip.setOnClickListener(v->{
+        grid.removeAllViews();
+        for(String face:groups[group]){
+          TextView emoji=text(face,22,WHITE,false);
+          emoji.setGravity(Gravity.CENTER);
+          android.widget.GridLayout.LayoutParams lp=new android.widget.GridLayout.LayoutParams();
+          lp.width=dp(43);lp.height=dp(43);grid.addView(emoji,lp);
+          emoji.setOnClickListener(clicked->{
+            if(chatInput!=null){
+              int cursor=Math.max(0,chatInput.getSelectionStart());
+              chatInput.getText().insert(cursor,face);
+              chatInput.requestFocus();
+            }
+            if(emojiPopup!=null)emojiPopup.dismiss();
+          });
+        }
+      });
+      tabs.addView(chip,new LinearLayout.LayoutParams(0,dp(38),1));
+      if(tab==0)chip.performClick();
+    }
+    content.addView(tabs);
+    content.addView(grid,new LinearLayout.LayoutParams(-1,-2));
+    int width=Math.min(330,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-14);
+    emojiPopup=popupPanel(content,width,235,8);
   }
   private void showChatAttachments(){
     if(!roomActive){toast("Create or join a room first.");return;}
-    new AlertDialog.Builder(this).setTitle("Share in XParty chat")
-      .setItems(new String[]{"Attachment","Gallery","Camera","Extra"},(d,which)->{
-        if(which==0)openChatPicker("*/*",REQUEST_CHAT_FILE);
-        else if(which==1)openChatPicker("image/*",REQUEST_CHAT_GALLERY);
-        else if(which==2){
-          try{
-            Intent intent=new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-            if(intent.resolveActivity(getPackageManager())!=null)
-              startActivityForResult(intent,REQUEST_CHAT_CAMERA);
-            else toast("No camera application is available.");
-          }catch(Exception e){toast("Cannot open camera.");}
-        }else{
-          new AlertDialog.Builder(this).setTitle("More sharing options")
-            .setItems(new String[]{"Share video","Share image","Share document"},(extra,n)->{
-              openChatPicker(n==0?"video/*":n==1?"image/*":"*/*",REQUEST_CHAT_FILE);
-            }).show();
-        }
-      }).show();
+    if(plusPopup!=null&&plusPopup.isShowing()){plusPopup.dismiss();return;}
+    if(emojiPopup!=null)emojiPopup.dismiss();
+    LinearLayout list=column();
+    list.setPadding(dp(6),dp(6),dp(6),dp(6));
+    String[] options={"Attachment","Gallery","Camera","Extra"};
+    String[] symbols={"file","gallery","camera","plus"};
+    for(int i=0;i<4;i++){
+      final int action=i;
+      LinearLayout line=new LinearLayout(this);
+      line.setGravity(Gravity.CENTER_VERTICAL);
+      XPControl symbol=xpIcon(symbols[i],()->launchAttachment(action));
+      line.addView(symbol,new LinearLayout.LayoutParams(dp(43),dp(45)));
+      TextView name=text(options[i],13,WHITE,true);
+      name.setPadding(dp(8),0,0,0);
+      line.addView(name,new LinearLayout.LayoutParams(0,dp(45),1));
+      line.setOnClickListener(v->launchAttachment(action));
+      list.addView(line,new LinearLayout.LayoutParams(-1,dp(48)));
+    }
+    plusPopup=popupPanel(list,178,209,7);
+  }
+  private void launchAttachment(int action){
+    if(plusPopup!=null)plusPopup.dismiss();
+    if(action==0)openChatPicker("*/*",REQUEST_CHAT_FILE);
+    else if(action==1)openChatPicker("image/*",REQUEST_CHAT_GALLERY);
+    else if(action==2){
+      try{
+        Intent intent=new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+        if(intent.resolveActivity(getPackageManager())!=null)
+          startActivityForResult(intent,REQUEST_CHAT_CAMERA);
+        else toast("Camera is unavailable.");
+      }catch(Exception error){toast("Could not open camera");}
+    }else{
+      new AlertDialog.Builder(this).setTitle("Share more")
+        .setItems(new String[]{"Video","Image","Document"},(dialog,n)->
+          openChatPicker(n==0?"video/*":n==1?"image/*":"*/*",REQUEST_CHAT_FILE))
+        .show();
+    }
   }
   private void openChatPicker(String mime,int request){
     Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
