@@ -1,7 +1,7 @@
-name: XParty v0.4.2 Native Audio-Only Mic QA
+name: XParty Native v0.4.3 UX and Call QA
 on:
   push:
-    branches: [fix/native-v041-audio-only-mic-diagnostic-20261110]
+    branches: [fix/native-v043-room-ux-screen-mention-20261110]
     paths:
       - 'android-native/**'
       - '.github/workflows/xparty-fully-native-android.yml'
