@@ -127,8 +127,16 @@ export function createXparty(options={}) {
    if(await attachments.handle(req,res,url,p,r,json))return;
    if(url.pathname==='/api/search'&&req.method==='GET'){
     if(!rate('search:'+p.id,30,60000))return json(429,{error:'Please wait a moment before searching again.'});const q=clean(url.searchParams.get('q'),100);if(q.length<2)return json(400,{error:'Enter at least two characters'});
-    const cache=searchCache.get(q.toLowerCase());if(cache&&Date.now()-cache.at<300000)return json(200,{items:cache.items});
-    try{const items=await (options.searchYouTube||searchYouTube)(q);if(searchCache.size>100)searchCache.clear();searchCache.set(q.toLowerCase(),{at:Date.now(),items});return json(200,{items});}catch(e){return json(503,{error:e.message});}
+    const pageToken=clean(url.searchParams.get('pageToken'),160);
+    const cacheKey=q.toLowerCase()+'|'+pageToken;
+    const cache=searchCache.get(cacheKey);
+    if(cache&&Date.now()-cache.at<300000)return json(200,{items:cache.items,nextPageToken:cache.nextPageToken||''});
+    try{const result=await (options.searchYouTube||searchYouTube)(q,pageToken);
+      const items=Array.isArray(result)?result:result.items;
+      const nextPageToken=Array.isArray(result)?'':(result.nextPageToken||'');
+      if(searchCache.size>100)searchCache.clear();
+      searchCache.set(cacheKey,{at:Date.now(),items,nextPageToken});
+      return json(200,{items,nextPageToken});}catch(e){return json(503,{error:e.message});}
    }
    const match=url.pathname.match(/^\/api\/file\/([\w-]+)$/);
    if(match){const id=match[1],f=files.get(id);if(!f||f.code!==r.code||r.source?.id!==id)return json(404,{error:'This file is no longer in the room.'});
