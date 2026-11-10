@@ -410,45 +410,46 @@ final class NativeSourceSheet {
         if(src!=null&&"iptv".equals(src.optString("type")))rows.add(src);
       }
     }else{
-      for(ChannelCatalog.Channel c:channels){
-        if(!c.title.toLowerCase(Locale.ROOT).contains(typedSearch.toLowerCase(Locale.ROOT)))continue;
-        try{rows.add(new JSONObject().put("type","iptv").put("url",c.url)
-          .put("title",c.title).put("logo",c.logo));}catch(Exception ignored){}
+      for(ChannelCatalog.Channel item:channels){
+        if(!item.title.toLowerCase(Locale.ROOT).contains(typedSearch.toLowerCase(Locale.ROOT)))continue;
+        try{rows.add(new JSONObject().put("type","iptv").put("url",item.url)
+          .put("title",item.title).put("logo",item.logo));}catch(Exception ignored){}
       }
     }
-    add(providerView,label(rows.size()+" channels",11,MUTED,false),9);
-    LinearLayout pair=null;
+    add(providerView,label(rows.size()+" channels · "+category,11,MUTED,false),8);
     int count=Math.min(shownChannels,rows.size());
     for(int i=0;i<count;i++){
       final JSONObject src=rows.get(i);
-      if(i%2==0){pair=new LinearLayout(activity);pair.setOrientation(LinearLayout.HORIZONTAL);add(providerView,pair,9);}
-      LinearLayout card=new LinearLayout(activity);card.setGravity(Gravity.CENTER_VERTICAL);
-      card.setPadding(dp(7),dp(7),dp(5),dp(7));card.setBackground(rounded(0xFF251E32,18));
-      ImageView art=new ImageView(activity);art.setBackground(rounded(Color.WHITE,12));
-      art.setScaleType(ImageView.ScaleType.FIT_CENTER);
-      card.addView(art,new LinearLayout.LayoutParams(dp(53),dp(57)));
+      LinearLayout line=new LinearLayout(activity);line.setGravity(Gravity.CENTER_VERTICAL);
+      line.setPadding(dp(7),dp(4),dp(7),dp(4));
+      // IPTV remains a compact list; never inherit YouTube video grid settings.
+      line.setBackground(rounded(0x53251E32,12));
+      FrameLayout artSlot=new FrameLayout(activity);
+      artSlot.setBackground(rounded(0xFF868B97,11)); // white AND black logos remain legible
+      ImageView art=new ImageView(activity);art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+      art.setPadding(dp(4),dp(4),dp(4),dp(4));
+      artSlot.addView(art,new FrameLayout.LayoutParams(-1,-1));
+      line.addView(artSlot,new LinearLayout.LayoutParams(dp(54),dp(54)));
       artwork.show(src.optString("logo",""),art);
-      // Artwork loader hides absent images; retain a small initials fallback.
-      TextView title=label(src.optString("title","Channel"),12,WHITE,true);
-      title.setMaxLines(3);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-      title.setPadding(dp(7),0,dp(2),0);
-      card.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-      TextView save=label(favorite(src.optString("url"))?"♥":"♡",21,WHITE,false);
-      save.setGravity(Gravity.CENTER);
-      save.setOnClickListener(v->{toggleFavorite(src);showIPTV(true);});
-      card.addView(save,new LinearLayout.LayoutParams(dp(25),dp(45)));
-      card.setOnClickListener(v->choose(src));
-      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(100),1);
-      if(i%2==1)lp.leftMargin=dp(8);
-      pair.addView(card,lp);
+      TextView name=label(src.optString("title","Channel"),13,WHITE,true);
+      name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      name.setPadding(dp(11),0,dp(4),0);
+      line.addView(name,new LinearLayout.LayoutParams(0,dp(57),1));
+      TextView fav=label(favorite(src.optString("url"))?"♥":"♡",21,WHITE,false);
+      fav.setGravity(Gravity.CENTER);
+      fav.setOnClickListener(v->{toggleFavorite(src);renderIPTV();});
+      line.addView(fav,new LinearLayout.LayoutParams(dp(41),dp(50)));
+      line.setOnClickListener(v->choose(src));
+      add(providerView,line,7);
     }
-    if(rows.size()>count){
-      TextView more=chip("Show more channels ("+(rows.size()-count)+")",false,()->{
+    if(rows.size()>count)add(providerView,
+      chip("Show more channels ("+(rows.size()-count)+")",false,()->{
         shownChannels+=28;renderIPTV();
-      });add(providerView,more,10);
-    }
-    if(rows.isEmpty())add(providerView,label("No matching channels. Try another category or search.",13,MUTED,false),10);
+      }),9);
+    if(rows.isEmpty())add(providerView,
+      label("No matching channels. Choose another category or search.",13,MUTED,false),10);
   }
+
   private void showYoutube(boolean browse){
     clear();currentTab="youtube";
     LinearLayout searchRow=new LinearLayout(activity);searchRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -535,44 +536,51 @@ final class NativeSourceSheet {
     if(providerView==null)return;
     providerView.removeAllViews();
     if(ytItems.isEmpty()){
-      add(providerView,label("No videos returned. Search another term or paste a YouTube URL.",13,MUTED,false),10);return;
+      add(providerView,label("No matching videos. Try another YouTube search.",13,MUTED,false),10);return;
     }
     add(providerView,label("VIDEOS · "+ytItems.size()+" results",11,MUTED,true),10);
-    LinearLayout pair=null;
-    for(int i=0;i<Math.min(shownYouTube,ytItems.size());i++){
+    final int cols=tileColumns();
+    final int available=Math.max(dp(220),
+      activity.getResources().getDisplayMetrics().widthPixels-dp(54));
+    final int itemWidth=Math.max(dp(78),(available-dp(8)*(cols-1))/cols);
+    final int imageHeight=Math.max(dp(52),Math.round(itemWidth*9f/16f));
+    LinearLayout row=null;
+    int total=Math.min(shownYouTube,ytItems.size());
+    for(int i=0;i<total;i++){
       final JSONObject item=ytItems.get(i);
       String id=item.optString("id","");
       if(!id.matches("[\\w-]{11}"))continue;
-      if(i%2==0){pair=new LinearLayout(activity);add(providerView,pair,10);}
+      if(i%cols==0){row=new LinearLayout(activity);add(providerView,row,9);}
       LinearLayout card=new LinearLayout(activity);card.setOrientation(LinearLayout.VERTICAL);
-      card.setBackground(rounded(0xFF211A31,15));
-      card.setPadding(dp(6),dp(7),dp(6),dp(8));
+      // Transparent by design: results appear over ambient backdrop, never black tiles.
+      card.setPadding(dp(2),dp(2),dp(2),dp(5));
       ImageView thumb=new ImageView(activity);thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
-      thumb.setBackgroundColor(0xFF0D0A16);
-      card.addView(thumb,new LinearLayout.LayoutParams(-1,dp(94)));
+      thumb.setBackground(rounded(0xFF30283E,9));
+      card.addView(thumb,new LinearLayout.LayoutParams(-1,imageHeight));
       artwork.show(item.optString("thumbnail","https://i.ytimg.com/vi/"+id+"/mqdefault.jpg"),thumb);
       TextView name=label(item.optString("title","YouTube video"),12,WHITE,true);
-      name.setMaxLines(2);name.setPadding(dp(4),dp(6),dp(4),0);
-      card.addView(name,new LinearLayout.LayoutParams(-1,dp(44)));
-      TextView info=label(item.optString("channel","YouTube")+"  ·  "+item.optString("duration",""),10,MUTED,false);
-      info.setMaxLines(1);card.addView(info,new LinearLayout.LayoutParams(-1,dp(20)));
+      name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      name.setPadding(dp(2),dp(6),dp(2),0);
+      card.addView(name,new LinearLayout.LayoutParams(-1,dp(42)));
+      TextView info=label(item.optString("channel","YouTube"),10,MUTED,false);
+      info.setMaxLines(1);info.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      card.addView(info,new LinearLayout.LayoutParams(-1,dp(19)));
       JSONObject src=new JSONObject();
-      try{src.put("type","youtube").put("videoId",id).put("title",item.optString("title","YouTube video"));}catch(Exception ignored){}
-      TextView heart=label(favorite(id)?"♥ Save":"♡ Save",12,WHITE,false);
-      heart.setGravity(Gravity.RIGHT);heart.setPadding(0,dp(4),dp(6),dp(3));
-      heart.setOnClickListener(v->{toggleFavorite(src);});
-      card.addView(heart);
+      try{src.put("type","youtube").put("videoId",id)
+        .put("title",item.optString("title","YouTube video"));}catch(Exception ignored){}
+      TextView heart=label(favorite(id)?"♥":"♡",16,WHITE,false);
+      heart.setGravity(Gravity.RIGHT);
+      heart.setOnClickListener(v->{toggleFavorite(src);heart.setText(favorite(id)?"♥":"♡");});
+      card.addView(heart,new LinearLayout.LayoutParams(-1,dp(25)));
       card.setOnClickListener(v->choose(src));
       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);
-      if(i%2==1)lp.leftMargin=dp(8);pair.addView(card,lp);
+      if(i%cols!=0)lp.leftMargin=dp(8);row.addView(card,lp);
     }
     if(ytItems.size()>shownYouTube){
-      TextView more=chip("Show more videos ("+(ytItems.size()-shownYouTube)+")",false,()->{
+      add(providerView,chip("Show more videos",false,()->{
         shownYouTube+=20;renderYoutubeResults();
-      });
-      add(providerView,more,10);
-    }
-    else if(!nextYouTubePage.isEmpty()&&ytItems.size()<250){
+      }),10);
+    }else if(!nextYouTubePage.isEmpty()&&ytItems.size()<250){
       String page=nextYouTubePage;
       add(providerView,chip("Load next YouTube results",false,()->
         fetchYouTubePage(youtubeQuery,page,true)),10);
