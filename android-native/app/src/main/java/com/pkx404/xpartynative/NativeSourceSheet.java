@@ -504,6 +504,18 @@ final class NativeSourceSheet {
     web.getSettings().setDomStorageEnabled(true);
     web.getSettings().setSupportMultipleWindows(true);
     web.getSettings().setMediaPlaybackRequiresUserGesture(true);
+    web.setVerticalScrollBarEnabled(true);
+    web.setNestedScrollingEnabled(true);
+    web.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+    // The browser is nested in the source sheet ScrollView. Without this
+    // the parent intercepts the touch gesture and YouTube cannot scroll.
+    web.setOnTouchListener((v,event)->{
+      View parent=(View)v.getParent();
+      if(parent!=null&&(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN
+          ||event.getActionMasked()==android.view.MotionEvent.ACTION_MOVE))
+        parent.requestDisallowInterceptTouchEvent(true);
+      return false;
+    });
     web.setWebChromeClient(new android.webkit.WebChromeClient(){
       @Override public boolean onCreateWindow(WebView view,boolean dialog,boolean userGesture,
           android.os.Message result){
@@ -533,8 +545,13 @@ final class NativeSourceSheet {
         if(showing()&&"youtube-browse".equals(currentTab))select(url);
       }
     });
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(430));
+    int available=Math.max(dp(430),
+      Math.round(activity.getResources().getDisplayMetrics().heightPixels*.61f));
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,available);
     body.addView(web,lp);
     web.loadUrl("https://m.youtube.com/");
+    // Do not release this view when results are scrolled. It belongs to this
+    // source sheet until the user changes tabs or closes it.
+    web.setOnLongClickListener(v->true);
   }
 }
