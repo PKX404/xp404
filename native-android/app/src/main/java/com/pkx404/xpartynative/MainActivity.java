@@ -80,7 +80,7 @@ public final class MainActivity extends Activity {
   private JSONObject room=null;
   private boolean destroyed=false,receivedFrame=false,recovered=false,audioOnly=false;
   private int tileColumns=2;
-  private long lastFrame=0,lastSyncRequest=0;
+  private long lastFrame=0,lastSyncRequest=0,lastPingAt=0;
   private double serverOffsetMs=0;
   private String connectionRequest="create",joinCode="";
   private FrameLayout background,stage;
@@ -91,11 +91,13 @@ public final class MainActivity extends Activity {
   private EditText chatField,username,roomInput;
   private ExoPlayer player; private PlayerView playerView; private WebView youtubeFrame;
   private Dialog sourceDialog;
-  private String sourceTab="youtube";
+  private String sourceTab="youtube",resultsKind="";
   private JSONArray chatHistory=new JSONArray();
   private int lastDisplayedMessages=0;
   private final ArrayList<JSONObject> results=new ArrayList<>();
   private final ArrayList<JSONObject> savedSources=new ArrayList<>();
+  private final java.util.Map<String,Integer> channelHealth=new java.util.HashMap<>();
+  private final java.util.Set<String> channelProbes=new HashSet<>();
 
   private int dp(float n){return (int)(getResources().getDisplayMetrics().density*n+.5f);}
   private GradientDrawable shape(int fill,int stroke,int r){
@@ -416,8 +418,8 @@ public final class MainActivity extends Activity {
   private void syncLoop(){
     if(destroyed||room==null||player==null)return;
     syncPlayback(room.optJSONObject("playback"),false);
-    if(SystemClock.elapsedRealtime()-lastSyncRequest>6000){
-      send("ping",obj("sent",System.currentTimeMillis()));lastSyncRequest=SystemClock.elapsedRealtime();
+    if(SystemClock.elapsedRealtime()-lastPingAt>6000){
+      send("ping",obj("sent",System.currentTimeMillis()));lastPingAt=SystemClock.elapsedRealtime();
     }
     ui.postDelayed(this::syncLoop,2100);
   }
@@ -551,7 +553,9 @@ public final class MainActivity extends Activity {
       search.addView(input,new LinearLayout.LayoutParams(0,dp(50),1));
       search.addView(button("⌕",()->searchYouTube(input.getText().toString())),new LinearLayout.LayoutParams(dp(55),dp(50)));
       add(body,search,10);
-      if(!results.isEmpty()){add(body,text("VIDEOS · "+results.size()+" results",12,MUTED,true),9);addTiles(body,results);}
+      if(resultsKind.equals("youtube")&&!results.isEmpty()){
+        add(body,text("VIDEOS · "+results.size()+" results",12,MUTED,true),9);addTiles(body,results);
+      }
     }else if(sourceTab.equals("iptv")){
       add(body,text("LIVE IPTV · pick a category",14,MUTED,true),10);
       LinearLayout cats=horizontal();
@@ -559,7 +563,7 @@ public final class MainActivity extends Activity {
         TextView b=button(s.substring(0,1).toUpperCase()+s.substring(1),()->loadChannels(s));
         cats.addView(b,new LinearLayout.LayoutParams(0,dp(48),1));
       }add(body,cats,12);
-      if(!results.isEmpty())addTiles(body,results);
+      if(resultsKind.equals("iptv")&&!results.isEmpty())addTiles(body,results);
       else loadChannels("movies");
     }else if(sourceTab.equals("saved")){
       add(body,text("Saved video and channel shortcuts",14,MUTED,true),10);
@@ -595,6 +599,7 @@ public final class MainActivity extends Activity {
       TextView sub=text((kind.equals("iptv")?"●  ":"")+item.optString("channel",kind.equals("iptv")?"Unverified / restricted":"YouTube")
         +(item.optString("duration").isEmpty()?"":"  ·  "+item.optString("duration")),11,kind.equals("iptv")?0xffe5bd47:MUTED,false);
       sub.setMaxLines(2);add(card,sub,6);
+      if(kind.equals("iptv"))checkChannelHealth(item,sub);
       TextView save=button("♡  Save",()->toggleSaved(item));
       card.addView(save,new LinearLayout.LayoutParams(-1,dp(36)));
       cover.setOnClickListener(v->selectSource(item));title.setOnClickListener(v->selectSource(item));
@@ -602,6 +607,31 @@ public final class MainActivity extends Activity {
       param.width=cardW-dp(5);param.height=-2;param.setMargins(dp(2),dp(3),dp(3),dp(7));
       grid.addView(card,param);
     }add(body,grid,10);
+  }
+  // A HEAD probe checks only whether a URL responds, not whether the device can decode it.
+  // Unknown and HEAD-incompatible streams remain yellow, avoiding false 'unavailable' labels.
+  private void checkChannelHealth(JSONObject item,TextView label){
+    final String url=item.optString("url");
+    if(!url.startsWith("https://"))return;
+    Integer prior=channelHealth.get(url);
+    if(prior!=null){showChannelHealth(label,prior);return;}
+    if(channelProbes.size()>=24||!channelProbes.add(url))return;
+    io.execute(()->{
+      int code=0;
+      HttpURLConnection c=null;
+      try{c=(HttpURLConnection)new URL(url).openConnection();c.setRequestMethod("HEAD");
+        c.setConnectTimeout(2500);c.setReadTimeout(2500);c.setInstanceFollowRedirects(true);
+        int response=c.getResponseCode();
+        if(response>=200&&response<400)code=1;
+        else if(response==403||response==404||response==410||response==451)code=-1;
+      }catch(Exception ignored){}finally{if(c!=null)c.disconnect();}
+      final int status=code;
+      ui.post(()->{if(destroyed)return;channelHealth.put(url,status);showChannelHealth(label,status);});
+    });
+  }
+  private void showChannelHealth(TextView label,int status){
+    label.setText(status==1?"●  Responding":status==-1?"●  Unavailable / restricted":"●  Unverified / restricted");
+    label.setTextColor(status==1?0xff71dd87:status==-1?0xffef717b:0xffe5bd47);
   }
   private void selectSource(JSONObject item){
     JSONObject s=new JSONObject();
@@ -624,7 +654,7 @@ public final class MainActivity extends Activity {
         if(items!=null)for(int i=0;i<items.length();i++){
           JSONObject j=items.optJSONObject(i);if(j!=null){j.put("kind","youtube");list.add(j);}
         }
-        ui.post(()->{if(destroyed)return;results.clear();results.addAll(list);refreshSourceSheet();});
+        ui.post(()->{if(destroyed)return;resultsKind="youtube";results.clear();results.addAll(list);if(sourceTab.equals("youtube"))refreshSourceSheet();});
       }catch(Exception e){ui.post(()->toast("YouTube search unavailable: "+e.getMessage()));}
     });
   }
@@ -633,7 +663,9 @@ public final class MainActivity extends Activity {
     c.setConnectTimeout(12000);c.setReadTimeout(15000);c.setRequestProperty("Accept","application/json");
     if(!bearer.isEmpty())c.setRequestProperty("Authorization","Bearer "+bearer);
     try(InputStream stream=c.getInputStream()){
-      return new JSONObject(new String(stream.readAllBytes(),StandardCharsets.UTF_8));
+      java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();
+      byte[] buf=new byte[8192];int length;while((length=stream.read(buf))!=-1){out.write(buf,0,length);if(out.size()>1024*1024)throw new Exception("Search response too large");}
+      return new JSONObject(out.toString("UTF-8"));
     }finally{c.disconnect();}
   }
   private void loadChannels(String category){
@@ -658,7 +690,7 @@ public final class MainActivity extends Activity {
           }
         }finally{c.disconnect();}
         ui.post(()->{if(destroyed||!sourceTab.equals("iptv"))return;
-          results.clear();results.addAll(list);LinearLayout body=sheetBody();if(body!=null){body.removeAllViews();
+          resultsKind="iptv";results.clear();results.addAll(list);LinearLayout body=sheetBody();if(body!=null){body.removeAllViews();
             add(body,button("←  Categories",()->{results.clear();refreshSourceSheet();}),10);
             add(body,text(cat.toUpperCase()+" · "+list.size()+" channels    🟡 Unverified",13,MUTED,true),8);addTiles(body,results);
           }
