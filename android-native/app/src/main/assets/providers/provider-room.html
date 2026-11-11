@@ -3,6 +3,7 @@
 <body><div id="player"></div><script type="module">
 import {createTwitchPlayer,createVimeoPlayer} from './providers.js';
 const {type,id,key}=JSON.parse(document.getElementById('source').textContent);
+(async()=>{
 let player;
 const report=(kind,state=0,time=0)=>XpartyYT.providerEvent(key,kind,state,Number(time)||0);
 const changed=e=>{if(player)report('state',e.data,player.getCurrentTime())};
@@ -19,4 +20,5 @@ try {
   setInterval(()=>report('progress',Math.round(player.getDuration()||0),player.getCurrentTime()),700);
   report('ready');
 } catch(error){failed(error)}
+})();
 </script><script type="application/json" id="source">__SOURCE__</script></body></html>

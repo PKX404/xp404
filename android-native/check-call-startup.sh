@@ -22,3 +22,9 @@ for mode in mic camera; do
   fi
   adb shell pidof "$app"
 done
+
+adb install -r android-native/app/build/outputs/apk/debug/app-universal-debug.apk
+test_apk=$(find android-native/app/build/outputs/apk/androidTest -name '*.apk' | head -n 1)
+adb install -r "$test_apk"
+adb shell am instrument -w com.pkx404.xpartynative.test/com.pkx404.xpartynative.RoomUiCheck | tee /tmp/xparty-room-ui.txt
+grep -F 'PASS provider routes and chat' /tmp/xparty-room-ui.txt

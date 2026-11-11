@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci && node --test tests/provider-room.test.mjs tests/providers-extra.test.mjs tests/companion.test.mjs
-      - run: gradle -p android-native :app:assembleRelease
+      - run: gradle -p android-native :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest
       - uses: actions/upload-artifact@v4
         with:
           name: XParty-0.4.9-Universal
