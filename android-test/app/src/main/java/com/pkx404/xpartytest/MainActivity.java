@@ -33,6 +33,10 @@ import org.json.JSONObject;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -100,7 +104,10 @@ public final class MainActivity extends Activity {
                 return true;
             }
             @Override public void onPageFinished(WebView view, String url) {
-                if (allowed(Uri.parse(url))) splash.setVisibility(View.GONE);
+                if (allowed(Uri.parse(url))) {
+                    applyXPartyDesignSkin(view);
+                    splash.setVisibility(View.GONE);
+                }
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
@@ -139,6 +146,26 @@ public final class MainActivity extends Activity {
         web.loadUrl(HOME);
         handler.postDelayed(() -> { if (splash != null) splash.setVisibility(View.GONE); }, 16000);
         requestNotificationPermission();
+    }
+
+    /** Apply bundled visual-only CSS after navigating to our trusted XParty site.
+     *  The style tag lives in the WebView page; no injected JS changes app logic.
+     *  Never run this on third-party browser pages or untrusted origins.
+     */
+    private void applyXPartyDesignSkin(WebView trustedView) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                getAssets().open("xparty-pro-max.css"), StandardCharsets.UTF_8))) {
+            StringBuilder css = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) css.append(line).append('\n');
+            String script = "(function(){var s=document.getElementById('xparty-pro-max-skin');"
+                    + "if(!s){s=document.createElement('style');s.id='xparty-pro-max-skin';"
+                    + "document.head.appendChild(s);}s.textContent="
+                    + JSONObject.quote(css.toString()) + ";})();";
+            trustedView.evaluateJavascript(script, null);
+        } catch (IOException error) {
+            android.util.Log.w("XParty", "Optional design skin unavailable", error);
+        }
     }
 
     private void handleWebPermission(PermissionRequest request) {

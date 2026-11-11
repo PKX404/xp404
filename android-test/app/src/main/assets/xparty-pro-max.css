@@ -1,0 +1,236 @@
+/*
+ * XParty Android / UI UX Pro Max – non-invasive visual layer.
+ * Loaded ONLY by the Android test wrapper on the trusted XParty origin.
+ * No playback, permissions, room transport, or chat event handlers are changed.
+ */
+:root {
+  --xp-ui-bg: #0a0b10;
+  --xp-ui-panel: rgba(20, 21, 29, .86);
+  --xp-ui-elevated: rgba(33, 34, 45, .93);
+  --xp-ui-line: rgba(234, 235, 255, .11);
+  --xp-ui-text: #f6f5fb;
+  --xp-ui-muted: #b8b8c9;
+  --xp-ui-accent: #a68dff;
+  --xp-ui-accent-soft: rgba(166, 141, 255, .15);
+  --xp-ui-rad: 14px;
+}
+html {
+  color-scheme: dark;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-x: none;
+}
+body {
+  font-family: Inter, Roboto, "Noto Sans", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+body :is(button, input, textarea, select) {
+  font-family: inherit;
+}
+body :is(button, a, [role="button"]) {
+  -webkit-tap-highlight-color: rgba(166, 141, 255, .18);
+  touch-action: manipulation;
+}
+body button:not(:disabled):active,
+body [role="button"]:not([aria-disabled="true"]):active {
+  filter: brightness(1.17);
+  transform: scale(.975);
+  transition: transform 95ms ease-out, filter 95ms ease-out;
+}
+body :is(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid var(--xp-ui-accent) !important;
+  outline-offset: 2px;
+}
+body :is(input, textarea, select)::placeholder {
+  color: var(--xp-ui-muted);
+  opacity: .88;
+}
+/* Quiet lobby, original XParty branding retained. */
+body:not(.in-room) .entry-card {
+  border: 1px solid var(--xp-ui-line);
+  background: rgba(20, 21, 29, .9);
+  border-radius: 20px;
+  box-shadow: 0 14px 44px rgba(0,0,0,.22);
+}
+body:not(.in-room) .entry-card :is(input, select),
+body:not(.in-room) .join-row input {
+  min-height: 44px;
+  border-radius: 12px;
+  background: #1d1f28;
+  color: var(--xp-ui-text);
+  border: 1px solid var(--xp-ui-line);
+}
+body:not(.in-room) .entry-card :is(.primary, .secondary) {
+  min-height: 44px;
+  border-radius: 12px;
+}
+body:not(.in-room) .entry-card label,
+body:not(.in-room) .entry-card h2 {
+  color: var(--xp-ui-text);
+}
+/* Compact Android theatre; no extra box behind the movie. */
+body.in-room #room #player-shell,
+body.in-room #room #watch-stage,
+body.in-room #room #youtube-wrap,
+body.in-room #room #youtube-player,
+body.in-room #room #file-player {
+  box-shadow: none;
+  border-color: transparent;
+}
+body.in-room #room #watch-stage {
+  background: #000;
+}
+body.in-room #room #player-shell::before,
+body.in-room #room #player-shell::after {
+  pointer-events: none;
+}
+/* Functional seek must remain visible when player controls are explicitly shown.
+   Never override native controls-hidden or fullscreen auto-hide. */
+body.in-room:not(.watch-fullscreen) #room #player-shell:not(.controls-hidden) .player-bar {
+  padding: 5px 8px;
+  gap: 4px 7px;
+  border: 1px solid rgba(255,255,255,.065);
+  border-radius: 0 0 13px 13px;
+  box-shadow: none;
+  background: rgba(11,12,17,.64);
+}
+body.in-room:not(.watch-fullscreen) #room #player-shell:not(.controls-hidden) .player-bar #seek {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-width: 76px;
+  min-height: 28px;
+  accent-color: var(--xp-ui-accent);
+  touch-action: pan-x;
+}
+body.in-room #room #seek::-webkit-slider-runnable-track {
+  min-height: 4px;
+  border-radius: 99px;
+  border: 0;
+  background: rgba(244,243,255,.34);
+}
+body.in-room #room #seek::-webkit-slider-thumb {
+  background: #faf9ff;
+  border: 2px solid var(--xp-ui-accent);
+  box-shadow: none;
+}
+body.in-room #room .player-bar button {
+  border: 0;
+  background-image: none;
+  box-shadow: none;
+  border-radius: 9px;
+  min-height: 36px;
+  color: var(--xp-ui-text);
+}
+body.in-room #room .player-bar button[aria-pressed="true"],
+body.in-room #room .player-bar button:active {
+  background: var(--xp-ui-accent-soft);
+}
+body.in-room #room .player-bar #time {
+  color: var(--xp-ui-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Chat stays a scrolling panel: no extra animation, no layout transforms on typing. */
+body.in-room #room .chat-panel {
+  background: rgba(10,11,17,.38);
+  border: 1px solid var(--xp-ui-line);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+body.in-room #room #messages {
+  scroll-behavior: auto !important;
+  overscroll-behavior-y: contain;
+  min-height: 0;
+}
+body.in-room #room #chat-form {
+  box-sizing: border-box;
+  min-width: 0;
+  border-top: 1px solid var(--xp-ui-line);
+  background: rgba(15,16,22,.94);
+  backdrop-filter: none;
+  transform: none !important;
+}
+body.in-room #room #message-input {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--xp-ui-text);
+  background: rgba(37,38,49,.84);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 13px;
+  box-shadow: none;
+}
+body.in-room #room #chat-form button {
+  box-shadow: none;
+  transition: background-color 110ms ease-out, color 110ms ease-out;
+}
+body.in-room #room #chat-form button[type="submit"] {
+  color: #fff;
+  background: #6651b6;
+}
+/* Panels should float over, not resize the entire room unnecessarily. */
+body.in-room #participants-drawer[open] {
+  width: min(40vw, 370px);
+  max-width: 40vw;
+  background: rgba(17,18,26,.97);
+  border-left: 1px solid var(--xp-ui-line);
+  box-shadow: -10px 0 30px rgba(0,0,0,.28);
+}
+body.in-room #participants-drawer :is(button, input) {
+  min-height: 40px;
+}
+body.in-room #room .participant-strip,
+body.in-room #room .source-panel[role="dialog"] {
+  box-shadow: none;
+}
+body.in-room :is(.source-panel[role="dialog"], #participants-drawer[open]) {
+  color: var(--xp-ui-text);
+}
+body.in-room :is(.source-panel[role="dialog"], #participants-drawer[open]) :is(input, select) {
+  color: var(--xp-ui-text);
+  background: #20212b;
+  border: 1px solid var(--xp-ui-line);
+  border-radius: 11px;
+}
+body.in-room .source-way-tabs button[aria-selected="true"],
+body.in-room .conversation-tabs button[aria-pressed="true"] {
+  color: #f8f6ff;
+  background: var(--xp-ui-accent-soft);
+  border-color: rgba(166,141,255,.35);
+}
+/* Allow functional volume/seek tracks to show without decorative control rings. */
+body.in-room .vertical-volume,
+body.in-room .video-volume-overlay {
+  box-shadow: none;
+}
+body.in-room .vertical-volume input[type="range"] {
+  accent-color: var(--xp-ui-accent);
+}
+body.in-room #room .icon-control,
+body.in-room #room .player-bar button,
+body.in-room .topbar .icon-control {
+  -webkit-tap-highlight-color: rgba(166,141,255,.18);
+}
+@media (max-width: 600px) {
+  body.in-room #room #chat-form {
+    padding-bottom: max(5px, env(safe-area-inset-bottom));
+  }
+  body.in-room:not(.watch-fullscreen) #room #player-shell:not(.controls-hidden) .player-bar {
+    padding: 4px 6px;
+  }
+  body.in-room #participants-drawer[open] {
+    width: 40vw;
+    max-width: 40vw;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.in-room #room .chat-panel,
+  body.in-room #room .player-bar,
+  body.in-room #room #chat-form,
+  body.in-room #participants-drawer {
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+  }
+  body #messages { scroll-behavior: auto !important; }
+}
