@@ -6,8 +6,8 @@ android {
         applicationId 'com.pkx404.xpartynative'
         minSdk 26
         targetSdk 35
-        versionCode 48
-        versionName '0.4.8-native-call-fix'
+        versionCode 49
+        versionName '0.4.9-provider-rooms'
     }
     splits {
         abi {
@@ -40,3 +40,10 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'io.github.webrtc-sdk:android:144.7559.15'
 }
+
+def roomAssets = tasks.register('copyRoomProviderScripts', Sync) {
+    from('../../public/xparty') { include 'providers.js', 'sync.js' }
+    into layout.buildDirectory.dir('generated/roomAssets/providers')
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('generated/roomAssets'))
+tasks.named('preBuild').configure { dependsOn roomAssets }

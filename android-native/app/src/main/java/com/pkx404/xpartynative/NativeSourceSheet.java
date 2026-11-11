@@ -262,6 +262,7 @@ final class NativeSourceSheet {
     else if("quick".equals(initial))showQuick();
     else if("youtube".equals(initial))showYoutube(false);
     else if("youtube-browse".equals(initial))showYouTubeBrowse();
+    else if(!ProviderLink.name(initial).isEmpty())showService(initial);
     else showProviders();
   }
   boolean showing(){return dialog!=null&&dialog.isShowing();}
@@ -324,8 +325,10 @@ final class NativeSourceSheet {
       case 0:showIPTV(false);return;
       case 1:showYoutube(false);return;
       case 2:showYouTubeBrowse();return;
-      case 3:openOfficialProvider("Netflix","https://www.netflix.com/browse");return;
-      case 4:openOfficialProvider("Prime Video","https://www.primevideo.com");return;
+      case 3:showService("netflix");return;
+      case 4:showService("prime");return;
+      case 5:showService("twitch");return;
+      case 7:showService("vimeo");return;
       case 9:dismiss();actions.enterLink("direct");return;
       case 10:dismiss();actions.pickLocal();return;
       default:
@@ -333,18 +336,31 @@ final class NativeSourceSheet {
         actions.notice("This source requires a supported provider integration. Use XPTV, YouTube or Video link.");
     }
   }
-  private void openOfficialProvider(String name,String url){
-    new android.app.AlertDialog.Builder(activity)
-      .setTitle(name+" · official app")
-      .setMessage("This opens "+name+" through its official app or website. Each viewer must have their own eligible account or subscription. XParty cannot currently synchronize the provider's protected playback without an authorized integration.")
-      .setNegativeButton("Cancel",null)
-      .setPositiveButton("Open official provider",(d,which)->{
-        try{
-          android.content.Intent launch=new android.content.Intent(android.content.Intent.ACTION_VIEW,
-            android.net.Uri.parse(url));
-          activity.startActivity(launch);
-        }catch(Exception error){actions.notice("No app can open "+name+" on this device.");}
-      }).show();
+  private void showService(String type){
+    clear();currentTab=type;mode(ProviderLink.name(type));
+    EditText link=input("Paste a title, channel or video link");
+    add(body,link,6);
+    add(body,chip("Watch in room",true,()->{
+      JSONObject item=ProviderLink.parse(type,link.getText().toString(),null);
+      if(item==null){link.setError("Use a full "+ProviderLink.name(type)+" title or video URL");return;}
+      choose(item);
+    }),6);
+    WebView web=new WebView(activity);browseWeb=web;
+    web.getSettings().setJavaScriptEnabled(true);web.getSettings().setDomStorageEnabled(true);
+    web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);
+    web.setWebViewClient(new WebViewClient(){
+      @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
+        return !"https".equals(request.getUrl().getScheme());
+      }
+    });
+    add(body,chip("Use current page",false,()->{
+      JSONObject item=ProviderLink.parse(type,web.getUrl(),web.getTitle());
+      if(item!=null)choose(item);
+      else actions.notice("Open a movie, episode, video or channel first.");
+    }),5);
+    web.setOnTouchListener((v,e)->{v.getParent().requestDisallowInterceptTouchEvent(e.getActionMasked()!=MotionEvent.ACTION_UP&&e.getActionMasked()!=MotionEvent.ACTION_CANCEL);return false;});
+    body.addView(web,new LinearLayout.LayoutParams(-1,dp(420)));
+    web.loadUrl(ProviderLink.home(type));
   }
   private void showQuick(){
     clear();currentTab="quick";mode("Quick search");
