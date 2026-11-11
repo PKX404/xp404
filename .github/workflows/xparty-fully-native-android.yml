@@ -1,15 +1,11 @@
-name: XParty Native v0.4.7 XPTV HLS Fullscreen QA
+name: XParty 0.4.8 mic and camera release check
 on:
   push:
-    branches: [fix/native-v047-xptv-stream-fullscreen-20261111]
-    paths:
-      - 'android-native/**'
-      - '.github/workflows/xparty-fully-native-android.yml'
-  workflow_dispatch:
+    branches: [fix/native-v048-mic-camera-jni]
 jobs:
-  android-native:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -21,71 +17,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - name: Build signed and minified native APKs for each processor
-        working-directory: android-native
-        run: gradle --no-daemon --stacktrace :app:assembleRelease
-      - name: Verify size and ABI availability
-        shell: bash
-        run: |
-          set -e
-          ls -lh android-native/app/build/outputs/apk/release/*.apk
-          test -s android-native/app/build/outputs/apk/release/app-universal-release.apk
-          test -s android-native/app/build/outputs/apk/release/app-arm64-v8a-release.apk
-          test -s android-native/app/build/outputs/apk/release/app-armeabi-v7a-release.apk
+      - run: gradle -p android-native :app:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
-          name: XParty-Native-v0.4.7-XPTV-Fullscreen-Release-APKs
-          path: android-native/app/build/outputs/apk/release/*.apk
-          retention-days: 30
-          if-no-files-found: error
-  startup-smoke:
-    needs: android-native
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: XParty-Native-v0.4.7-XPTV-Fullscreen-Release-APKs
-          path: output
+          name: XParty-0.4.8-Universal
+          path: android-native/app/build/outputs/apk/release/app-universal-release.apk
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
-          target: google_apis
+          target: default
           arch: x86_64
           profile: pixel_2
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
-          script: |
-            set -e
-            adb install -r output/app-universal-release.apk
-            adb logcat -c
-            adb shell am start -W -n com.pkx404.xpartynative.micfix2/com.pkx404.xpartynative.MainActivity
-            sleep 6
-            adb shell pidof com.pkx404.xpartynative.micfix2
-            adb exec-out screencap -p > output/native-v0.4.2-home.png
-            adb shell uiautomator dump /sdcard/v04.xml >/dev/null 2>&1 || true
-            adb pull /sdcard/v04.xml output/native-v0.4.2-window.xml >/dev/null 2>&1 || true
-            adb shell am force-stop com.pkx404.xpartynative.micfix2
-            adb shell am start -W -n com.pkx404.xpartynative.micfix2/com.pkx404.xpartynative.MainActivity
-            sleep 2
-            adb shell pidof com.pkx404.xpartynative.micfix2
-            echo "XParty Native v0.4.2 audio-only release launched twice"
-            adb shell am force-stop com.pkx404.xpartynative.micfix2
-            adb shell pm grant com.pkx404.xpartynative.micfix2 android.permission.RECORD_AUDIO
-            adb logcat -c
-            # Try the actual WebRTC audio factory + audio-only offer, not just startup.
-            timeout 45s adb shell am start -n com.pkx404.xpartynative.micfix2/com.pkx404.xpartynative.MainActivity --ez xparty_native_mic_selftest true || true
-            sleep 8
-            adb logcat -d -s XPartyMicProbe:V AndroidRuntime:E libc:E DEBUG:E > output/native-v0.4.2-mic-log.txt
-            cat output/native-v0.4.2-mic-log.txt
-            adb shell pidof com.pkx404.xpartynative.micfix2
-            grep -q "ALIVE after microphone startup: true" output/native-v0.4.2-mic-log.txt
-            echo "WebRTC microphone startup did not kill the app on x86_64 emulator"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: XParty-Native-v0.4.7-Mic-Diagnostics
-          path: output/native-v0.4.2-*
-          retention-days: 7
+          emulator-options: -no-window -no-boot-anim -gpu swiftshader_indirect -camera-front emulated -camera-back emulated -noaudio
+          script: bash android-native/check-call-startup.sh

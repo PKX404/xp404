@@ -12,3 +12,6 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+# WebRTC resolves these bootstrap helpers by class and method name in JNI_OnLoad.
+-keep class org.jni_zero.** { *; }

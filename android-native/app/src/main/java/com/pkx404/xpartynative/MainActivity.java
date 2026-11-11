@@ -279,11 +279,13 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       });
       calls.attach(new FrameLayout(this));
       calls.syncRoom(fake,"xparty-mic-selftest");
-      android.util.Log.i(tag,"STARTING: audio-only WebRTC peer and microphone");
-      calls.toggleMic();
-      handler.postDelayed(()->{
-        android.util.Log.i(tag,"ALIVE after microphone startup: "+(calls!=null&&calls.isMicOn()));
-      },5000);
+      boolean camera = "camera".equals(getIntent().getStringExtra("media"));
+      if (camera) calls.toggleCamera();
+      else calls.toggleMic();
+      handler.postDelayed(() -> {
+        boolean active = calls != null && (camera ? calls.isCameraOn() : calls.isMicOn());
+        android.util.Log.i(tag, "ALIVE after " + (camera ? "camera" : "mic") + " startup: " + active);
+      }, 5000);
     }catch(Throwable error){
       android.util.Log.e(tag,"FAILED: native microphone init",error);
     }

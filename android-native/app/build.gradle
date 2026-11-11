@@ -6,8 +6,8 @@ android {
         applicationId 'com.pkx404.xpartynative'
         minSdk 26
         targetSdk 35
-        versionCode 47
-        versionName '0.4.7-native-xptv-fullscreen'
+        versionCode 48
+        versionName '0.4.8-native-call-fix'
     }
     splits {
         abi {
