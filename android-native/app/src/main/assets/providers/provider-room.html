@@ -1,7 +1,7 @@
 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>*{box-sizing:border-box}html,body,#player,#player>div,.provider-embed-mount,iframe{margin:0;width:100%;height:100%;border:0;background:#000}#player iframe{position:absolute;inset:0}</style></head>
 <body><div id="player"></div><script type="module">
-import {createTwitchPlayer,createVimeoPlayer} from './providers.js';
+import {createTwitchPlayer,createVimeoPlayer,createSoundCloudPlayer} from './providers.js';
 const {type,id,key}=JSON.parse(document.getElementById('source').textContent);
 (async()=>{
 let player;
@@ -9,8 +9,11 @@ const report=(kind,state=0,time=0)=>XpartyYT.providerEvent(key,kind,state,Number
 const changed=e=>{if(player)report('state',e.data,player.getCurrentTime())};
 const failed=e=>report(String(e?.message||'Provider player unavailable').slice(0,140));
 try {
-  player=await (type==='twitch'?createTwitchPlayer:createVimeoPlayer)(document.getElementById('player'),id,changed,failed);
+  const creator=type==='twitch'?createTwitchPlayer:type==='soundcloud'?createSoundCloudPlayer:createVimeoPlayer;
+  player=await creator(document.getElementById('player'),id,changed,failed);
   window.xpartyTime=()=>player.getCurrentTime();
+  // SoundCloud's official Widget API reports playback positions in milliseconds;
+  // the adapter converts them to seconds before room synchronization.
   window.xpartySeek=t=>{if(player.canSeek!==false)player.seekTo(t)};
   window.xpartyPlay=p=>p?player.playVideo():player.pauseVideo();
   window.xpartySync=(p,t)=>{
