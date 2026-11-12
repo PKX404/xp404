@@ -334,6 +334,7 @@ final class NativeSourceSheet {
       case 3:showService("netflix");return;
       case 4:showService("prime");return;
       case 5:showService("twitch");return;
+      case 6:showService("soundcloud");return;
       case 7:showService("vimeo");return;
       case 9:dismiss();actions.enterLink("direct");return;
       case 10:dismiss();actions.pickLocal();return;
@@ -344,8 +345,9 @@ final class NativeSourceSheet {
   }
   private void showService(String type){
     clear();currentTab=type;mode(ProviderLink.name(type));
-    EditText link=input("Paste a title, channel or video link");
+    EditText link=input("soundcloud".equals(type)?"Paste a public SoundCloud track URL":"Paste a title, channel or video link");
     add(body,link,6);
+    if("soundcloud".equals(type))add(body,label("Play public tracks together with the official SoundCloud player. Some tracks may not permit embedding.",12,MUTED,false),6);
     add(body,chip("Watch in room",true,()->{
       JSONObject item=ProviderLink.parse(type,link.getText().toString(),null);
       if(item==null){link.setError("Use a full "+ProviderLink.name(type)+" title or video URL");return;}
