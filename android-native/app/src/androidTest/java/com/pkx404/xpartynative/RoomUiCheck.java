@@ -20,6 +20,17 @@ public final class RoomUiCheck extends Instrumentation {
     }
     return null;
   }
+  private static View findDescription(View root,String expected){
+    if(expected.contentEquals(root.getContentDescription()))return root;
+    if(root instanceof ViewGroup){
+      ViewGroup group=(ViewGroup)root;
+      for(int i=0;i<group.getChildCount();i++){
+        View found=findDescription(group.getChildAt(i),expected);
+        if(found!=null)return found;
+      }
+    }
+    return null;
+  }
   private static void require(boolean value,String msg){if(!value)throw new AssertionError(msg);}
   @Override public void onStart(){
     Bundle result=new Bundle();
@@ -53,6 +64,16 @@ public final class RoomUiCheck extends Instrumentation {
           require(find(root,"My message  ✓✓")!=null,"receipt");
           other.put("text","Edited");app.message(new JSONObject().put("type","message-update").put("message",other));
           require(find(root,"Maya: Hi there")==null&&find(root,"Maya: Edited")!=null,"in-place update");
+          require(findDescription(root,"Share room invite")!=null,"visible native room Share button");
+          java.lang.reflect.Method lobby=MainActivity.class.getDeclaredMethod("showLobby");
+          lobby.setAccessible(true);lobby.invoke(app);
+          java.lang.reflect.Method profile=MainActivity.class.getDeclaredMethod("showProfileHome");
+          profile.setAccessible(true);profile.invoke(app);
+          View page=app.findViewById(android.R.id.content);
+          require(find(page,"Recently opened")!=null,"profile recent media");
+          require(find(page,"Liked videos")!=null,"profile liked media");
+          require(find(page,"Interests & keywords")!=null,"profile keyword editor");
+          require(find(page,"Top sources")!=null,"profile source rankings");
           app.finish();
         }catch(Throwable e){failure[0]=e;}
       });
