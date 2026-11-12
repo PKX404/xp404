@@ -1,7 +1,7 @@
-name: XParty 0.5.2 SoundCloud and Chat
+name: XParty 0.5.3 Profile and Share
 on:
   push:
-    branches: [feature/native-v050-room-audio-chat, fix/native-v050-play-protect, feature/native-v052-soundcloud-chat]
+    branches: [feature/native-v050-room-audio-chat, fix/native-v050-play-protect, feature/native-v052-soundcloud-chat, feature/native-v053-profile-share]
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm ci && node --test tests/provider-room.test.mjs tests/providers-extra.test.mjs tests/companion.test.mjs tests/native-soundcloud-chat.test.mjs
+      - run: npm ci && node --test tests/provider-room.test.mjs tests/providers-extra.test.mjs tests/companion.test.mjs tests/native-soundcloud-chat.test.mjs tests/native-profile-share.test.mjs
       - run: gradle -p android-native :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest
       - name: Verify APK does not request sensitive notification, SMS or accessibility access
         shell: bash
@@ -38,7 +38,7 @@ jobs:
           echo "Verified: no SMS, notification listener, or accessibility declarations in final APK"
       - uses: actions/upload-artifact@v4
         with:
-          name: XParty-0.5.2-Universal-SoundCloud-Chat
+          name: XParty-0.5.3-Universal-Profile-Share
           path: android-native/app/build/outputs/apk/release/app-universal-release.apk
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm
