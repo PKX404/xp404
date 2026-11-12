@@ -21,7 +21,8 @@ public final class RoomUiCheck extends Instrumentation {
     return null;
   }
   private static View findDescription(View root,String expected){
-    if(expected.contentEquals(root.getContentDescription()))return root;
+    CharSequence description=root.getContentDescription();
+    if(description!=null&&expected.contentEquals(description))return root;
     if(root instanceof ViewGroup){
       ViewGroup group=(ViewGroup)root;
       for(int i=0;i<group.getChildCount();i++){
