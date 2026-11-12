@@ -20,8 +20,8 @@ android {
     }
     buildTypes {
         release {
-            applicationIdSuffix '.micfix2'
-            versionNameSuffix '-micfix2'
+            applicationIdSuffix '.profiletest053'
+            versionNameSuffix '-sidetest'
             signingConfig signingConfigs.debug
             minifyEnabled true
             shrinkResources true
