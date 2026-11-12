@@ -1696,6 +1696,45 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       view.setOnClickListener(t->{if(chatClip!=clip)tile.performClick();else if(clip.isPlaying())clip.pause();else{if(clip.getPlaybackState()==androidx.media3.common.Player.STATE_ENDED)clip.seekTo(0);clip.play();}});
       clip.setMediaItem(androidx.media3.common.MediaItem.fromUri(url));clip.prepare();clip.play();});
   }
+  /** Visible reaction chips, updated without replacing the original message view. */
+  private void updateChatReactions(LinearLayout stack,String messageId,JSONObject reactions,boolean self){
+    final String reactionTag="xparty-chat-reactions";
+    View existing=stack.findViewWithTag(reactionTag);
+    if(existing!=null)stack.removeView(existing);
+    if(reactions==null||messageId.isEmpty())return;
+    LinearLayout chips=new LinearLayout(this);
+    chips.setTag(reactionTag);
+    chips.setOrientation(LinearLayout.HORIZONTAL);
+    chips.setGravity(self?Gravity.RIGHT:Gravity.LEFT);
+    int shown=0;
+    java.util.Iterator<String> keys=reactions.keys();
+    while(keys.hasNext()&&shown<5){
+      String emoji=keys.next();
+      JSONArray members=reactions.optJSONArray(emoji);
+      if(members==null||members.length()==0)continue;
+      boolean reacted=false;
+      for(int j=0;j<members.length();j++)if(myId.equals(members.optString(j))){reacted=true;break;}
+      final boolean active=reacted;
+      TextView chip=text(emoji+" "+members.length(),12,WHITE,false);
+      chip.setPadding(dp(7),dp(3),dp(7),dp(3));
+      chip.setBackground(shape(active?0xFF5A405C:0xCC2A2736,12));
+      chip.setOnClickListener(v->{
+        try{socket.send(new JSONObject().put("type","message-reaction")
+          .put("id",messageId).put("emoji",emoji).put("active",!active));}
+        catch(Exception ignored){}
+      });
+      LinearLayout.LayoutParams badge=new LinearLayout.LayoutParams(-2,-2);
+      if(shown>0)badge.leftMargin=dp(4);
+      chips.addView(chip,badge);
+      shown++;
+    }
+    if(shown==0)return;
+    LinearLayout.LayoutParams place=new LinearLayout.LayoutParams(-2,-2);
+    place.gravity=self?Gravity.RIGHT:Gravity.LEFT;
+    place.topMargin=-dp(3);
+    place.bottomMargin=dp(3);
+    stack.addView(chips,Math.min(1,stack.getChildCount()),place);
+  }
   private void renderMessage(JSONObject data){
     if(data==null||chatItems==null)return;
     final String id=data.optString("id","");
@@ -1715,30 +1754,39 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!data.isNull("to"))label.append("Private · ");
     label.append(body);
     JSONObject reactions=data.optJSONObject("reactions");
-    if(!deleted&&reactions!=null){java.util.Iterator<String> keys=reactions.keys();boolean first=true;
-      while(keys.hasNext()){String emoji=keys.next();JSONArray members=reactions.optJSONArray(emoji);
-        if(members!=null&&members.length()>0){label.append(first?"\n":"  ").append(emoji+" "+members.length());first=false;}}}
     if(self){JSONArray read=data.optJSONArray("readBy"),delivered=data.optJSONArray("deliveredBy");
       boolean seen=read!=null&&read.length()>0;int offset=label.length();
       label.append(seen||delivered!=null&&delivered.length()>0?"  ✓✓":"  ✓");
       label.setSpan(new android.text.style.ForegroundColorSpan(seen?0xFF73DDFF:0xFFCCCCCC),offset,label.length(),33);}
     if(!id.isEmpty())knownChats.put(id,data);
     TextView bubble=chatBubbles.get(id);
-    if(bubble!=null){bubble.setText(label);if(deleted){LinearLayout stack=(LinearLayout)bubble.getParent();while(stack.getChildCount()>1)stack.removeViewAt(1);}return;}
+    if(bubble!=null){
+      bubble.setText(label);
+      LinearLayout stack=(LinearLayout)bubble.getParent();
+      if(deleted){while(stack.getChildCount()>1)stack.removeViewAt(1);}
+      else updateChatReactions(stack,id,reactions,self);
+      return;
+    }
     boolean nearBottom=!chatScroll.canScrollVertically(1)||self;
     String sender=data.optString("from",author);
     View previous=chatItems.getChildCount()==0?null:chatItems.getChildAt(chatItems.getChildCount()-1);
     boolean grouped=!activity&&previous!=null&&sender.equals(previous.getTag());
+    int sequence=grouped&&previous.getTag(android.R.id.text1) instanceof Integer
+      ?(Integer)previous.getTag(android.R.id.text1)+1:1;
     LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.TOP);row.setTag(sender);
+    row.setTag(android.R.id.text1,sequence);
     LinearLayout stack=column();stack.setGravity(self?Gravity.RIGHT:Gravity.LEFT);
     String avatarName=activity?data.optString("subject",data.optString("actor","Room")):self?nickname:author;
-    View avatar=roomAvatar(avatarName,profilePhoto(activity?data.optString("subjectId",data.optString("actorId")):sender),36);
+    View avatar=(sequence%2==1||activity)
+      ?roomAvatar(avatarName,profilePhoto(activity?data.optString("subjectId",data.optString("actorId")):sender),36)
+      :new View(this);
     LinearLayout.LayoutParams icon=new LinearLayout.LayoutParams(dp(36),dp(36));icon.leftMargin=dp(self?7:0);icon.rightMargin=dp(self?0:7);
     if(!self)row.addView(avatar,icon);
-    bubble=text("",16,WHITE,false);bubble.setText(label);bubble.setShadowLayer(dp(2),0,1,0xB0000000);
+    bubble=text("",14,WHITE,false);bubble.setText(label);bubble.setShadowLayer(dp(2),0,1,0xB0000000);
     bubble.setMaxWidth(Math.max(dp(90),(chatScroll.getWidth()>0?chatScroll.getWidth():getResources().getDisplayMetrics().widthPixels)-dp(78)));
     bubble.setPadding(0,dp(3),0,dp(2));stack.addView(bubble);row.addView(stack);
     if(self)row.addView(avatar,icon);
+    if(!deleted)updateChatReactions(stack,id,reactions,self);
     if(attachment!=null&&!deleted)previewAttachment(stack,attachment);
     LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,-2);
     params.gravity=self?Gravity.RIGHT:Gravity.LEFT;params.topMargin=dp(grouped?2:7);chatItems.addView(row,params);
