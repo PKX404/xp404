@@ -15,3 +15,13 @@
 
 # WebRTC resolves these bootstrap helpers by class and method name in JNI_OnLoad.
 -keep class org.jni_zero.** { *; }
+
+# Release instrumentation exercises these exact production entry points.
+-keep class com.pkx404.xpartynative.NativeCallController { *; }
+-keep class com.pkx404.xpartynative.NativeCallController$Events { *; }
+-keep class com.pkx404.xpartynative.ProviderLink { *; }
+-keepclassmembers class com.pkx404.xpartynative.MainActivity {
+  public void message(org.json.JSONObject);
+  private void showLobby();
+  private void showProfileHome();
+}

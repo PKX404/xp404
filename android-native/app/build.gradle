@@ -7,8 +7,8 @@ android {
         testInstrumentationRunner 'com.pkx404.xpartynative.RoomUiCheck'
         minSdk 26
         targetSdk 35
-        versionCode 53
-        versionName '0.5.3-profile-share'
+        versionCode 54
+        versionName '0.5.4'
     }
     splits {
         abi {
@@ -18,11 +18,23 @@ android {
             universalApk true
         }
     }
+    testBuildType 'release'
+    signingConfigs {
+        if (System.getenv('XP_KEYSTORE')) {
+            productRelease {
+                storeFile file(System.getenv('XP_KEYSTORE'))
+                storePassword System.getenv('XP_STORE_PASSWORD')
+                keyAlias System.getenv('XP_KEY_ALIAS')
+                keyPassword System.getenv('XP_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
             applicationIdSuffix '.micfix2'
-            versionNameSuffix '-micfix2'
-            signingConfig signingConfigs.debug
+            if (project.hasProperty('qaSigning')) versionNameSuffix '-qa'
+            if (System.getenv('XP_KEYSTORE')) signingConfig signingConfigs.productRelease
+            else if (project.hasProperty('qaSigning')) signingConfig signingConfigs.debug
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

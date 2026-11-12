@@ -1,0 +1,13 @@
+<script>
+(() => {
+  let port, pending=[];
+  window.XpartyYT={};
+  for(const name of ['onReady','changed','state','progress','error','blocked','providerEvent']){
+    XpartyYT[name]=(...args)=>{const msg=JSON.stringify([name,...args]);if(port)port.postMessage(msg);else if(pending.length<32)pending.push(msg);};
+  }
+  window.addEventListener('message',e=>{
+    if(e.data!=='xparty-player'||(e.source!==null&&e.source!==window)||port||!e.ports[0])return;
+    port=e.ports[0];for(const msg of pending)port.postMessage(msg);pending=[];
+  });
+})();
+</script>

@@ -173,6 +173,7 @@ export function createXparty(options={}) {
  function dispatch(ws,m,approved=false){
    const p=ws.person,r=p&&rooms.get(p.code);if(!r||r.people.get(p.id)!==p||p.ws!==ws)return;const host=p.id===r.hostId||approved;if(videoInvitations.handle(r,p,m)||interactions.handle(r,p,m)||social.handle(r,p,m)||callSeats.handle(r,p,m))return;if(!approved&&control.handle(r,p,m))return;
    if(['skip-settings','skip-vote'].includes(m.type)){if(rate('skip:'+p.id,8,5000)&&configureSkip(r,p,m,online))state(r);return;}
+   if(m.type==='directory-preview'&&typeof m.enabled==='boolean'){p.directoryPreview=m.enabled;state(r);return;}
    if(m.type==='room-directory'){if(updateDirectory(r,p.id,m))state(r);else send(ws,{type:'error',message:'Only the host can update the listing. Public rooms need a title.'});return;}
    if(m.type==='leave'){activity(r,'left',p.name+' left',p);p.left=true;p.reservedUntil=null;control.cancel(r,'Participant left.');if(r.ownerId!==p.id){remove(p);}else{p.ws=null;p.buffering=false;p.inCall=false;p.mic=false;p.camera=false;p.ready=false;if(r.hostId===p.id){const next=[...r.people.values()].find(x=>x!==p&&online(x));if(next){r.hostId=next.id;next.cameraAllowed=true;next.micBlocked=false;}}state(r);}ws.person=null;return ws.close(1000,'Left');}
    if(m.type==='end-room'&&host){for(const x of r.people.values()){clients.delete(x.token);send(x.ws,{type:'ended',message:'The host ended the room.'});x.ws?.close(1000,'Ended');}if(r.source?.type==='file')dropFile(r.source.id);attachments.clearRoom(r.code);rooms.delete(r.code);persist();return;}

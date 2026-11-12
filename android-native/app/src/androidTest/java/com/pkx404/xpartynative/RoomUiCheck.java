@@ -11,7 +11,8 @@ import org.json.JSONObject;
 
 /** Exercise provider and chat routing in Android views without paid accounts. */
 public final class RoomUiCheck extends Instrumentation {
-  @Override public void onCreate(Bundle args){super.onCreate(args);start();}
+  private String media;
+  @Override public void onCreate(Bundle args){super.onCreate(args);media=args==null?null:args.getString("media");start();}
   private static TextView find(View root,String text){
     if(root instanceof TextView&&text.contentEquals(((TextView)root).getText()))return (TextView)root;
     if(root instanceof ViewGroup){
@@ -38,6 +39,25 @@ public final class RoomUiCheck extends Instrumentation {
     try {
       Intent launch=new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
       MainActivity app=(MainActivity)startActivitySync(launch);
+      if("mic".equals(media)||"camera".equals(media)){
+        NativeCallController[] controller=new NativeCallController[1];
+        runOnMainSync(()->{
+          NativeCallController calls=new NativeCallController(app,new NativeCallController.Events(){
+            public void signal(String peer,JSONObject data){} public void sendMedia(boolean mic,boolean camera){}
+            public void action(String action){} public void status(String value){}
+          });
+          controller[0]=calls;calls.attach(new android.widget.FrameLayout(app));
+          try{
+            org.json.JSONArray people=new org.json.JSONArray();
+            for(String id:new String[]{"me","peer"})people.put(new JSONObject().put("id",id).put("online",true).put("inCall",true));
+            calls.syncRoom(new JSONObject().put("people",people),"me");
+            if("mic".equals(media))calls.toggleMic();else calls.toggleCamera();
+          }catch(Exception e){throw new IllegalStateException(e);}
+        });
+        android.os.SystemClock.sleep(5000);
+        runOnMainSync(()->{require("mic".equals(media)?controller[0].isMicOn():controller[0].isCameraOn(),"media activation");controller[0].stop();app.finish();});
+        result.putString("result","PASS "+media+" activation");finish(Activity.RESULT_OK,result);return;
+      }
       Throwable[] failure=new Throwable[1];
       runOnMainSync(()->{
         try{
@@ -66,6 +86,9 @@ public final class RoomUiCheck extends Instrumentation {
           other.put("text","Edited");app.message(new JSONObject().put("type","message-update").put("message",other));
           require(find(root,"Maya: Hi there")==null&&find(root,"Maya: Edited")!=null,"in-place update");
           require(findDescription(root,"Share room invite")!=null,"visible native room Share button");
+          android.app.Instrumentation.ActivityMonitor monitor=addMonitor(new android.content.IntentFilter(Intent.ACTION_CHOOSER),new ActivityResult(Activity.RESULT_CANCELED,null),true);
+          findDescription(root,"Share room invite").performClick();
+          require(monitor.getHits()==1,"Share must launch Android chooser");removeMonitor(monitor);
           java.lang.reflect.Method lobby=MainActivity.class.getDeclaredMethod("showLobby");
           lobby.setAccessible(true);lobby.invoke(app);
           java.lang.reflect.Method profile=MainActivity.class.getDeclaredMethod("showProfileHome");

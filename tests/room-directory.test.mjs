@@ -17,7 +17,7 @@ test('directory hides locked, full and host-offline rooms, including reserved se
  assert.equal(list(room({capacity:2,people:new Map([['host',{online:true}],['guest',{online:false,reserved:true}]])})).length,0);
 });
 test('public results disclose only selected room metadata and never member credentials, names or file names',()=>{
- const r=room({source:{type:'file',title:'private-file.mp4',id:'secret-file'}});const item=list(r)[0];assert.deepEqual(Object.keys(item).sort(),['capacity','code','language','people','title','watching']);assert.equal(item.watching,null);assert.equal(JSON.stringify(item).includes('secret'),false);assert.equal(JSON.stringify(item).includes('Private name'),false);
+ const r=room({source:{type:'file',title:'private-file.mp4',id:'secret-file'}});const item=list(r)[0];assert.deepEqual(Object.keys(item).sort(),['capacity','code','language','people','previewMembers','title','watching']);assert.deepEqual(item.previewMembers,[]);assert.equal(item.watching,null);assert.equal(JSON.stringify(item).includes('secret'),false);assert.equal(JSON.stringify(item).includes('Private name'),false);
  r.source={type:'youtube',videoId:'dQw4w9WgXcQ',title:'A song'};assert.equal(list(r)[0].watching.videoId,'dQw4w9WgXcQ');
 });
 test('search matches room title, language and video with a bounded stable result',()=>{

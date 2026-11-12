@@ -1,30 +1,20 @@
 #!/usr/bin/env bash
-set -eu
+set -euo pipefail
 app=com.pkx404.xpartynative.micfix2
-adb install android-native/app/build/outputs/apk/release/app-universal-release.apk
+apk=android-native/app/build/outputs/apk/release/app-universal-release.apk
+adb install "$apk"
+adb install -r "$apk"
 adb shell pm grant "$app" android.permission.RECORD_AUDIO
 adb shell pm grant "$app" android.permission.CAMERA
-for mode in mic camera; do
-  adb shell am force-stop "$app"
-  adb logcat -c
-  adb shell am start -W -n "$app/com.pkx404.xpartynative.MainActivity" --ez xparty_native_mic_selftest true --es media "$mode"
-  passed=false
-  for attempt in $(seq 1 30); do
-    if adb logcat -d -s XPartyMicProbe:I | grep -F "ALIVE after $mode startup: true"; then
-      passed=true
-      break
-    fi
-    sleep 1
-  done
-  if ! "$passed"; then
-    adb logcat -d -s XPartyMicProbe:V XPartyCallV2:V rtc:E jni_zero:V chromium:E AndroidRuntime:E libc:F DEBUG:F
-    exit 1
-  fi
-  adb shell pidof "$app"
-done
-
-adb install -r android-native/app/build/outputs/apk/debug/app-universal-debug.apk
-test_apk=$(find android-native/app/build/outputs/apk/androidTest -name '*.apk' | head -n 1)
+test_apk=$(find android-native/app/build/outputs/apk/androidTest -name '*.apk' | head -1)
 adb install -r "$test_apk"
-adb shell am instrument -w com.pkx404.xpartynative.test/com.pkx404.xpartynative.RoomUiCheck | tee /tmp/xparty-room-ui.txt
-grep -F 'PASS provider routes and chat' /tmp/xparty-room-ui.txt
+runner=$(adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*RoomUiCheck\).*/\1/p' | head -1)
+test -n "$runner"
+for mode in mic camera room; do
+  adb shell am force-stop "$app"
+  adb shell am instrument -w -e media "$mode" "$runner" | tee /tmp/xp-probe
+  if [[ $mode == room ]]; then grep -F 'PASS provider routes and chat' /tmp/xp-probe; else grep -F "PASS $mode activation" /tmp/xp-probe; fi
+done
+adb shell am force-stop "$app"
+adb shell am start -W -n "$app/com.pkx404.xpartynative.MainActivity"
+adb shell dumpsys meminfo "$app" | grep -E 'TOTAL PSS|TOTAL RSS|TOTAL ' | head

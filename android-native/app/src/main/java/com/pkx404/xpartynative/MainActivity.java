@@ -28,7 +28,8 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
-import android.webkit.JavascriptInterface;
+import android.webkit.WebMessage;
+import android.webkit.WebMessagePort;
 import android.os.SystemClock;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -161,13 +162,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private NativeProfilePage profilePage;
   private JSONObject pendingProfileSource;
   private long profileTickAt=0L,profileWatchCarry=0L;
+  private long localPlayerAdvancedUntil;
+  private double lastPlayerPosition=-1;
   private void captureProfileWatchTime(){
     long now=SystemClock.elapsedRealtime();
     long dt=profileTickAt==0?0:Math.max(0,Math.min(1500,now-profileTickAt));
     profileTickAt=now;
     if(profileStore==null||!roomActive||source==null||!getWindow().getDecorView().hasWindowFocus())return;
     boolean nativePlaying=player!=null&&("iptv".equals(sourceType)||"direct".equals(sourceType))&&player.isPlaying();
-    boolean embeddedPlaying=webPlayback()&&youtubeReady&&playback!=null&&playback.optBoolean("playing",false);
+    boolean embeddedPlaying=webPlayback()&&youtubeReady&&now<localPlayerAdvancedUntil;
     if(!nativePlaying&&!embeddedPlaying)return;
     profileWatchCarry+=dt;
     if(profileWatchCarry>=5000){
@@ -289,45 +292,6 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     });
     showLobby();
     handler.postDelayed(progressTicker,700);
-    // QA-only microphone probe launched by the isolated GitHub emulator workflow.
-    if(getIntent()!=null&&getIntent().getBooleanExtra("xparty_native_mic_selftest",false)){
-      handler.postDelayed(this::runNativeMicSelfTest,800);
-    }
-  }
-  private void runNativeMicSelfTest(){
-    final String tag="XPartyMicProbe";
-    if(android.os.Build.VERSION.SDK_INT>=23
-       &&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
-      android.util.Log.e(tag,"FAILED: RECORD_AUDIO permission missing");
-      return;
-    }
-    try{
-      JSONObject self=new JSONObject().put("id","xparty-mic-selftest")
-        .put("inCall",true).put("online",true);
-      JSONObject remote=new JSONObject().put("id","xparty-mic-selftest-remote")
-        .put("inCall",true).put("online",true);
-      JSONObject fake=new JSONObject().put("people",new JSONArray().put(self).put(remote));
-      if(calls!=null){calls.stop();calls=null;}
-      calls=new NativeCallController(this,new NativeCallController.Events(){
-        @Override public void signal(String peer,JSONObject signal){}
-        @Override public void sendMedia(boolean mic,boolean camera){
-          android.util.Log.i(tag,"sendMedia mic="+mic+" camera="+camera);
-        }
-        @Override public void action(String action){android.util.Log.i(tag,"action="+action);}
-        @Override public void status(String value){android.util.Log.i(tag,"status="+value);}
-      });
-      calls.attach(new FrameLayout(this));
-      calls.syncRoom(fake,"xparty-mic-selftest");
-      boolean camera = "camera".equals(getIntent().getStringExtra("media"));
-      if (camera) calls.toggleCamera();
-      else calls.toggleMic();
-      handler.postDelayed(() -> {
-        boolean active = calls != null && (camera ? calls.isCameraOn() : calls.isMicOn());
-        android.util.Log.i(tag, "ALIVE after " + (camera ? "camera" : "mic") + " startup: " + active);
-      }, 5000);
-    }catch(Throwable error){
-      android.util.Log.e(tag,"FAILED: native microphone init",error);
-    }
   }
   private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
   private GradientDrawable shape(int color,int radius){
@@ -762,6 +726,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         chatItems.removeAllViews();knownChats.clear();chatBubbles.clear();unreadMessages.clear();
         for(int i=0;i<history.length();i++)renderMessage(history.optJSONObject(i));
       }
+      publishPreviewConsent();
       status("Connected to room "+roomCode);
       if(pendingHomeSheet!=null){
         String requested=pendingHomeSheet;pendingHomeSheet=null;
@@ -908,6 +873,34 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     youtube.getSettings().setMediaPlaybackRequiresUserGesture(false);
     youtube.setWebChromeClient(new WebChromeClient());
     youtube.setWebViewClient(new android.webkit.WebViewClient(){
+      @Override public void onPageFinished(WebView view,String url){
+        super.onPageFinished(view,url);
+        if(!roomActive||!webPlayback()||view!=youtube)return;
+        if(!"https://xparty-native-room.onrender.com/".equals(url)&&!"https://xparty-native-room.onrender.com/providers/".equals(url))return;
+        closePlayerPort();
+        final String selection=sourceId;
+        WebMessagePort[] ports=view.createWebMessageChannel();
+        playerPort=ports[0];
+        playerPort.setWebMessageCallback(new WebMessagePort.WebMessageCallback(){
+          @Override public void onMessage(WebMessagePort port,WebMessage message){
+            String data=message.getData();
+            if(port!=playerPort||!selection.equals(sourceId)||data==null||data.length()>1400)return;
+            try{
+              JSONArray args=new JSONArray(data);
+              switch(args.getString(0)){
+                case "providerEvent":playerEvents.providerEvent(args.getString(1),args.getString(2),args.getInt(3),args.getDouble(4));break;
+                case "onReady":playerEvents.onReady();break;
+                case "state":playerEvents.state(args.getInt(1),args.getDouble(2));break;
+                case "progress":playerEvents.progress(args.getDouble(1),args.getDouble(2));break;
+                case "changed":playerEvents.changed(args.getString(1),args.getString(2));break;
+                case "error":playerEvents.error(args.getInt(1));break;
+                case "blocked":playerEvents.blocked();break;
+              }
+            }catch(org.json.JSONException ignored){}
+          }
+        });
+        view.postWebMessage(new WebMessage("xparty-player",new WebMessagePort[]{ports[1]}),android.net.Uri.parse("https://xparty-native-room.onrender.com"));
+      }
       @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view,android.webkit.WebResourceRequest request){
         android.net.Uri u=request.getUrl();String path=u.getPath();
         if("https".equals(u.getScheme())&&"xparty-native-room.onrender.com".equals(u.getHost())
@@ -927,7 +920,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         return true; // Keep video suggestions within XParty, not external YouTube app.
       }
     });
-    youtube.addJavascriptInterface(new YoutubeBridge(),"XpartyYT");
+
     youtube.setOnTouchListener((v,event)->{
       if(event.getActionMasked()==MotionEvent.ACTION_DOWN)revealPlaybackControls();
       return false;
@@ -1336,11 +1329,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void showRoomSettings(){
     if(room==null){toast("Join a room first.");return;}
     boolean locked=room.optBoolean("locked",false);
+    String directory=getPreferences(MODE_PRIVATE).getBoolean("directory_preview",false)?"Hide my public room preview":"Show my name and photo in public room previews";
     String[] names=isHost
-      ?new String[]{locked?"Unlock room":"Lock room","Host-only playback","Shared playback control","Host approval","Participants","Playback settings"}
-      :new String[]{"Participants","Playback settings","Copy room code"};
+      ?new String[]{locked?"Unlock room":"Lock room","Host-only playback","Shared playback control","Host approval","Participants","Playback settings","Copy room code",directory}
+      :new String[]{"Participants","Playback settings","Copy room code",directory};
     new AlertDialog.Builder(this).setTitle("Room settings · "+roomCode)
       .setItems(names,(dialog,which)->{
+        if(which==names.length-1){
+          boolean enabled=!getPreferences(MODE_PRIVATE).getBoolean("directory_preview",false);
+          getPreferences(MODE_PRIVATE).edit().putBoolean("directory_preview",enabled).apply();publishPreviewConsent();return;
+        }
         if(!isHost){
           if(which==0)openParticipants();else if(which==1)showPlaybackSettings();else copyRoomCode();
           return;
@@ -1351,9 +1349,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             String mode=which==1?"HOST_ONLY":which==2?"SHARED_CONTROL":"HOST_APPROVAL";
             socket.send(new JSONObject().put("type","party-mode").put("mode",mode));
           }else if(which==4)openParticipants();
-          else if(which==5)showPlaybackSettings();
+          else if(which==5)showPlaybackSettings();else copyRoomCode();
         }catch(Exception ignored){}
       }).show();
+  }
+  private void publishPreviewConsent(){
+    try{socket.send(new JSONObject().put("type","directory-preview").put("enabled",getPreferences(MODE_PRIVATE).getBoolean("directory_preview",false)));}catch(Exception ignored){}
   }
   private void copyRoomCode(){
     if(roomCode==null||roomCode.isEmpty())return;
@@ -1962,8 +1963,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       sendSource(next);
     }catch(Exception ignored){}
   }
-  public final class YoutubeBridge {
-    @JavascriptInterface public void providerEvent(String key,String event,int value,double seconds){
+  private WebMessagePort playerPort;
+  private final YoutubeBridge playerEvents=new YoutubeBridge();
+  private void closePlayerPort(){if(playerPort!=null){playerPort.close();playerPort=null;}}
+  private final class YoutubeBridge {
+    public void providerEvent(String key,String event,int value,double seconds){
       runOnUiThread(()->{
         if(!roomActive||!ProviderLink.embedded(sourceType)||!sourceId.equals(key)||!Double.isFinite(seconds))return;
         switch(event){
@@ -1974,10 +1978,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         }
       });
     }
-    @JavascriptInterface public void changed(String id,String title){
+    public void changed(String id,String title){
       runOnUiThread(()->selectYoutubeRecommendation(id,title));
     }
-    @JavascriptInterface public void onReady(){
+    public void onReady(){
       runOnUiThread(()->{
         if(!roomActive||!"youtube".equals(sourceType)||source==null)return;
         youtubeReady=true;
@@ -1987,9 +1991,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         followPlayback();
       });
     }
-    @JavascriptInterface public void state(int state,double seconds){
+    public void state(int state,double seconds){
       runOnUiThread(()->{
         if(!roomActive||!webPlayback()||!youtubeReady)return;
+        if(state!=1)localPlayerAdvancedUntil=0;
         if(state!=1&&state!=2&&state!=0)return;
         if(SystemClock.uptimeMillis()<youtubeSyncQuietUntil)return;
         if(!isHost&&room!=null&&"HOST_ONLY".equals(room.optString("mode")))return;
@@ -2001,21 +2006,25 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         }
       });
     }
-    @JavascriptInterface public void progress(double seconds,double duration){
+    public void progress(double seconds,double duration){
       runOnUiThread(()->{
         if(!roomActive||!webPlayback()||progress==null)return;
+        if(!Double.isFinite(seconds)||!Double.isFinite(duration))return;
+        double delta=seconds-lastPlayerPosition;
+        localPlayerAdvancedUntil=lastPlayerPosition>=0&&delta>0&&delta<=2.5?SystemClock.elapsedRealtime()+900:0;
+        lastPlayerPosition=seconds;
         youtubeDurationSeconds=Math.max(0,duration);
         if(duration>0&&!progress.isPressed()){
           progress.setProgress((int)Math.max(0,Math.min(1000,1000*seconds/duration)));
         }
       });
     }
-    @JavascriptInterface public void error(int code){
+    public void error(int code){
       runOnUiThread(()->{
         if("youtube".equals(sourceType))videoState.setText("YouTube player error "+code+" · choose another video");
       });
     }
-    @JavascriptInterface public void blocked(){
+    public void blocked(){
       runOnUiThread(()->{
         if("youtube".equals(sourceType))toast("Tap Play in the YouTube player to allow playback.");
       });
@@ -2091,6 +2100,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
   }
   private void detachProvider(){
+    closePlayerPort();localPlayerAdvancedUntil=0;lastPlayerPosition=-1;
     if(providerSession!=null)providerSession.clear();
     if(providerPanel!=null&&providerPanel.getParent() instanceof ViewGroup)
       ((ViewGroup)providerPanel.getParent()).removeView(providerPanel);
@@ -2157,7 +2167,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       playerView.setVisibility(View.GONE);youtube.setVisibility(View.VISIBLE);
       try{
         JSONObject args=new JSONObject().put("type",sourceType).put("id",source.optString("videoId")).put("key",sourceId);
-        String html=providerAsset("provider-room.html").replace("__SOURCE__",args.toString().replace("<","\\u003c"));
+        String html=providerAsset("provider-room.html").replace("<head>","<head>"+providerAsset("player-port.html")).replace("__SOURCE__",args.toString().replace("<","\\u003c"));
         youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/providers/",html,"text/html","UTF-8",null);
       }catch(Exception e){videoState.setText("Could not load the provider player");}
       return;
@@ -2221,6 +2231,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           },850);
         </script></body></html>
         """.replace("__VIDEO_ID__",youtubeId);
+      try{html=html.replace("<head>","<head>"+providerAsset("player-port.html"));}catch(Exception e){videoState.setText("Player unavailable");return;}
       youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",html,"text/html","UTF-8",null);
     }else if("iptv".equals(sourceType)||"direct".equals(sourceType)){
       if(!sourceUrl.startsWith("https://")){videoState.setText("Unsupported media URL");return;}

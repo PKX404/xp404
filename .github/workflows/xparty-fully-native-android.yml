@@ -1,9 +1,13 @@
-name: XParty 0.5.3 Profile and Share
+name: XParty 0.5.4 installation audit
 on:
   push:
-    branches: [feature/native-v050-room-audio-chat, fix/native-v050-play-protect, feature/native-v052-soundcloud-chat, feature/native-v053-profile-share]
+    branches: [feature/native-v054-install-audit]
 jobs:
   verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 33]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -20,8 +24,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm ci && node --test tests/provider-room.test.mjs tests/providers-extra.test.mjs tests/companion.test.mjs tests/native-soundcloud-chat.test.mjs tests/native-profile-share.test.mjs
-      - run: gradle -p android-native :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest
+      - run: npm ci && node --test tests/provider-room.test.mjs tests/providers-extra.test.mjs tests/companion.test.mjs tests/native-soundcloud-chat.test.mjs tests/native-profile-share.test.mjs tests/room-directory.test.mjs tests/attachments.test.mjs tests/reliability.test.mjs
+      - run: gradle -p android-native -PqaSigning :app:assembleRelease :app:assembleReleaseAndroidTest
       - name: Verify APK does not request sensitive notification, SMS or accessibility access
         shell: bash
         run: |
@@ -37,15 +41,16 @@ jobs:
           fi
           echo "Verified: no SMS, notification listener, or accessibility declarations in final APK"
       - uses: actions/upload-artifact@v4
+        if: matrix.api == 29
         with:
-          name: XParty-0.5.3-Universal-Profile-Share
+          name: XParty-0.5.4-Universal-QA
           path: android-native/app/build/outputs/apk/release/app-universal-release.apk
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
-          target: default
+          api-level: ${{ matrix.api }}
+          target: google_apis
           arch: x86_64
           profile: pixel_2
           emulator-options: -no-window -no-boot-anim -gpu swiftshader_indirect -camera-front emulated -camera-back emulated -noaudio

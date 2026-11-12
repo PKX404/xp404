@@ -128,6 +128,12 @@ final class NativeProfilePage {
     add(identity,text("Your XParty profile  ·  This device",11,MUTED,false),0);
     top.addView(identity,new LinearLayout.LayoutParams(0,-2,1));
     add(hero,top,12);
+    add(hero,action("Share display name",()->{
+      android.content.Intent intent=new android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain");
+      intent.putExtra(android.content.Intent.EXTRA_TEXT,"My XParty display name is "+nickname);
+      activity.startActivity(android.content.Intent.createChooser(intent,"Share XParty profile"));
+    }),8);
+    add(hero,action("Account and connections",()->new AccountProfileDialog(activity).open()),8);
     LinearLayout actionsRow=new LinearLayout(activity);actionsRow.setGravity(Gravity.CENTER_VERTICAL);
     TextView rename=action("Edit name",actions::rename);
     actionsRow.addView(rename);
@@ -158,7 +164,7 @@ final class NativeProfilePage {
       if(i>0)lp.leftMargin=dp(7);stats.addView(tile,lp);
     }
     add(body,stats,4);
-    add(body,text("*Approximate time in XParty while room playback was reported active. Not an account-wide total.",10,MUTED,false),18);
+    add(body,text("*Estimated foreground viewing time. New sessions count local playback activity. Earlier totals include room estimates.",10,MUTED,false),18);
 
     LinearLayout about=card(body);
     heading(about,"About","Add a short bio visible on this device.");
