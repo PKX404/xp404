@@ -1,7 +1,7 @@
-name: XParty 0.5.3 Profile and Share
+name: XParty 0.5.3 Profile and Share Side Test
 on:
   push:
-    branches: [feature/native-v050-room-audio-chat, fix/native-v050-play-protect, feature/native-v052-soundcloud-chat, feature/native-v053-profile-share]
+    branches: [feature/native-v050-room-audio-chat, fix/native-v050-play-protect, feature/native-v052-soundcloud-chat, feature/native-v053-profile-share, release/native-v053-profile-test]
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -38,7 +38,7 @@ jobs:
           echo "Verified: no SMS, notification listener, or accessibility declarations in final APK"
       - uses: actions/upload-artifact@v4
         with:
-          name: XParty-0.5.3-Universal-Profile-Share
+          name: XParty-0.5.3-Universal-Profile-Share-SideBySide
           path: android-native/app/build/outputs/apk/release/app-universal-release.apk
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm
