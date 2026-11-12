@@ -1,7 +1,7 @@
-name: XParty 0.5.0 provider rooms and chat
+name: XParty 0.5.1 Play Protect remediation
 on:
   push:
-    branches: [feature/native-v050-room-audio-chat]
+    branches: [feature/native-v050-room-audio-chat, fix/native-v050-play-protect]
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -22,9 +22,23 @@ jobs:
           node-version: '22'
       - run: npm ci && node --test tests/provider-room.test.mjs tests/providers-extra.test.mjs tests/companion.test.mjs
       - run: gradle -p android-native :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Verify APK does not request sensitive notification, SMS or accessibility access
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="android-native/app/build/outputs/apk/release/app-universal-release.apk"
+          test -s "$apk"
+          aapt_bin="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -n 1)"
+          test -n "$aapt_bin"
+          "$aapt_bin" dump xmltree "$apk" AndroidManifest.xml > /tmp/xparty-final-merged-manifest.txt
+          if grep -E 'android.permission.(BIND_NOTIFICATION_LISTENER_SERVICE|READ_SMS|RECEIVE_SMS|BIND_ACCESSIBILITY_SERVICE)|android.service.notification.NotificationListenerService|android.accessibilityservice.AccessibilityService' /tmp/xparty-final-merged-manifest.txt; then
+            echo "::error::APK still declares high-risk sideload access"
+            exit 1
+          fi
+          echo "Verified: no SMS, notification listener, or accessibility declarations in final APK"
       - uses: actions/upload-artifact@v4
         with:
-          name: XParty-0.5.0-Universal
+          name: XParty-0.5.1-Universal-PlayProtectFix
           path: android-native/app/build/outputs/apk/release/app-universal-release.apk
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm
