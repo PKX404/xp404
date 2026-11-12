@@ -153,9 +153,29 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           if(!progress.isPressed())progress.setProgress(value);
         }
       }
+      captureProfileWatchTime();
       handler.postDelayed(this,700);
     }
   };
+  private NativeProfileStore profileStore;
+  private NativeProfilePage profilePage;
+  private JSONObject pendingProfileSource;
+  private long profileTickAt=0L,profileWatchCarry=0L;
+  private void captureProfileWatchTime(){
+    long now=SystemClock.elapsedRealtime();
+    long dt=profileTickAt==0?0:Math.max(0,Math.min(1500,now-profileTickAt));
+    profileTickAt=now;
+    if(profileStore==null||!roomActive||source==null||!getWindow().getDecorView().hasWindowFocus())return;
+    boolean nativePlaying=player!=null&&("iptv".equals(sourceType)||"direct".equals(sourceType))&&player.isPlaying();
+    boolean embeddedPlaying=webPlayback()&&youtubeReady&&playback!=null&&playback.optBoolean("playing",false);
+    if(!nativePlaying&&!embeddedPlaying)return;
+    profileWatchCarry+=dt;
+    if(profileWatchCarry>=5000){
+      long wholeSeconds=profileWatchCarry/1000;
+      profileStore.addWatchSeconds(wholeSeconds);
+      profileWatchCarry-=wholeSeconds*1000;
+    }
+  }
   private NativeArtwork artwork;
   private NativeSourceSheet sourceSheet;
   private NativeAttachments attachments;
@@ -178,6 +198,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     getWindow().setNavigationBarColor(BG);
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     nickname=getPreferences(MODE_PRIVATE).getString("nickname","Guest");
+    profileStore=new NativeProfileStore(getPreferences(MODE_PRIVATE));
+    profilePage=new NativeProfilePage(this,profileStore,new NativeProfilePage.Actions(){
+      @Override public void rename(){editDisplayName();}
+      @Override public void watch(JSONObject item){watchProfileSource(item);}
+    });
     socket=new RoomSocket(this);
     providerSession=new ProviderSession(this,new ProviderSession.Events(){
       public void status(String message){if(videoState!=null)videoState.setText(message);}
@@ -518,23 +543,44 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     screen.addView(body,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
   }
   private void showProfileHome(){
-    renderHomeNotice("Your XParty profile","You can watch as a guest.");
-    TextView change=button("Change display name",()->{
-      EditText field=entry("Name");field.setText(nickname);
-      new AlertDialog.Builder(this).setTitle("Display name")
-        .setView(field).setNegativeButton("Cancel",null)
-        .setPositiveButton("Save",(d,w)->{
-          nickname=field.getText().toString().trim();
-          if(nickname.isEmpty())nickname="Guest";
-          nickname=nickname.substring(0,Math.min(24,nickname.length()));
-          nameInput.setText(nickname);
-          getPreferences(MODE_PRIVATE).edit().putString("nickname",nickname).apply();
-          toast("Saved as "+nickname);
-        }).show();
-    },false);
-    FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(48),Gravity.TOP);
-    p.topMargin=dp(145);p.leftMargin=dp(20);p.rightMargin=dp(20);
-    screen.addView(change,p);
+    if(profilePage!=null&&screen!=null)profilePage.show(screen,nickname);
+  }
+  private void editDisplayName(){
+    EditText field=entry("Display name");field.setText(nickname);
+    LinearLayout wrap=column();wrap.setPadding(dp(18),0,dp(18),0);wrap.addView(field);
+    new AlertDialog.Builder(this).setTitle("Display name")
+      .setView(wrap).setNegativeButton("Cancel",null)
+      .setPositiveButton("Save",(d,w)->{
+        String next=field.getText().toString().trim();
+        if(next.isEmpty())next="Guest";
+        nickname=next.substring(0,Math.min(24,next.length()));
+        if(nameInput!=null)nameInput.setText(nickname);
+        getPreferences(MODE_PRIVATE).edit().putString("nickname",nickname).apply();
+        toast("Name saved");
+        if(homeTab==3)showProfileHome();
+      }).show();
+  }
+  private void watchProfileSource(JSONObject item){
+    if(item==null)return;
+    String type=item.optString("type","");
+    if(type.isEmpty()||"local".equals(type)){
+      toast("This item cannot be opened in a shared room.");return;
+    }
+    JSONObject selected=new JSONObject();
+    try{
+      selected.put("type",type);
+      selected.put("title",item.optString("title","Video"));
+      if(!item.optString("videoId").isEmpty())selected.put("videoId",item.optString("videoId"));
+      if(!item.optString("url").isEmpty())selected.put("url",item.optString("url"));
+      if(!item.optString("logo").isEmpty())selected.put("logo",item.optString("logo"));
+    }catch(Exception ignored){}
+    if(roomActive){
+      if(!isHost){toast("Only the room host can change the playing source.");return;}
+      sendSource(selected);returnToRoom();
+    }else{
+      pendingProfileSource=selected;
+      startRoom("create");
+    }
   }
   private void renderExploreContent(){
     if(screen==null)return;
@@ -707,6 +753,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if(received==null){toast("Unexpected room response");return;}
       if(!roomActive)showRoom();
       updateRoom(received);
+      if(pendingProfileSource!=null){
+        JSONObject selected=pendingProfileSource;pendingProfileSource=null;
+        if(isHost)sendSource(selected);
+      }
       JSONArray history=event.optJSONArray("history");
       if(history!=null){
         chatItems.removeAllViews();knownChats.clear();chatBubbles.clear();unreadMessages.clear();
@@ -806,6 +856,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
     handler.post(()->{if(roomActive)sourceSheet.prewarmYoutube();});
     roomActive=true;imeShown=false;fullscreenNative=false;showChat=true;
+    profileTickAt=0;profileWatchCarry=0;
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     roomNativeRoot=column();
     roomNativeRoot.setBackgroundColor(0xFF0B0D1C);
@@ -828,7 +879,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     roomHeader.addView(brand,new LinearLayout.LayoutParams(0,dp(58),2.30f));
 
     headerIcon(roomHeader,"playsearch",this::openSourceChooser,1f);
-
+    shareIcon=xpIcon("share",this::shareRoom);
+    shareIcon.setContentDescription("Share room invite");
+    roomHeader.addView(shareIcon,new LinearLayout.LayoutParams(0,dp(58),1f));
     headerIcon(roomHeader,"people",this::openParticipants,1f);
     roomNativeRoot.addView(roomHeader,new LinearLayout.LayoutParams(-1,dp(58)));
 
@@ -1239,6 +1292,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void toggleVideoLike(){
     if(sourceId==null||sourceId.isEmpty()){toast("Play a video to like it.");return;}
     liked=!liked;
+    if(profileStore!=null)profileStore.setLiked(source,liked);
     if(likeIcon!=null)likeIcon.active(liked);
     if(secondaryLikeIcon!=null)secondaryLikeIcon.active(liked);
     try{socket.send(new JSONObject().put("type","video-like").put("sourceId",sourceId).put("liked",liked));}
@@ -1394,8 +1448,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(roomCode==null||roomCode.isEmpty()){toast("Create a room first.");return;}
     Intent sendIntent=new Intent(Intent.ACTION_SEND);
     sendIntent.setType("text/plain");
-    sendIntent.putExtra(Intent.EXTRA_TEXT,"Join my XParty Native watch room: "+roomCode
-      +"\nOpen the XParty Native Android app and enter this code.");
+    sendIntent.putExtra(Intent.EXTRA_TEXT,"Watch with me on XParty!"
+      +"\nRoom code: "+roomCode
+      +"\nOpen XParty > Join room > enter this code.");
     startActivity(Intent.createChooser(sendIntent,"Invite to XParty"));
   }
   private void openParticipants(){
@@ -2066,9 +2121,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     renderedVideo=false;youtubeReady=false;nativeReadySource="";nativeRecoveryUsed=false;
     youtubeDurationSeconds=0;
     resetPlaybackControls();
-    liked=false;
-    if(likeIcon!=null)likeIcon.active(false);
-    if(secondaryLikeIcon!=null)secondaryLikeIcon.active(false);
+    liked=profileStore!=null&&profileStore.isLiked(source);
+    if(likeIcon!=null)likeIcon.active(liked);
+    if(secondaryLikeIcon!=null)secondaryLikeIcon.active(liked);
     mediaReadyAt=SystemClock.uptimeMillis();
     youtube.stopLoading();youtube.loadUrl("about:blank");youtube.setVisibility(View.GONE);
     playerView.setVisibility(View.VISIBLE);
@@ -2083,6 +2138,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(immersive!=null)immersive.setSource(sourceType,true);
     getPreferences(MODE_PRIVATE).edit().putString("last_source",sourceType).apply();
     sourceUrl=source.optString("url","");
+    if(profileStore!=null)profileStore.recordOpened(source);
     if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● XPTV":
       "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
     if(artwork!=null&&nativeChannelLogo!=null)
@@ -2335,7 +2391,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         .setNegativeButton("Cancel",null).show();
     }else super.onBackPressed();
   }
-  @Override protected void onPause(){super.onPause();stopClip();if(youtube!=null)youtube.onPause();}
+  @Override protected void onPause(){profileTickAt=0;profileWatchCarry=0;super.onPause();stopClip();if(youtube!=null)youtube.onPause();}
   @Override protected void onResume(){super.onResume();if(youtube!=null)youtube.onResume();}
   @Override protected void onDestroy(){
     closing=true;

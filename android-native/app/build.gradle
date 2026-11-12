@@ -7,8 +7,8 @@ android {
         testInstrumentationRunner 'com.pkx404.xpartynative.RoomUiCheck'
         minSdk 26
         targetSdk 35
-        versionCode 52
-        versionName '0.5.2-soundcloud-chat'
+        versionCode 53
+        versionName '0.5.3-profile-share'
     }
     splits {
         abi {
