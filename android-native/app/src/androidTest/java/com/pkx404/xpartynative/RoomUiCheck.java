@@ -48,7 +48,8 @@ public final class RoomUiCheck extends Instrumentation {
           room.put("source",song);app.message(new JSONObject().put("type","state").put("room",room));
           java.lang.reflect.Field field=MainActivity.class.getDeclaredField("youtube");field.setAccessible(true);
           android.webkit.WebView browser=(android.webkit.WebView)field.get(app);
-          String bridge;try(java.io.InputStream in=app.getAssets().open("providers/player-port.html");java.util.Scanner reader=new java.util.Scanner(in,"UTF-8")){bridge=reader.useDelimiter("\\A").next();}
+          java.lang.reflect.Method binder=MainActivity.class.getDeclaredMethod("playerBridge");binder.setAccessible(true);
+          String bridge=(String)binder.invoke(app);
           String document="<html><head>"+bridge+"</head><body><script>XpartyYT.error(713);</script></body></html>";
           browser.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",document,"text/html","UTF-8",null);
         }catch(Exception e){throw new IllegalStateException(e);}});

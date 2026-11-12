@@ -28,8 +28,6 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
-import android.webkit.WebMessage;
-import android.webkit.WebMessagePort;
 import android.os.SystemClock;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -877,34 +875,6 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     youtube.getSettings().setMediaPlaybackRequiresUserGesture(false);
     youtube.setWebChromeClient(new WebChromeClient());
     youtube.setWebViewClient(new android.webkit.WebViewClient(){
-      @Override public void onPageFinished(WebView view,String url){
-        super.onPageFinished(view,url);
-        if(!roomActive||!webPlayback()||view!=youtube)return;
-        if(!"https://xparty-native-room.onrender.com/".equals(url)&&!"https://xparty-native-room.onrender.com/providers/".equals(url))return;
-        closePlayerPort();
-        final String selection=sourceId;
-        WebMessagePort[] ports=view.createWebMessageChannel();
-        playerPort=ports[0];
-        playerPort.setWebMessageCallback(new WebMessagePort.WebMessageCallback(){
-          @Override public void onMessage(WebMessagePort port,WebMessage message){
-            String data=message.getData();
-            if(port!=playerPort||!selection.equals(sourceId)||data==null||data.length()>1400)return;
-            try{
-              JSONArray args=new JSONArray(data);
-              switch(args.getString(0)){
-                case "providerEvent":playerEvents.providerEvent(args.getString(1),args.getString(2),args.getInt(3),args.getDouble(4));break;
-                case "onReady":playerEvents.onReady();break;
-                case "state":playerEvents.state(args.getInt(1),args.getDouble(2));break;
-                case "progress":playerEvents.progress(args.getDouble(1),args.getDouble(2));break;
-                case "changed":playerEvents.changed(args.getString(1),args.getString(2));break;
-                case "error":playerEvents.error(args.getInt(1));break;
-                case "blocked":playerEvents.blocked();break;
-              }
-            }catch(org.json.JSONException ignored){}
-          }
-        });
-        view.postWebMessage(new WebMessage("xparty-player",new WebMessagePort[]{ports[1]}),android.net.Uri.parse("https://xparty-native-room.onrender.com"));
-      }
       @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view,android.webkit.WebResourceRequest request){
         android.net.Uri u=request.getUrl();String path=u.getPath();
         if("https".equals(u.getScheme())&&"xparty-native-room.onrender.com".equals(u.getHost())
@@ -1967,9 +1937,44 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       sendSource(next);
     }catch(Exception ignored){}
   }
-  private WebMessagePort playerPort;
   private final YoutubeBridge playerEvents=new YoutubeBridge();
-  private void closePlayerPort(){if(playerPort!=null){playerPort.close();playerPort=null;}}
+  private String playerGeneration="";
+  private boolean pollingPlayer;
+  private final Runnable pollPlayer=new Runnable(){
+    @Override public void run(){
+      if(!roomActive||!webPlayback()||youtube==null||playerGeneration.isEmpty())return;
+      handler.postDelayed(this,180);
+      if(pollingPlayer)return;
+      pollingPlayer=true;
+      String generation=playerGeneration;
+      String js="(function(){if(location.origin!=='https://xparty-native-room.onrender.com'||window.xpartyGeneration!=="+JSONObject.quote(generation)+"||!window.xpartyReadEvents)return [];return window.xpartyReadEvents();})()";
+      youtube.evaluateJavascript(js,result->{
+        if(!generation.equals(playerGeneration))return;
+        pollingPlayer=false;
+        if(result==null||result.length()>50000)return;
+        try{
+          JSONArray events=new JSONArray(result);
+          for(int i=0;i<events.length();i++){JSONArray args=events.optJSONArray(i);if(args==null)continue;
+              switch(args.getString(0)){
+                case "providerEvent":playerEvents.providerEvent(args.getString(1),args.getString(2),args.getInt(3),args.getDouble(4));break;
+                case "onReady":playerEvents.onReady();break;
+                case "state":playerEvents.state(args.getInt(1),args.getDouble(2));break;
+                case "progress":playerEvents.progress(args.getDouble(1),args.getDouble(2));break;
+                case "changed":playerEvents.changed(args.getString(1),args.getString(2));break;
+                case "error":playerEvents.error(args.getInt(1));break;
+                case "blocked":playerEvents.blocked();break;
+              }
+          }
+        }catch(org.json.JSONException ignored){}
+      });
+    }
+  };
+  private String playerBridge()throws java.io.IOException{
+    closePlayerPort();playerGeneration=java.util.UUID.randomUUID().toString();
+    handler.post(pollPlayer);
+    return providerAsset("player-port.html").replace("__GENERATION__",playerGeneration);
+  }
+  private void closePlayerPort(){handler.removeCallbacks(pollPlayer);playerGeneration="";pollingPlayer=false;}
   private final class YoutubeBridge {
     public void providerEvent(String key,String event,int value,double seconds){
       runOnUiThread(()->{
@@ -2171,7 +2176,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       playerView.setVisibility(View.GONE);youtube.setVisibility(View.VISIBLE);
       try{
         JSONObject args=new JSONObject().put("type",sourceType).put("id",source.optString("videoId")).put("key",sourceId);
-        String html=providerAsset("provider-room.html").replace("<head>","<head>"+providerAsset("player-port.html")).replace("__SOURCE__",args.toString().replace("<","\\u003c"));
+        String html=providerAsset("provider-room.html").replace("<head>","<head>"+playerBridge()).replace("__SOURCE__",args.toString().replace("<","\\u003c"));
         youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/providers/",html,"text/html","UTF-8",null);
       }catch(Exception e){videoState.setText("Could not load the provider player");}
       return;
@@ -2235,7 +2240,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           },850);
         </script></body></html>
         """.replace("__VIDEO_ID__",youtubeId);
-      try{html=html.replace("<head>","<head>"+providerAsset("player-port.html"));}catch(Exception e){videoState.setText("Player unavailable");return;}
+      try{html=html.replace("<head>","<head>"+playerBridge());}catch(Exception e){videoState.setText("Player unavailable");return;}
       youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",html,"text/html","UTF-8",null);
     }else if("iptv".equals(sourceType)||"direct".equals(sourceType)){
       if(!sourceUrl.startsWith("https://")){videoState.setText("Unsupported media URL");return;}
