@@ -39,6 +39,24 @@ public final class RoomUiCheck extends Instrumentation {
     try {
       Intent launch=new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
       MainActivity app=(MainActivity)startActivitySync(launch);
+      if("bridge".equals(media)){
+        java.util.concurrent.atomic.AtomicBoolean ready=new java.util.concurrent.atomic.AtomicBoolean(false);
+        runOnMainSync(()->{try{
+          JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","me");
+          app.message(new JSONObject().put("type","welcome").put("id","me").put("room",room));
+          JSONObject song=new JSONObject().put("type","youtube").put("id","fixture").put("videoId","M7lc1UVf-VE").put("title","Bridge check");
+          room.put("source",song);app.message(new JSONObject().put("type","state").put("room",room));
+          java.lang.reflect.Field field=MainActivity.class.getDeclaredField("youtube");field.setAccessible(true);
+          android.webkit.WebView browser=(android.webkit.WebView)field.get(app);
+          String bridge;try(java.io.InputStream in=app.getAssets().open("providers/player-port.html");java.util.Scanner reader=new java.util.Scanner(in,"UTF-8")){bridge=reader.useDelimiter("\\A").next();}
+          String document="<html><head>"+bridge+"</head><body><script>XpartyYT.error(713);</script></body></html>";
+          browser.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",document,"text/html","UTF-8",null);
+        }catch(Exception e){throw new IllegalStateException(e);}});
+        for(int i=0;i<50&&!ready.get();i++){android.os.SystemClock.sleep(200);
+          runOnMainSync(()->ready.set(find(app.findViewById(android.R.id.content),"YouTube player error 713 · choose another video")!=null));}
+        require(ready.get(),"Top document player port could not reach Android");runOnMainSync(app::finish);
+        result.putString("result","PASS bridge activation");finish(Activity.RESULT_OK,result);return;
+      }
       if("mic".equals(media)||"camera".equals(media)){
         NativeCallController[] controller=new NativeCallController[1];
         runOnMainSync(()->{

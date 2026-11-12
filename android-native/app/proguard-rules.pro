@@ -22,6 +22,7 @@
 -keep class com.pkx404.xpartynative.ProviderLink { *; }
 -keepclassmembers class com.pkx404.xpartynative.MainActivity {
   public void message(org.json.JSONObject);
+  private android.webkit.WebView youtube;
   private void showLobby();
   private void showProfileHome();
 }

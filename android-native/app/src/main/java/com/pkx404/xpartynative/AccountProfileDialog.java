@@ -36,6 +36,7 @@ final class AccountProfileDialog {
     if(data!=null)b.method(method,RequestBody.create(MediaType.parse("application/json"),data.toString()));
     if(method.equals("POST")&&authenticated&&url.contains("on_conflict="))b.header("Prefer","resolution=merge-duplicates,return=minimal");
     try(Response r=http.newCall(b.build()).execute()){
+      if(r.code()==409)throw new IOException("This username or connection already exists.");
       if(!r.isSuccessful())throw new IOException("Account request failed ("+r.code()+"). Check your sign-in or account configuration.");
       return r.body()==null?"":r.body().string();
     }
@@ -49,21 +50,30 @@ final class AccountProfileDialog {
   });}
   private EditText field(LinearLayout box,String hint,String value){EditText e=new EditText(activity);e.setSingleLine();e.setHint(hint);e.setText(value);box.addView(e);return e;}
   private LinearLayout box(){LinearLayout b=new LinearLayout(activity);b.setOrientation(LinearLayout.VERTICAL);int p=(int)(20*activity.getResources().getDisplayMetrics().density);b.setPadding(p,0,p,0);return b;}
-  private void login(){LinearLayout b=box();EditText email=field(b,"Account email",""),password=field(b,"Password","");
+  private void login(){
+    LinearLayout b=box();EditText email=field(b,"Account email","");
     email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
-    password.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);password.setSaveEnabled(false);
-    dialog("Sign in to your XParty account").setView(b).setNeutralButton("Create account",(d,w)->{
-      String address=email.getText().toString().trim(),secret=password.getText().toString();password.setText("");
-      work(()->{request(origin+"/auth/v1/signup","POST",new JSONObject().put("email",address).put("password",secret),false);
-        ui(()->{Toast.makeText(activity,"Check your email if confirmation is required, then sign in.",Toast.LENGTH_LONG).show();login();});});
-    }).setNegativeButton("Cancel",(d,w)->close()).setPositiveButton("Sign in",(d,w)->{
-      String address=email.getText().toString().trim(),secret=password.getText().toString();password.setText("");
-      work(()->{JSONObject login=new JSONObject(request(origin+"/auth/v1/token?grant_type=password","POST",new JSONObject().put("email",address).put("password",secret),false));
+    android.widget.CheckBox consent=new android.widget.CheckBox(activity);
+    consent.setText("I am 18 or older and have read the account notice above.");b.addView(consent);
+    dialog("Sign in to XParty").setMessage("XParty uses your email for account access. Account names and bios can be visible to connections. Saving activity to your private account is optional.").setView(b)
+      .setNegativeButton("Cancel",(d,w)->close()).setPositiveButton("Email me a code",(d,w)->{
+        String address=email.getText().toString().trim();
+        if(!consent.isChecked()||!android.util.Patterns.EMAIL_ADDRESS.matcher(address).matches()){
+          Toast.makeText(activity,"Enter a valid email and confirm the account notice.",Toast.LENGTH_LONG).show();login();return;
+        }
+        work(()->{request(origin+"/auth/v1/otp","POST",new JSONObject().put("email",address).put("create_user",true),false);ui(()->verify(address));});
+      }).show();
+  }
+  private void verify(String address){
+    LinearLayout b=box();EditText code=field(b,"Email code","");code.setInputType(InputType.TYPE_CLASS_NUMBER);code.setSaveEnabled(false);
+    dialog("Check your email").setView(b).setNegativeButton("Cancel",(d,w)->close()).setPositiveButton("Verify",(d,w)->{
+      String otp=code.getText().toString().trim();code.setText("");
+      work(()->{JSONObject login=new JSONObject(request(origin+"/auth/v1/verify","POST",new JSONObject().put("email",address).put("token",otp).put("type","email"),false));
         access=login.getString("access_token");user=UUID.fromString(login.getJSONObject("user").getString("id")).toString();load();});
     }).show();
   }
   private void load() throws Exception{
-    JSONArray found=new JSONArray(request(origin+"/rest/v1/xparty_profiles?id=eq."+user+"&select=display_name,bio","GET",null,true));
+    JSONArray found=new JSONArray(request(origin+"/rest/v1/xparty_profiles?id=eq."+user+"&select=display_name,bio,username","GET",null,true));
     JSONObject profile=found.optJSONObject(0);
     JSONArray friends=new JSONArray(request(origin+"/rest/v1/xparty_friends?status=eq.accepted&select=requester,addressee&limit=100","GET",null,true));
     java.util.ArrayList<String> ids=new java.util.ArrayList<>();
@@ -74,13 +84,15 @@ final class AccountProfileDialog {
     JSONArray people=ids.isEmpty()?new JSONArray():new JSONArray(request(origin+"/rest/v1/xparty_profiles?select=display_name&id=in.("+android.text.TextUtils.join(",",ids)+")","GET",null,true));
     java.util.ArrayList<String> names=new java.util.ArrayList<>();for(int i=0;i<people.length();i++)names.add(people.getJSONObject(i).getString("display_name"));
     ui(()->{LinearLayout b=box();EditText name=field(b,"Display name",profile==null?"":profile.optString("display_name")),bio=field(b,"Bio",profile==null?"":profile.optString("bio"));
+      EditText handle=field(b,"Username (optional)",profile==null||profile.isNull("username")?"":profile.optString("username"));
       android.widget.CheckBox publish=new android.widget.CheckBox(activity);
       if(!local.photo().isEmpty()){publish.setText("Use this device’s photo on my account");b.addView(publish);}
       dialog("Account profile").setNeutralButton("Connections",(dlg,which)->connections()).setMessage("Your account profile is visible according to your account privacy settings.\nConnections: "+(names.isEmpty()?"None":android.text.TextUtils.join(", ",names))).setView(b)
         .setNegativeButton("Close session",(d,w)->close()).setPositiveButton("Save to account",(d,w)->{
-          boolean photo=publish.isChecked();String n=name.getText().toString().trim(),v=bio.getText().toString().trim();work(()->{
+          boolean photo=publish.isChecked();String username=handle.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);String n=name.getText().toString().trim(),v=bio.getText().toString().trim();work(()->{
             if(n.isEmpty()||n.length()>24||v.length()>240)throw new IOException("Use a name of 1–24 characters and a bio of up to 240.");
-            JSONObject edit=new JSONObject().put("id",user).put("display_name",n).put("bio",v);
+            if(!username.isEmpty()&&!username.matches("[a-z][a-z0-9_]{2,23}"))throw new IOException("Use a 3–24 character username starting with a letter.");
+            JSONObject edit=new JSONObject().put("username",username.isEmpty()?JSONObject.NULL:username).put("id",user).put("display_name",n).put("bio",v);
             if(photo)edit.put("photo_data",local.photo());
             if(profile==null)request(origin+"/rest/v1/xparty_profiles","POST",edit,true);
             else{edit.remove("id");request(origin+"/rest/v1/xparty_profiles?id=eq."+user,"PATCH",edit,true);}
