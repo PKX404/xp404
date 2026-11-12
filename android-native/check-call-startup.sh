@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -eu
-app=com.pkx404.xpartynative.micfix2
+app=com.pkx404.xpartynative.profiletest053
 adb install android-native/app/build/outputs/apk/release/app-universal-release.apk
 adb shell pm grant "$app" android.permission.RECORD_AUDIO
 adb shell pm grant "$app" android.permission.CAMERA
