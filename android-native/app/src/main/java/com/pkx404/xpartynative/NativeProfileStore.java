@@ -74,7 +74,7 @@ final class NativeProfileStore {
     if(key.isEmpty()||key.equals("|"))return;
     long now=System.currentTimeMillis();
     // avoid duplicate entries when the same source is reloaded or socket state is refreshed.
-    if(key.equals(lastRecorded)&&now-lastRecordedAt<30000)return;
+    if(key.equals(lastRecorded))return; // same source refresh is not another open
     lastRecorded=key;lastRecordedAt=now;
     JSONArray old=history(),out=new JSONArray();
     int previousOpens=0;
