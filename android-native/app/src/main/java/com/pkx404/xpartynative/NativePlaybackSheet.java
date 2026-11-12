@@ -37,6 +37,7 @@ final class NativePlaybackSheet {
     void fullscreen();
     void like();
     void resync();
+    void queueControls();
     void openSource();
     void immersive(boolean enabled);
     void notice(String s);
@@ -108,6 +109,7 @@ final class NativePlaybackSheet {
     row(contents,new String[]{"♡  Like","▣  Sources"},new Runnable[]{
       actions::like,()->{dismiss();actions.openSource();}});
 
+    add(contents,control("Queue, auto-advance and vote to skip",actions::queueControls),9);
     heading(contents,"SOUND","Device playback volume; call audio is controlled separately.");
     int max=Math.max(1,audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
     TextView volume=label("Playback volume  "+Math.round(100f*audio.getStreamVolume(AudioManager.STREAM_MUSIC)/max)+"%",12,WHITE,true);

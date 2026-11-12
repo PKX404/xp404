@@ -198,7 +198,9 @@ final class NativeSourceSheet {
     modeTitle=null;
     String recent=prefs.getString("last_source","");
     String initial=playing==null||playing.isEmpty()?recent:playing;
+    dismiss();
     dialog=new Dialog(activity);
+    Dialog opened=dialog;opened.setOnDismissListener(d->{if(dialog==opened){clearBrowser();dialog=null;ui.removeCallbacksAndMessages(null);}});
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
     sheetRoot=new LinearLayout(activity);sheetRoot.setOrientation(LinearLayout.VERTICAL);
     LinearLayout root=sheetRoot;

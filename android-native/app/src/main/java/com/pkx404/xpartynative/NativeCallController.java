@@ -275,11 +275,12 @@ final class NativeCallController {
       .setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
       .createAudioDeviceModule();
     try{
-      ensureEgl();
+      EglBase.Context context=null;
+      try{ensureEgl();context=egl.getEglBaseContext();}catch(RuntimeException unavailable){Log.w(TAG,"Using software codecs",unavailable);}
       factory=PeerConnectionFactory.builder()
         .setAudioDeviceModule(adm)
-        .setVideoEncoderFactory(new org.webrtc.DefaultVideoEncoderFactory(egl.getEglBaseContext(),true,true))
-        .setVideoDecoderFactory(new org.webrtc.DefaultVideoDecoderFactory(egl.getEglBaseContext()))
+        .setVideoEncoderFactory(new org.webrtc.DefaultVideoEncoderFactory(context,true,true))
+        .setVideoDecoderFactory(new org.webrtc.DefaultVideoDecoderFactory(context))
         .createPeerConnectionFactory();
     }finally{adm.release();}
     if(factory==null)throw new IllegalStateException("Failed to create RTC factory");

@@ -215,6 +215,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public void scale(){cycleVideoScaling();}
       @Override public void fullscreen(){toggleNativeFullscreen();}
       @Override public void like(){toggleVideoLike();}
+      @Override public void queueControls(){showQueueControls();}
       @Override public void resync(){
         if(source==null){toast("Choose a video first.");return;}
         if("youtube".equals(sourceType))followPlayback();
@@ -663,14 +664,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
               JSONObject item=rooms.optJSONObject(i);if(item==null)continue;
               String code=item.optString("code",""),name=item.optString("title","Watch Party");
               JSONObject media=item.optJSONObject("watching");int count=item.optInt("people");
-              LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setBackground(shape(0xAD282039,16));row.setClipToOutline(true);
-              android.widget.ImageView cover=new android.widget.ImageView(this);cover.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+              LinearLayout row=new LinearLayout(MainActivity.this);row.setGravity(Gravity.CENTER_VERTICAL);row.setBackground(shape(0xAD282039,16));row.setClipToOutline(true);
+              android.widget.ImageView cover=new android.widget.ImageView(MainActivity.this);cover.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
               cover.setBackgroundColor(0xFF40384F);row.addView(cover,new LinearLayout.LayoutParams(0,dp(85),.42f));
-              if(media!=null&&media.optString("videoId").matches("[A-Za-z0-9_-]{11}"))com.bumptech.glide.Glide.with(this).load("https://i.ytimg.com/vi/"+media.optString("videoId")+"/mqdefault.jpg").into(cover);
+              if(media!=null&&media.optString("videoId").matches("[A-Za-z0-9_-]{11}"))com.bumptech.glide.Glide.with(MainActivity.this).load("https://i.ytimg.com/vi/"+media.optString("videoId")+"/mqdefault.jpg").into(cover);
               else cover.setImageResource(android.R.drawable.ic_media_play);
               LinearLayout details=column();details.setPadding(dp(7),0,dp(4),0);row.addView(details,new LinearLayout.LayoutParams(0,-2,.58f));
               TextView title=text(media==null?name:media.optString("title",name),15,WHITE,true);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title);
-              LinearLayout faces=new LinearLayout(this);details.addView(faces);JSONArray previews=item.optJSONArray("previewMembers");int visible=previews==null?0:Math.min(4,previews.length());
+              LinearLayout faces=new LinearLayout(MainActivity.this);details.addView(faces);JSONArray previews=item.optJSONArray("previewMembers");int visible=previews==null?0:Math.min(4,previews.length());
               for(int j=0;j<visible;j++){JSONObject person=previews.optJSONObject(j);if(person!=null)faces.addView(roomAvatar(person.optString("name"),person.optString("photo"),26),new LinearLayout.LayoutParams(dp(27),dp(27)));}
               if(count>visible)faces.addView(text(" +"+(count-visible),12,WHITE,true));row.setContentDescription(name+", "+count+" watching. Join room");
               row.setOnClickListener(v->{
@@ -708,7 +709,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       updateRoom(received);
       JSONArray history=event.optJSONArray("history");
       if(history!=null){
-        chatItems.removeAllViews();knownChats.clear();chatBubbles.clear();
+        chatItems.removeAllViews();knownChats.clear();chatBubbles.clear();unreadMessages.clear();
         for(int i=0;i<history.length();i++)renderMessage(history.optJSONObject(i));
       }
       status("Connected to room "+roomCode);
@@ -1004,7 +1005,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     secondaryLikeIcon.active(liked);
     iconIn(watching,secondaryLikeIcon,44,50);
     XPControl next=xpIcon("next",()->{
-      if(isHost)send("next");else toast("Only the host can skip the video.");
+      if(isHost)send("next");else voteToSkip();
     });
     iconIn(watching,next,44,50);
     roomPane.addView(watching,new LinearLayout.LayoutParams(-1,dp(52)));
@@ -1014,7 +1015,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatScroll.setFillViewport(true);
     chatScroll.setVerticalScrollBarEnabled(false);
     chatItems=column();chatItems.setGravity(Gravity.BOTTOM);chatItems.setPadding(dp(10),dp(4),dp(10),dp(10));
-    knownChats.clear();chatBubbles.clear();replyToId=null;
+    knownChats.clear();chatBubbles.clear();unreadMessages.clear();replyToId=null;
     chatScroll.addView(chatItems);
     roomPane.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1));
     callPanel=new FrameLayout(this);
@@ -1031,7 +1032,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     unreadJump=text("",14,WHITE,true);unreadJump.setGravity(Gravity.RIGHT);unreadJump.setVisibility(View.GONE);
     unreadJump.setOnClickListener(v->chatScroll.fullScroll(View.FOCUS_DOWN));
     roomPane.addView(unreadJump);
-    chatScroll.setOnScrollChangeListener((View v,int x,int y,int ox,int oy)->{if(!v.canScrollVertically(1)){unreadCount=0;unreadJump.setVisibility(View.GONE);}});
+    chatScroll.setOnScrollChangeListener((View v,int x,int y,int ox,int oy)->{readVisibleMessages();if(!v.canScrollVertically(1)){unreadCount=0;unreadJump.setVisibility(View.GONE);}});
     chatComposer=new LinearLayout(this);
     chatComposer.setGravity(Gravity.CENTER_VERTICAL);
     chatComposer.setPadding(dp(5),dp(6),dp(5),dp(6));
@@ -1204,6 +1205,28 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       toast("Microphone could not start on this device.");
     }
   }
+  private void voteToSkip(){
+    JSONObject vote=room==null?null:room.optJSONObject("skipVoting");
+    if(vote==null||!vote.optBoolean("available")){toast("Skip voting needs an enabled vote and a queued YouTube video.");return;}
+    try{socket.send(new JSONObject().put("type","skip-vote").put("sourceId",sourceId));}catch(Exception ignored){}
+  }
+  private void showQueueControls(){
+    if(room==null)return;
+    JSONObject vote=room.optJSONObject("skipVoting");boolean enabled=vote!=null&&vote.optBoolean("enabled");
+    boolean advance=room.optBoolean("autoAdvance",true);
+    String ballot="Cast or withdraw skip vote"+(vote==null?"":"  ("+vote.optInt("count")+"/"+vote.optInt("threshold")+")");
+    String[] options=isHost?new String[]{ballot,advance?"Turn off auto-advance":"Turn on auto-advance",enabled?"Turn off skip voting":"Turn on skip voting"}:new String[]{ballot};
+    new AlertDialog.Builder(this).setTitle("Queue and skip").setItems(options,(d,i)->{if(i==0){voteToSkip();return;}
+      try{socket.send(new JSONObject().put("type",i==1?"auto-advance":"skip-settings").put("enabled",i==1?!advance:!enabled));}catch(Exception ignored){} }).show();
+  }
+  private final java.util.Map<String,View> unreadMessages=new java.util.LinkedHashMap<>();
+  private void readVisibleMessages(){
+    if(!roomActive||!showChat||!hasWindowFocus()||chatScroll==null||!chatScroll.isShown())return;
+    JSONArray ids=new JSONArray();android.graphics.Rect rect=new android.graphics.Rect();
+    unreadMessages.entrySet().removeIf(entry->{View row=entry.getValue();if(!row.isAttachedToWindow())return true;if(!row.getGlobalVisibleRect(rect))return false;ids.put(entry.getKey());return true;});
+    if(ids.length()>0)try{socket.send(new JSONObject().put("type","read").put("ids",ids));}catch(Exception ignored){}
+  }
+  @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus&&chatScroll!=null)chatScroll.post(this::readVisibleMessages);}
   private void showRoomTab(boolean chat){
     showChat=chat;animateTyping();if(unreadJump!=null)unreadJump.setVisibility(chat&&unreadCount>0?View.VISIBLE:View.GONE);
     if(tabChat!=null)tabChat.setTextColor(chat?WHITE:0xFFB4A6CB);
@@ -1211,7 +1234,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!chat)ensureCalls();
     if(chatScroll!=null)chatScroll.setVisibility(chat?View.VISIBLE:View.GONE);
     if(callPanel!=null)callPanel.setVisibility(chat?View.GONE:View.VISIBLE);
-    if(chatComposer!=null)chatComposer.setVisibility(chat?View.VISIBLE:View.GONE);
+    if(chatComposer!=null)chatComposer.setVisibility(chat?View.VISIBLE:View.GONE);if(chat&&chatScroll!=null)chatScroll.post(this::readVisibleMessages);
   }
   private void toggleVideoLike(){
     if(sourceId==null||sourceId.isEmpty()){toast("Play a video to like it.");return;}
@@ -1687,7 +1710,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     JSONObject reply=data.optJSONObject("reply");
     boolean activity=data.has("activity");
     android.text.SpannableStringBuilder label=new android.text.SpannableStringBuilder();
-    if(reply!=null&&!deleted){int start=label.length();label.append("↳ "+reply.optString("name")+"  "+reply.optString("text")+"\n");label.setSpan(new android.text.style.RelativeSizeSpan(.82f),start,label.length(),33);}
+    if(reply!=null&&!deleted){int start=label.length();label.append("↳ "+reply.optString("name")+"  "+reply.optString("text")+"\n");label.setSpan(new android.text.style.BackgroundColorSpan(0x66443B47),start,label.length()-1,33);label.setSpan(new android.text.style.RelativeSizeSpan(.82f),start,label.length(),33);}
     if(!self&&!activity){label.append(author+": ");label.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0+label.length()-author.length()-2,label.length(),33);}
     if(!data.isNull("to"))label.append("Private · ");
     label.append(body);
@@ -1731,7 +1754,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!id.isEmpty()){
       chatBubbles.put(id,bubble);
       final JSONObject message=data;
-      bubble.setOnLongClickListener(v->{showChatActions(knownChats.get(id));return true;});
+      if(!activity)bubble.setOnLongClickListener(v->{showChatActions(knownChats.get(id));return true;});
       if(attachment!=null){
         String attachmentId=attachment.optString("id");
         String attachmentName=attachment.optString("name","Attachment");
@@ -1743,7 +1766,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         try {
           JSONArray ids=new JSONArray().put(id);
           socket.send(new JSONObject().put("type","delivered").put("ids",ids));
-          if(showChat)socket.send(new JSONObject().put("type","read").put("ids",ids));
+          unreadMessages.put(id,row);chatScroll.post(this::readVisibleMessages);
         }catch(Exception ignored){}
       }
     }
