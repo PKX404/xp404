@@ -1735,6 +1735,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     place.bottomMargin=dp(3);
     stack.addView(chips,Math.min(1,stack.getChildCount()),place);
   }
+  private static final class ChatRowMarker {
+    final String sender;
+    final int run;
+    ChatRowMarker(String sender,int run){this.sender=sender;this.run=run;}
+  }
   private void renderMessage(JSONObject data){
     if(data==null||chatItems==null)return;
     final String id=data.optString("id","");
@@ -1770,11 +1775,12 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     boolean nearBottom=!chatScroll.canScrollVertically(1)||self;
     String sender=data.optString("from",author);
     View previous=chatItems.getChildCount()==0?null:chatItems.getChildAt(chatItems.getChildCount()-1);
-    boolean grouped=!activity&&previous!=null&&sender.equals(previous.getTag());
-    int sequence=grouped&&previous.getTag(android.R.id.text1) instanceof Integer
-      ?(Integer)previous.getTag(android.R.id.text1)+1:1;
-    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.TOP);row.setTag(sender);
-    row.setTag(android.R.id.text1,sequence);
+    Object previousTag=previous==null?null:previous.getTag();
+    boolean grouped=!activity&&previousTag instanceof ChatRowMarker
+      &&sender.equals(((ChatRowMarker)previousTag).sender);
+    int sequence=grouped?((ChatRowMarker)previousTag).run+1:1;
+    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.TOP);
+    row.setTag(new ChatRowMarker(sender,sequence));
     LinearLayout stack=column();stack.setGravity(self?Gravity.RIGHT:Gravity.LEFT);
     String avatarName=activity?data.optString("subject",data.optString("actor","Room")):self?nickname:author;
     View avatar=(sequence%2==1||activity)
