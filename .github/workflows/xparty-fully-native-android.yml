@@ -1,7 +1,7 @@
-name: XParty 0.4.9 provider rooms and chat
+name: XParty 0.5.0 provider rooms and chat
 on:
   push:
-    branches: [feature/native-v049-provider-chat]
+    branches: [feature/native-v050-room-audio-chat]
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -24,7 +24,7 @@ jobs:
       - run: gradle -p android-native :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest
       - uses: actions/upload-artifact@v4
         with:
-          name: XParty-0.4.9-Universal
+          name: XParty-0.5.0-Universal
           path: android-native/app/build/outputs/apk/release/app-universal-release.apk
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm

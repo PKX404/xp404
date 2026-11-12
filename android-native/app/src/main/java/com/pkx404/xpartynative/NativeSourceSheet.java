@@ -62,7 +62,7 @@ final class NativeSourceSheet {
   private final OkHttpClient http=new OkHttpClient();
   private final String backend;
   private Dialog dialog;
-  private WebView browseWeb;
+  private WebView browseWeb,cachedYoutube;
   private final java.util.ArrayList<WebView> popupBrowsers=new java.util.ArrayList<>();
   private LinearLayout body,providerView,sheetRoot;
   private ScrollView sheetScroll;
@@ -273,7 +273,11 @@ final class NativeSourceSheet {
   }
   private void clearBrowser(){
     if(browseWeb!=null){
-      try{browseWeb.stopLoading();browseWeb.loadUrl("about:blank");browseWeb.destroy();}
+      try{
+        if(browseWeb.getParent() instanceof ViewGroup)((ViewGroup)browseWeb.getParent()).removeView(browseWeb);
+        if(browseWeb==cachedYoutube)browseWeb.onPause();
+        else {browseWeb.stopLoading();browseWeb.destroy();}
+      }
       catch(Exception ignored){}
       browseWeb=null;
     }
@@ -660,8 +664,22 @@ final class NativeSourceSheet {
     if(dialog==null)return;
     clear();currentTab="youtube-browse";
     mode("YouTube  ⇄  XPTV");
+    prewarmYoutube();
+    WebView web=cachedYoutube;browseWeb=web;web.onResume();
+    // Full-height browsing, without the old search tabs or large empty wrapper.
+    if(sheetRoot!=null&&sheetScroll!=null){
+      sheetRoot.removeView(sheetScroll);
+      sheetRoot.addView(web,new LinearLayout.LayoutParams(-1,0,1));
+    }
+  }
+  void releaseYoutube(){
+    dismiss();
+    if(cachedYoutube!=null){cachedYoutube.stopLoading();cachedYoutube.destroy();cachedYoutube=null;}
+  }
+  void prewarmYoutube(){
+    if(cachedYoutube!=null)return;
     WebView web=new WebView(activity);
-    browseWeb=web;
+    cachedYoutube=web;
     web.setBackgroundColor(Color.BLACK);
     web.setVerticalScrollBarEnabled(true);
     web.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
@@ -698,7 +716,7 @@ final class NativeSourceSheet {
       private boolean select(String url){return playFromYoutubeUrl(url);}
       @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest req){
         String url=req.getUrl().toString();
-        if(select(url))return true;
+        if(showing()&&browseWeb==web&&select(url))return true;
         String host=req.getUrl().getHost();
         return host==null||!(host.equals("youtube.com")||host.endsWith(".youtube.com")||host.equals("youtu.be"));
       }
@@ -707,11 +725,6 @@ final class NativeSourceSheet {
         if(showing()&&"youtube-browse".equals(currentTab))select(url);
       }
     });
-    // Full-height browsing, without the old search tabs or large empty wrapper.
-    if(sheetRoot!=null&&sheetScroll!=null){
-      sheetRoot.removeView(sheetScroll);
-      sheetRoot.addView(web,new LinearLayout.LayoutParams(-1,0,1));
-    }
     web.loadUrl("https://m.youtube.com/");
   }
 }

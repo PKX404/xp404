@@ -78,6 +78,11 @@ final class NativeCallController {
   private XPControl micControl,cameraControl,speakerControl;
   private JSONObject lastRoom;
   private String self="";
+  private boolean manualRoute;
+  private int savedMode;
+  private boolean savedSpeaker;
+  private int cameraTier=1,upgradeSamples;
+  private long statsGeneration;
   private boolean inCall=false,micOn=false,cameraOn=false,speaker=true,joining=false,stopped=false;
   private boolean pendingMic=false,pendingCamera=false,booted=false,captureActive=false;
   private PeerConnectionFactory factory;
@@ -265,14 +270,16 @@ final class NativeCallController {
     }
     log("RTC_STAGE_2_LOADED");
     JavaAudioDeviceModule adm=JavaAudioDeviceModule.builder(activity.getApplicationContext())
-      .setUseHardwareAcousticEchoCanceler(false)
-      .setUseHardwareNoiseSuppressor(false)
+      .setAudioSource(android.media.MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+      .setUseHardwareAcousticEchoCanceler(JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
+      .setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
       .createAudioDeviceModule();
     try{
+      ensureEgl();
       factory=PeerConnectionFactory.builder()
         .setAudioDeviceModule(adm)
-        .setVideoEncoderFactory(new SoftwareVideoEncoderFactory())
-        .setVideoDecoderFactory(new SoftwareVideoDecoderFactory())
+        .setVideoEncoderFactory(new org.webrtc.DefaultVideoEncoderFactory(egl.getEglBaseContext(),true,true))
+        .setVideoDecoderFactory(new org.webrtc.DefaultVideoDecoderFactory(egl.getEglBaseContext()))
         .createPeerConnectionFactory();
     }finally{adm.release();}
     if(factory==null)throw new IllegalStateException("Failed to create RTC factory");
@@ -289,14 +296,13 @@ final class NativeCallController {
     if(micOn){
       micOn=false;
       if(audioTrack!=null)audioTrack.setEnabled(false);
-      if(!cameraOn)audio.setMode(AudioManager.MODE_NORMAL);
+      
       updateButtons();events.sendMedia(false,cameraOn);status("Microphone off");return;
     }
     if(!requestPermission(Manifest.permission.RECORD_AUDIO,2201))return;
     try{
       startEngine();
-      audio.setMode(AudioManager.MODE_IN_COMMUNICATION);
-      audio.setSpeakerphoneOn(speaker);
+      // Preserve the active media route while unmuting capture.
       micOn=true;audioTrack.setEnabled(true);
       updateButtons();events.sendMedia(true,cameraOn);
       status("Microphone on");
@@ -347,11 +353,12 @@ final class NativeCallController {
         if(names.length>0)chosen=names[0];
       }
       if(chosen==null){status("No camera detected");return false;}
+      if(capturer!=null){cameraTier=1;upgradeSamples=0;capturer.startCapture(640,480,20);captureActive=true;return true;}
       capturer=(CameraVideoCapturer)enumeration.createCapturer(chosen,null);
       if(capturer==null){status("Camera capturer unavailable");return false;}
       captureHelper=SurfaceTextureHelper.create("XPartyCallCamera",egl.getEglBaseContext());
       capturer.initialize(captureHelper,activity.getApplicationContext(),videoSource.getCapturerObserver());
-      capturer.startCapture(360,480,15);
+      cameraTier=1;upgradeSamples=0;capturer.startCapture(640,480,20);
       captureActive=true;return true;
     }catch(Throwable error){
       Log.e(TAG,"Camera capture failed",error);
@@ -359,20 +366,60 @@ final class NativeCallController {
       return false;
     }
   }
+  private void stopCaptureOnly(){
+    ++statsGeneration;main.removeCallbacks(sampleNetwork);
+    if(capturer!=null&&captureActive){try{capturer.stopCapture();}catch(Exception ignored){}captureActive=false;}
+  }
+  private final Runnable sampleNetwork=new Runnable(){
+    public void run(){
+      if(!cameraOn||!captureActive||stopped)return;
+      long generation=++statsGeneration;
+      ArrayList<Peer> active=new ArrayList<>(peers.values());
+      int[] remaining={active.size()};double[] slowest={Double.POSITIVE_INFINITY};
+      for(Peer peer:active)peer.pc.getStats(report->{
+        double capacity=0;
+        for(org.webrtc.RTCStats stat:report.getStatsMap().values()){
+          if(!"candidate-pair".equals(stat.getType()))continue;
+          Map<String,Object> data=stat.getMembers();
+          if(!"succeeded".equals(data.get("state"))||!Boolean.TRUE.equals(data.get("nominated")))continue;
+          Object rate=data.get("availableOutgoingBitrate");
+          if(rate instanceof Number)capacity=((Number)rate).doubleValue();
+        }
+        final double sample=capacity;
+        main.post(()->{
+          if(generation!=statsGeneration||!cameraOn||!captureActive)return;
+          slowest[0]=Math.min(slowest[0],sample);
+          if(--remaining[0]==0)adaptCamera(slowest[0],active.size());
+        });
+      });
+      main.postDelayed(this,4000);
+    }
+  };
+  private void adaptCamera(double bps,int count){
+    if(bps<=0||!Double.isFinite(bps))return;
+    int target=bps<450000?0:bps<1600000?1:bps<4200000||count>1?2:3;
+    if(target==cameraTier){upgradeSamples=0;return;}
+    if(target>cameraTier&&++upgradeSamples<3)return;
+    int[][] formats={{320,240,12},{640,480,20},{1280,720,24},{1920,1080,30}};
+    int[] format=formats[target];
+    try{capturer.changeCaptureFormat(format[0],format[1],format[2]);cameraTier=target;}
+    catch(RuntimeException ignored){}
+    upgradeSamples=0;
+  }
   void toggleCamera(){
     if(!requireSeat(true))return;
     if(cameraOn){
-      cameraOn=false;
+      cameraOn=false;stopCaptureOnly();
       if(videoTrack!=null)videoTrack.setEnabled(false);
       if(localView!=null)localView.setVisibility(View.INVISIBLE);
-      if(!micOn)audio.setMode(AudioManager.MODE_NORMAL);
+      
       updateButtons();events.sendMedia(micOn,false);status("Camera off");return;
     }
     if(!requestPermission(Manifest.permission.CAMERA,2202))return;
     try{
       startEngine();createVideoTrack();prepareLocalRenderer();
       if(!startCapture())return;
-      cameraOn=true;videoTrack.setEnabled(true);
+      cameraOn=true;videoTrack.setEnabled(true);main.removeCallbacks(sampleNetwork);main.postDelayed(sampleNetwork,3000);
       if(localView!=null){
         videoTrack.removeSink(localView);
         videoTrack.addSink(localView);
@@ -387,7 +434,12 @@ final class NativeCallController {
       updateButtons();
     }
   }
+  private void restoreAudioRoute(){
+    if(!manualRoute)return;
+    audio.setSpeakerphoneOn(savedSpeaker);audio.setMode(savedMode);manualRoute=false;
+  }
   void toggleSpeaker(){
+    if(!manualRoute){savedMode=audio.getMode();savedSpeaker=audio.isSpeakerphoneOn();manualRoute=true;}
     speaker=!speaker;
     audio.setMode(AudioManager.MODE_IN_COMMUNICATION);
     audio.setSpeakerphoneOn(speaker);
@@ -398,11 +450,11 @@ final class NativeCallController {
     try{capturer.switchCamera(null);}catch(Throwable error){status("Camera switch unavailable");}
   }
   private void disableMedia(){
-    micOn=false;cameraOn=false;
+    micOn=false;cameraOn=false;stopCaptureOnly();
     if(audioTrack!=null)audioTrack.setEnabled(false);
     if(videoTrack!=null)videoTrack.setEnabled(false);
     if(localView!=null)localView.setVisibility(View.INVISIBLE);
-    audio.setMode(AudioManager.MODE_NORMAL);
+    restoreAudioRoute();
     updateButtons();events.sendMedia(false,false);
   }
   void leaveSeat(){
@@ -578,7 +630,8 @@ final class NativeCallController {
     if(audioSource!=null){audioSource.dispose();audioSource=null;}
     if(factory!=null){factory.dispose();factory=null;}
     if(egl!=null){egl.release();egl=null;}
-    audio.setMode(AudioManager.MODE_NORMAL);
+    restoreAudioRoute();
     main.removeCallbacksAndMessages(null);
   }
 }
+

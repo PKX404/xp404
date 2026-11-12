@@ -48,11 +48,11 @@ public final class RoomUiCheck extends Instrumentation {
           JSONObject mine=new JSONObject().put("type","chat").put("id","a").put("from","me").put("text","My message");
           JSONObject other=new JSONObject().put("type","chat").put("id","b").put("from","other").put("name","Maya").put("text","Hi there");
           app.message(mine);app.message(other);
-          require(find(root,"Maya")!=null&&find(root,"Hi there")!=null,"sender and message");
+          require(find(root,"Maya: Hi there")!=null,"sender and message");
           app.message(new JSONObject().put("type","read").put("id","a").put("by","other"));
-          require(find(root,"My message  · Seen")!=null,"receipt");
+          require(find(root,"My message  ✓✓")!=null,"receipt");
           other.put("text","Edited");app.message(new JSONObject().put("type","message-update").put("message",other));
-          require(find(root,"Hi there")==null&&find(root,"Edited")!=null,"in-place update");
+          require(find(root,"Maya: Hi there")==null&&find(root,"Maya: Edited")!=null,"in-place update");
           app.finish();
         }catch(Throwable e){failure[0]=e;}
       });
