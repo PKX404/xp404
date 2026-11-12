@@ -15,9 +15,12 @@ export function publicRooms(rooms,{online,occupied,query='',limit=50}){
  for(const room of rooms.values()){
   if(room.visibility!=='public'||room.locked||!room.people.has(room.hostId)||!online(room.people.get(room.hostId))||roomIsFull(room.capacity,occupied(room)))continue;
   const settings=directorySettings(room);if(!settings.title)continue;
-  const watching=room.source?.type==='youtube'?{title:clean(room.source.title,150),...(/^[\w-]{11}$/.test(room.source.videoId)?{videoId:room.source.videoId}:{})}:null;
+  const watching=room.source?{title:clean(room.source.title,150),type:room.source.type,...(room.source.type==='youtube'&&/^[\w-]{11}$/.test(room.source.videoId)?{videoId:room.source.videoId}:{})}:null;
   if(search&&![settings.title,settings.language,watching?.title||''].some(s=>s.toLocaleLowerCase().includes(search)))continue;
-  listings.push({code:room.code,title:settings.title,language:settings.language,watching,people:[...room.people.values()].filter(online).length,capacity:room.capacity});
+  const members=[...room.people.values()].filter(online);
+  const previewMembers=members.slice(0,5).map(p=>({name:clean(p.name,24),photo:p.profile?.photo?.length<=12000?p.profile.photo:null}));
+  listings.push({previewMembers,code:room.code,title:settings.title,language:settings.language,watching,people:[...room.people.values()].filter(online).length,capacity:room.capacity});
  }
  return listings.sort((a,b)=>a.title.localeCompare(b.title)||a.code.localeCompare(b.code)).slice(0,Math.min(50,Math.max(0,limit)));
 }
+
