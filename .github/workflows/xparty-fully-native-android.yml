@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm ci && node --test tests/provider-room.test.mjs tests/providers-extra.test.mjs tests/companion.test.mjs tests/native-soundcloud-chat.test.mjs tests/native-profile-share.test.mjs tests/room-directory.test.mjs tests/attachments.test.mjs tests/reliability.test.mjs
+      - run: npm ci && node --test tests/*.test.mjs
       - run: gradle -p android-native -PqaSigning :app:assembleRelease :app:assembleReleaseAndroidTest
       - name: Verify APK does not request sensitive notification, SMS or accessibility access
         shell: bash
@@ -41,9 +41,8 @@ jobs:
           fi
           echo "Verified: no SMS, notification listener, or accessibility declarations in final APK"
       - uses: actions/upload-artifact@v4
-        if: matrix.api == 29
         with:
-          name: XParty-0.5.4-Universal-QA
+          name: XParty-0.5.4-Universal-QA-api-${{ matrix.api }}
           path: android-native/app/build/outputs/apk/release/app-universal-release.apk
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm

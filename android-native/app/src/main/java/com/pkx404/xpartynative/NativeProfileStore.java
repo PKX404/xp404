@@ -29,6 +29,8 @@ final class NativeProfileStore {
   JSONArray likes(){return read(LIKES);}
   JSONArray favorites(){return read("favorite_sources");}
   long watchSeconds(){return Math.max(0,prefs.getLong(WATCH,0L));}
+  String photo(){return prefs.getString("profile_photo","");}
+  void setPhoto(String photo){prefs.edit().putString("profile_photo",photo).apply();}
   String bio(){return prefs.getString(BIO,"");}
   String keywords(){return prefs.getString(KEYWORDS,"");}
   void setBio(String value){
@@ -74,18 +76,21 @@ final class NativeProfileStore {
     if(key.isEmpty()||key.equals("|"))return;
     long now=System.currentTimeMillis();
     // avoid duplicate entries when the same source is reloaded or socket state is refreshed.
+    String selection=source.optString("id","");
+    if(!selection.isEmpty()&&selection.equals(prefs.getString("profile_last_selection","")))return;
     if(key.equals(lastRecorded))return; // same source refresh is not another open
     lastRecorded=key;lastRecordedAt=now;
     JSONArray old=history(),out=new JSONArray();
-    int previousOpens=0;
+    int previousOpens=0;long seconds=0;
     for(int i=0;i<old.length();i++){
       JSONObject item=old.optJSONObject(i);if(item==null)continue;
-      if(key.equals(identity(item)))previousOpens=Math.max(previousOpens,item.optInt("opens",1));
+      if(key.equals(identity(item))){previousOpens=Math.max(previousOpens,item.optInt("opens",1));seconds=item.optLong("seconds");}
       else if(out.length()<39)out.put(item);
     }
-    JSONArray ordered=new JSONArray().put(entry(source,now,previousOpens+1));
+    JSONObject first=entry(source,now,previousOpens+1);try{first.put("seconds",seconds);}catch(org.json.JSONException ignored){}
+    JSONArray ordered=new JSONArray().put(first);
     for(int i=0;i<out.length();i++)ordered.put(out.optJSONObject(i));
-    prefs.edit().putString(HISTORY,ordered.toString()).apply();
+    prefs.edit().putString(HISTORY,ordered.toString()).putString("profile_last_selection",selection).apply();
   }
   private boolean has(JSONArray array,JSONObject src){
     String id=identity(src);
@@ -106,11 +111,35 @@ final class NativeProfileStore {
     prefs.edit().putString(LIKES,out.toString()).apply();
     return liked;
   }
-  void addWatchSeconds(long seconds){
+  String deviceId(){
+    String id=prefs.getString("profile_device_id","");
+    if(id.isEmpty()){id=java.util.UUID.randomUUID().toString();prefs.edit().putString("profile_device_id",id).apply();}
+    return id;
+  }
+  private JSONArray snapshotRows(JSONArray items)throws org.json.JSONException{
+    JSONArray clean=new JSONArray();
+    for(int i=0;i<items.length()&&i<40;i++){
+      JSONObject row=items.optJSONObject(i);if(row==null)continue;
+      clean.put(new JSONObject().put("title",row.optString("title").substring(0,Math.min(150,row.optString("title").length())))
+        .put("type",row.optString("type")).put("openedAt",row.optLong("openedAt")).put("seconds",row.optLong("seconds")));
+    }
+    return clean;
+  }
+  JSONObject privateSnapshot()throws org.json.JSONException{
+    return new JSONObject().put("opened",snapshotRows(history())).put("likes",snapshotRows(likes())).put("favorites",snapshotRows(favorites()))
+      .put("keywords",keywords()).put("recorded",System.currentTimeMillis());
+  }
+  void addWatchSeconds(long seconds,JSONObject source){
     if(seconds<=0||seconds>15)return;
     long before=watchSeconds();
-    prefs.edit().putLong(WATCH,Math.min(1000000000L,before+seconds)).apply();
+    JSONArray rows=history();String key=identity(source);
+    for(int i=0;i<rows.length();i++){
+      JSONObject item=rows.optJSONObject(i);if(item!=null&&key.equals(identity(item))){
+        try{item.put("seconds",item.optLong("seconds")+seconds);}catch(org.json.JSONException ignored){}break;
+      }
+    }
+    prefs.edit().putLong(WATCH,Math.min(1000000000L,before+seconds)).putString(HISTORY,rows.toString()).apply();
   }
-  void clearHistory(){prefs.edit().remove(HISTORY).apply();lastRecorded="";lastRecordedAt=0L;}
+  void clearHistory(){prefs.edit().remove(HISTORY).remove("profile_last_selection").apply();lastRecorded="";lastRecordedAt=0L;}
   void clearLikes(){prefs.edit().remove(LIKES).apply();}
 }

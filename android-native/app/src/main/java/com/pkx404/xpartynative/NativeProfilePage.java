@@ -26,7 +26,7 @@ import org.json.JSONObject;
  * the reference APK. Never claims to show someone else's private statistics.
  */
 final class NativeProfilePage {
-  interface Actions { void rename(); void watch(JSONObject source); }
+  interface Actions { void rename(); void photo(); void watch(JSONObject source); }
   private static final int BG=0xFF101123,CARD=0xFF201B35,INK=0xFFF8F6FF,MUTED=0xFFB8ACC9,ACCENT=0xFFD2BBFF;
   private final Activity activity;
   private final NativeProfileStore store;
@@ -122,18 +122,22 @@ final class NativeProfilePage {
     LinearLayout top=new LinearLayout(activity);top.setGravity(Gravity.CENTER_VERTICAL);
     TextView avatar=text(nickname.isEmpty()?"X":nickname.substring(0,1).toUpperCase(Locale.ROOT),25,INK,true);
     avatar.setGravity(Gravity.CENTER);avatar.setBackground(background(0xFF634E91,22));
-    top.addView(avatar,new LinearLayout.LayoutParams(dp(64),dp(64)));
+    if(store.photo().isEmpty())top.addView(avatar,new LinearLayout.LayoutParams(dp(64),dp(64)));
+    else{android.widget.ImageView image=new android.widget.ImageView(activity);image.setContentDescription("Profile photo");top.addView(image,new LinearLayout.LayoutParams(dp(64),dp(64)));com.bumptech.glide.Glide.with(activity).load(store.photo()).circleCrop().into(image);}
+
     LinearLayout identity=vertical();identity.setPadding(dp(13),0,0,0);
     add(identity,text(nickname,22,INK,true),5);
     add(identity,text("Your XParty profile  ·  This device",11,MUTED,false),0);
     top.addView(identity,new LinearLayout.LayoutParams(0,-2,1));
     add(hero,top,12);
+    add(hero,action("Choose profile photo",actions::photo),8);
+    if(!store.photo().isEmpty())add(hero,action("Remove photo",()->{store.setPhoto("");show(root,nickname);}),8);
     add(hero,action("Share display name",()->{
       android.content.Intent intent=new android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain");
       intent.putExtra(android.content.Intent.EXTRA_TEXT,"My XParty display name is "+nickname);
       activity.startActivity(android.content.Intent.createChooser(intent,"Share XParty profile"));
     }),8);
-    add(hero,action("Account and connections",()->new AccountProfileDialog(activity).open()),8);
+    add(hero,action("Account and connections",()->new AccountProfileDialog(activity,store).open()),8);
     LinearLayout actionsRow=new LinearLayout(activity);actionsRow.setGravity(Gravity.CENTER_VERTICAL);
     TextView rename=action("Edit name",actions::rename);
     actionsRow.addView(rename);
@@ -149,7 +153,7 @@ final class NativeProfilePage {
       JSONObject item=history.optJSONObject(i);if(item==null)continue;
       opens+=Math.max(1,item.optInt("opens",1));
       String name=item.optString("type","other");
-      sources.put(name,sources.getOrDefault(name,0)+Math.max(1,item.optInt("opens",1)));
+      int seconds=item.optInt("seconds");if(seconds>0)sources.put(name,sources.getOrDefault(name,0)+seconds);
     }
     LinearLayout stats=new LinearLayout(activity);stats.setGravity(Gravity.CENTER);
     String[] values={Integer.toString(opens),Integer.toString(likes.length()),Long.toString(store.watchSeconds()/60)};
@@ -200,13 +204,13 @@ final class NativeProfilePage {
     sourceList(savedCard,saved,root,nickname);
 
     LinearLayout topChannels=card(body);
-    heading(topChannels,"Top sources","Based on how often you've opened sources on this device.");
+    heading(topChannels,"Top sources","Ranked by observed playback time for recent media.");
     if(sources.isEmpty())add(topChannels,text("Your source preferences will appear as you watch.",13,MUTED,false),5);
     else sources.entrySet().stream().sorted((a,b)->Integer.compare(b.getValue(),a.getValue())).limit(5).forEach(item->{
       String provider=item.getKey().toUpperCase(Locale.ROOT);
-      add(topChannels,text(provider+"   ·   "+item.getValue()+" opens",13,INK,false),9);
+      add(topChannels,text(provider+"   ·   "+item.getValue()/60+"m "+item.getValue()%60+"s",13,INK,false),9);
     });
 
-    add(body,text("Profile details and activity remain on this device. Public profiles, friend graphs, and cloud history require a separate authenticated account service.",11,MUTED,false),4);
+    add(body,text("Profile details and activity remain on this device. Open Account and connections to edit your signed-in identity.",11,MUTED,false),4);
   }
 }

@@ -21,8 +21,9 @@ final class AccountProfileDialog {
   private final OkHttpClient http=new OkHttpClient.Builder().followRedirects(false).callTimeout(java.time.Duration.ofSeconds(15)).build();
   private final ExecutorService io=Executors.newSingleThreadExecutor();
   private String origin,key,access,user;
-  private boolean closed;
-  AccountProfileDialog(Activity activity){this.activity=activity;}
+  private volatile boolean closed;
+  private final NativeProfileStore local;
+  AccountProfileDialog(Activity activity,NativeProfileStore local){this.activity=activity;this.local=local;}
   private interface Task {void run() throws Exception;}
   private void ui(Runnable action){activity.runOnUiThread(()->{if(!closed&&!activity.isFinishing()&&!activity.isDestroyed())action.run();});}
   private void work(Task task){io.execute(()->{try{task.run();}catch(Exception error){ui(()->{Toast.makeText(activity,error instanceof IOException?error.getMessage():"Invalid account response",Toast.LENGTH_LONG).show();close();});}});}
@@ -31,8 +32,9 @@ final class AccountProfileDialog {
   private String request(String url,String method,JSONObject data,boolean authenticated) throws Exception{
     Request.Builder b=new Request.Builder().url(url);
     if(!url.equals(CONFIG)){b.header("apikey",key);if(authenticated)b.header("Authorization","Bearer "+access);}
+    if(method.equals("DELETE"))b.delete();
     if(data!=null)b.method(method,RequestBody.create(MediaType.parse("application/json"),data.toString()));
-    if(method.equals("POST")&&authenticated)b.header("Prefer","resolution=merge-duplicates,return=minimal");
+    if(method.equals("POST")&&authenticated&&url.contains("on_conflict="))b.header("Prefer","resolution=merge-duplicates,return=minimal");
     try(Response r=http.newCall(b.build()).execute()){
       if(!r.isSuccessful())throw new IOException("Account request failed ("+r.code()+"). Check your sign-in or account configuration.");
       return r.body()==null?"":r.body().string();
@@ -50,7 +52,11 @@ final class AccountProfileDialog {
   private void login(){LinearLayout b=box();EditText email=field(b,"Account email",""),password=field(b,"Password","");
     email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
     password.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);password.setSaveEnabled(false);
-    dialog("Sign in to your XParty account").setView(b).setNegativeButton("Cancel",(d,w)->close()).setPositiveButton("Sign in",(d,w)->{
+    dialog("Sign in to your XParty account").setView(b).setNeutralButton("Create account",(d,w)->{
+      String address=email.getText().toString().trim(),secret=password.getText().toString();password.setText("");
+      work(()->{request(origin+"/auth/v1/signup","POST",new JSONObject().put("email",address).put("password",secret),false);
+        ui(()->{Toast.makeText(activity,"Check your email if confirmation is required, then sign in.",Toast.LENGTH_LONG).show();login();});});
+    }).setNegativeButton("Cancel",(d,w)->close()).setPositiveButton("Sign in",(d,w)->{
       String address=email.getText().toString().trim(),secret=password.getText().toString();password.setText("");
       work(()->{JSONObject login=new JSONObject(request(origin+"/auth/v1/token?grant_type=password","POST",new JSONObject().put("email",address).put("password",secret),false));
         access=login.getString("access_token");user=UUID.fromString(login.getJSONObject("user").getString("id")).toString();load();});
@@ -68,13 +74,57 @@ final class AccountProfileDialog {
     JSONArray people=ids.isEmpty()?new JSONArray():new JSONArray(request(origin+"/rest/v1/xparty_profiles?select=display_name&id=in.("+android.text.TextUtils.join(",",ids)+")","GET",null,true));
     java.util.ArrayList<String> names=new java.util.ArrayList<>();for(int i=0;i<people.length();i++)names.add(people.getJSONObject(i).getString("display_name"));
     ui(()->{LinearLayout b=box();EditText name=field(b,"Display name",profile==null?"":profile.optString("display_name")),bio=field(b,"Bio",profile==null?"":profile.optString("bio"));
-      dialog("Account profile").setMessage("Your account profile is visible according to your account privacy settings.\nConnections: "+(names.isEmpty()?"None":android.text.TextUtils.join(", ",names))).setView(b)
+      android.widget.CheckBox publish=new android.widget.CheckBox(activity);
+      if(!local.photo().isEmpty()){publish.setText("Use this device’s photo on my account");b.addView(publish);}
+      dialog("Account profile").setNeutralButton("Connections",(dlg,which)->connections()).setMessage("Your account profile is visible according to your account privacy settings.\nConnections: "+(names.isEmpty()?"None":android.text.TextUtils.join(", ",names))).setView(b)
         .setNegativeButton("Close session",(d,w)->close()).setPositiveButton("Save to account",(d,w)->{
-          String n=name.getText().toString().trim(),v=bio.getText().toString().trim();work(()->{
+          boolean photo=publish.isChecked();String n=name.getText().toString().trim(),v=bio.getText().toString().trim();work(()->{
             if(n.isEmpty()||n.length()>24||v.length()>240)throw new IOException("Use a name of 1–24 characters and a bio of up to 240.");
-            request(origin+"/rest/v1/xparty_profiles?on_conflict=id","POST",new JSONObject().put("id",user).put("display_name",n).put("bio",v),true);
+            JSONObject edit=new JSONObject().put("id",user).put("display_name",n).put("bio",v);
+            if(photo)edit.put("photo_data",local.photo());
+            if(profile==null)request(origin+"/rest/v1/xparty_profiles","POST",edit,true);
+            else{edit.remove("id");request(origin+"/rest/v1/xparty_profiles?id=eq."+user,"PATCH",edit,true);}
             ui(()->{Toast.makeText(activity,"Account profile saved",Toast.LENGTH_SHORT).show();close();});
           });}).show();
     });
   }
+  private void connections(){
+    work(()->{
+      JSONArray pending=new JSONArray(request(origin+"/rest/v1/xparty_friends?status=eq.pending&addressee=eq."+user+"&select=id,requester&limit=100","GET",null,true));
+      ui(()->{java.util.ArrayList<String> items=new java.util.ArrayList<>();items.add("Share my account ID");items.add("Add friend by account ID");items.add("Private activity across devices");
+        for(int i=0;i<pending.length();i++){JSONObject row=pending.optJSONObject(i);items.add("Request from "+row.optString("requester"));}
+        dialog("Connections").setItems(items.toArray(new String[0]),(d,index)->{
+          if(index==0){android.content.Intent share=new android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT,"XParty account ID: "+user);activity.startActivity(android.content.Intent.createChooser(share,"Share account ID"));close();}
+          else if(index==1){LinearLayout b=box();EditText id=field(b,"Friend’s account ID","");
+            dialog("Send friend request").setView(b).setNegativeButton("Cancel",(x,w)->close()).setPositiveButton("Send",(x,w)->{
+              String raw=id.getText().toString().trim();work(()->{String target=UUID.fromString(raw).toString();request(origin+"/rest/v1/xparty_friends","POST",new JSONObject().put("requester",user).put("addressee",target).put("status","pending"),true);load();});
+            }).show();}
+          else if(index==2)privateActivity();
+          else{JSONObject row=pending.optJSONObject(index-3);dialog("Friend request").setMessage(row.optString("requester")).setPositiveButton("Accept",(x,w)->answer(row,true)).setNegativeButton("Decline",(x,w)->answer(row,false)).show();}
+        }).setNegativeButton("Close",(d,w)->close()).show();
+      });
+    });
+  }
+  private void answer(JSONObject row,boolean accept){work(()->{
+    String id=UUID.fromString(row.getString("id")).toString();
+    request(origin+"/rest/v1/xparty_friends?id=eq."+id+"&addressee=eq."+user+"&status=eq.pending","PATCH",new JSONObject().put("status",accept?"accepted":"declined"),true);load();
+  });}
+  private void privateActivity(){work(()->{
+    JSONArray devices=new JSONArray(request(origin+"/rest/v1/xparty_device_activity?owner_id=eq."+user+"&select=device_id,snapshot&limit=50","GET",null,true));
+    StringBuilder summary=new StringBuilder();
+    for(int i=0;i<devices.length();i++){
+      JSONObject snapshot=devices.getJSONObject(i).getJSONObject("snapshot");JSONArray opened=snapshot.optJSONArray("opened");
+      summary.append("Saved ").append(java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(snapshot.optLong("recorded")))).append("\n");
+      for(int j=0;opened!=null&&j<Math.min(12,opened.length());j++){JSONObject item=opened.getJSONObject(j);summary.append(item.optString("title")).append(" · ").append(item.optLong("seconds")).append("s\n");}
+    }
+    ui(()->dialog("Private account activity").setMessage((summary.length()==0?"No saved activity.":summary.toString())+"\nSave this device’s recent titles, watch times, likes, favorites and keywords to your private account? Shared links, room codes and playback URLs are excluded.")
+      .setPositiveButton("Save this device",(d,w)->work(()->{
+        String url=origin+"/rest/v1/rpc/xparty_save_device_activity";
+        request(url,"POST",new JSONObject().put("device",local.deviceId()).put("activity",local.privateSnapshot()),true);
+        ui(()->{Toast.makeText(activity,"Private activity saved",Toast.LENGTH_SHORT).show();close();});
+      })).setNeutralButton("Delete this device’s copy",(d,w)->work(()->{
+        request(origin+"/rest/v1/xparty_device_activity?owner_id=eq."+user+"&device_id=eq."+local.deviceId(),"DELETE",null,true);
+        ui(()->{Toast.makeText(activity,"Deleted account copy",Toast.LENGTH_SHORT).show();close();});
+      })).setNegativeButton("Close",(d,w)->close()).show());
+  });}
 }

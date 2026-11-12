@@ -175,7 +175,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     profileWatchCarry+=dt;
     if(profileWatchCarry>=5000){
       long wholeSeconds=profileWatchCarry/1000;
-      profileStore.addWatchSeconds(wholeSeconds);
+      profileStore.addWatchSeconds(wholeSeconds,source);
       profileWatchCarry-=wholeSeconds*1000;
     }
   }
@@ -204,6 +204,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     profileStore=new NativeProfileStore(getPreferences(MODE_PRIVATE));
     profilePage=new NativeProfilePage(this,profileStore,new NativeProfilePage.Actions(){
       @Override public void rename(){editDisplayName();}
+      @Override public void photo(){
+        Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(pick,7841);
+      }
       @Override public void watch(JSONObject item){watchProfileSource(item);}
     });
     socket=new RoomSocket(this);
@@ -2100,7 +2104,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
   }
   private void detachProvider(){
-    closePlayerPort();localPlayerAdvancedUntil=0;lastPlayerPosition=-1;
+    closePlayerPort();localPlayerAdvancedUntil=0;lastPlayerPosition=-1;profileWatchCarry=0;profileTickAt=0;
     if(providerSession!=null)providerSession.clear();
     if(providerPanel!=null&&providerPanel.getParent() instanceof ViewGroup)
       ((ViewGroup)providerPanel.getParent()).removeView(providerPanel);
@@ -2361,6 +2365,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   @Override protected void onActivityResult(int request,int result,Intent data){
     super.onActivityResult(request,result,data);
     if(result!=RESULT_OK)return;
+    if(request==7841&&data!=null&&data.getData()!=null){
+      com.bumptech.glide.Glide.with(this).asBitmap().load(data.getData()).override(144,144).centerCrop().into(new com.bumptech.glide.request.target.CustomTarget<android.graphics.Bitmap>(){
+        public void onResourceReady(android.graphics.Bitmap image,com.bumptech.glide.request.transition.Transition<? super android.graphics.Bitmap> transition){
+          java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();image.compress(android.graphics.Bitmap.CompressFormat.JPEG,75,out);
+          profileStore.setPhoto("data:image/jpeg;base64,"+android.util.Base64.encodeToString(out.toByteArray(),android.util.Base64.NO_WRAP));
+          if(homeTab==3)showProfileHome();
+        }
+        public void onLoadCleared(android.graphics.drawable.Drawable placeholder){}
+        public void onLoadFailed(android.graphics.drawable.Drawable placeholder){toast("Could not open the selected photo.");}
+      });return;
+    }
     if((request==REQUEST_CHAT_FILE||request==REQUEST_CHAT_GALLERY)&&data!=null&&data.getData()!=null){
       if(!roomActive){toast("Join a room to share files.");return;}
       attachments.upload(data.getData(),token,attachmentListener);
