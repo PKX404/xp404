@@ -137,6 +137,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private int liveRetryCount=0;
   private Runnable liveRetry;
   private static final int MAX_LIVE_RETRIES=2;
+  private XPControl sendIcon;
+  private View failurePanel;
+  private boolean choosingQueue;
+  private long serverOffset, bestClockTrip=Long.MAX_VALUE;
+  private final Runnable clockProbe=new Runnable(){
+    public void run(){
+      if(!roomActive)return;
+      command("ping","sent",SystemClock.elapsedRealtime());
+      handler.postDelayed(this,15000);
+    }
+  };
   private int playerFit=AspectRatioFrameLayout.RESIZE_MODE_FIT;
   private int savedVideoHeight=0;
   private final Runnable progressTicker=new Runnable(){
@@ -220,8 +231,26 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     attachments=new NativeAttachments(this,"https://xparty-native-room.onrender.com");
     sourceSheet=new NativeSourceSheet(this,directory,artwork,new NativeSourceSheet.Actions(){
       @Override public void selected(JSONObject selected){
-        sendSource(selected);
+        if(choosingQueue){choosingQueue=false;addToQueue(selected);}else sendSource(selected);
         if(homeOverlay!=null)returnToRoom();
+      }
+      @Override public void playlist(JSONArray items){
+        if(!isHost||!roomActive){toast("The host can import a playlist into the room queue.");return;}
+        JSONArray queued=room.optJSONArray("queue");
+        java.util.HashSet<String> seen=new java.util.HashSet<>();
+        if(queued!=null)for(int i=0;i<queued.length();i++){JSONObject q=queued.optJSONObject(i);if(q!=null)seen.add(q.optString("videoId"));}
+        int slots=50-(queued==null?0:queued.length()),added=0;
+        boolean playFirst=!choosingQueue;choosingQueue=false;
+        for(int i=0;i<items.length();i++){
+          JSONObject item=items.optJSONObject(i);if(item==null)continue;
+          String id=item.optString("videoId");
+          if("soundcloud".equals(item.optString("type"))){item=ProviderLink.parse("soundcloud",id,item.optString("title"));if(item==null)continue;}
+          else if(!"youtube".equals(item.optString("type"))||!id.matches("[A-Za-z0-9_-]{11}"))continue;
+          if(playFirst){sendSource(item);playFirst=false;seen.add(id);continue;}
+          if(added>=slots)break;
+          if(seen.add(id)){addToQueue(item);added++;}
+        }
+        toast("Sent "+added+" tracks to the room queue · 50-track limit");
       }
       @Override public void pickLocal(){chooseLocal();}
       @Override public void enterLink(String kind){
@@ -231,7 +260,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     },"https://xparty-native-room.onrender.com");
     // Quick first frame; still retain enough rebuffer protection for live HLS.
     DefaultLoadControl fastStart=new DefaultLoadControl.Builder()
-      .setBufferDurationsMs(3000,35000,700,1700).build();
+      .setBufferDurationsMs(6000,45000,400,2200).build();
     // Explicit HLS + predictable HTTP timeouts; follow normal provider redirects.
     DefaultHttpDataSource.Factory network=new DefaultHttpDataSource.Factory()
       .setUserAgent("XParty/0.4.7 (Android; XPTV)")
@@ -279,6 +308,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
       @Override public void onPlaybackStateChanged(int state){
         if(videoState==null||webPlayback()||ProviderLink.companion(sourceType))return;
+        if(state==Player.STATE_ENDED){advanceQueue();return;}
         if(state==Player.STATE_BUFFERING){
           videoState.setText("Loading picture…");
         }else if(state==Player.STATE_READY){
@@ -293,6 +323,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
     });
     showLobby();
+    playerFit=getPreferences(MODE_PRIVATE).getInt("video_scale",AspectRatioFrameLayout.RESIZE_MODE_FIT);
+    if(!getPreferences(MODE_PRIVATE).getBoolean("setup_permissions",false)){
+      getPreferences(MODE_PRIVATE).edit().putBoolean("setup_permissions",true).apply();
+      java.util.ArrayList<String> missing=new java.util.ArrayList<>();
+      for(String permission:new String[]{android.Manifest.permission.RECORD_AUDIO,android.Manifest.permission.CAMERA})
+        if(checkSelfPermission(permission)!=android.content.pm.PackageManager.PERMISSION_GRANTED)missing.add(permission);
+      if(!missing.isEmpty())requestPermissions(missing.toArray(new String[0]),2203);
+    }
     handler.postDelayed(progressTicker,700);
   }
   private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
@@ -541,7 +579,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if(!item.optString("logo").isEmpty())selected.put("logo",item.optString("logo"));
     }catch(Exception ignored){}
     if(roomActive){
-      if(!isHost){toast("Only the room host can change the playing source.");return;}
+      if(!isHost&&"HOST_ONLY".equals(mode())){toast("The host controls media in this room.");return;}
       sendSource(selected);returnToRoom();
     }else{
       pendingProfileSource=selected;
@@ -718,6 +756,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       JSONObject received=event.optJSONObject("room");
       if(received==null){toast("Unexpected room response");return;}
       if(!roomActive)showRoom();
+      bestClockTrip=Long.MAX_VALUE;serverOffset=received.optLong("serverTime",System.currentTimeMillis())-SystemClock.elapsedRealtime();
+      handler.removeCallbacks(clockProbe);handler.post(clockProbe);
       updateRoom(received);
       if(pendingProfileSource!=null){
         JSONObject selected=pendingProfileSource;pendingProfileSource=null;
@@ -734,6 +774,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         String requested=pendingHomeSheet;pendingHomeSheet=null;
         handler.post(()->{if(roomActive&&sourceSheet!=null)sourceSheet.open(requested,token,"");});
       }
+    }else if("pong".equals(type)){
+      long now=SystemClock.elapsedRealtime(),trip=now-event.optLong("sent",0);
+      if(trip>=0&&trip<=bestClockTrip&&event.has("serverTime")){bestClockTrip=trip;serverOffset=event.optLong("serverTime")+trip/2-now;}
+    }else if("request-status".equals(type)){
+      JSONObject q=event.optJSONObject("request");if(q!=null)toast(q.optString("reason","Request sent to host"));
     }else if("state".equals(type)){
       JSONObject next=event.optJSONObject("room");if(next!=null)updateRoom(next);
     }else if("playback".equals(type)||"anchor".equals(type)){
@@ -835,7 +880,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     roomHeader.setBackground(NativeImmersiveBackdrop.headerSkin());
     headerIcon(roomHeader,"exit",this::confirmLeaveRoom,1f);
     headerIcon(roomHeader,"settings",this::showRoomSettings,1f);
-    headerIcon(roomHeader,"search",this::openSourceChooser,1f);
+    headerIcon(roomHeader,"key",this::roomAuthority,1f);
 
     android.widget.ImageView brand=new android.widget.ImageView(this);
     brand.setImageResource(R.drawable.xparty_wordmark_exact);
@@ -868,6 +913,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     playerFrame.addView(playerView,new FrameLayout.LayoutParams(-1,-1));
     youtube=new WebView(this);
     youtube.setBackgroundColor(Color.BLACK);
+    youtube.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(r-l!=or-ol||b-t!=ob-ot)applyWebScale();});
     youtube.getSettings().setJavaScriptEnabled(true);
     youtube.getSettings().setDomStorageEnabled(true);
     youtube.getSettings().setAllowFileAccess(false);
@@ -942,7 +988,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           if(!youtubeReady||youtubeDurationSeconds<=0){toast(playerName()+" seeking unavailable");return;}
           target=youtubeDurationSeconds*sb.getProgress()/1000.0;
           youtubeSyncQuietUntil=SystemClock.uptimeMillis()+1250;
-          youtube.evaluateJavascript("window.xpartySeek("+Math.max(0,target)+")",null);
+          if(isHost)youtube.evaluateJavascript("window.xpartySeek("+Math.max(0,target)+")",null);
         }else if(ProviderLink.companion(sourceType)){
           long duration=providerSession.seekableDuration();
           if(duration<=0){toast("Link a provider session that supports seeking.");return;}
@@ -952,7 +998,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             toast("This live channel does not allow seeking.");return;
           }
           target=player.getDuration()*sb.getProgress()/1000000.0;
-          player.seekTo((long)(target*1000));
+          if(isHost)player.seekTo((long)(target*1000));
         }
         sendNativePlayback(playback!=null&&playback.optBoolean("playing"),target,"seek");
         revealPlaybackControls();
@@ -976,6 +1022,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     // Native white vector buttons: same hitbox, identical alignment.
     View spacer=new View(this);roomControls.addView(spacer,new LinearLayout.LayoutParams(0,1,1));
     likeIcon=xpIcon("heart",this::toggleVideoLike);
+    iconIn(roomControls,xpIcon("queue",this::showQueueControls),44,52);
     iconIn(roomControls,likeIcon,44,52);
     iconIn(roomControls,xpIcon("scale",this::cycleVideoScaling),44,52);
     iconIn(roomControls,xpIcon("settings",this::showPlaybackSettings),44,52);
@@ -1068,6 +1115,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatInput.addTextChangedListener(new android.text.TextWatcher(){
       @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
       @Override public void onTextChanged(CharSequence s,int start,int before,int count){
+        if(sendIcon!=null)sendIcon.setVisibility(imeShown&&s.toString().trim().length()>0?View.VISIBLE:View.GONE);
         if(s.length()>0&&System.currentTimeMillis()-lastTypingAt<1300)return;
         lastTypingAt=System.currentTimeMillis();
         try{socket.send(new JSONObject().put("type","typing").put("active",s.length()>0));}
@@ -1089,7 +1137,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       String v=chatInput.getText().toString().trim();
       if(!v.isEmpty()){sendChat(v);chatInput.setText("");}
     });
-    iconIn(chatComposer,send,44,52);
+    sendIcon=send;send.setVisibility(View.GONE);iconIn(chatComposer,send,44,52);
     XPControl plus=xpIcon("plus",this::showChatAttachments);
     plusIcon=plus;iconIn(chatComposer,plus,44,52);
     attachmentStatus=text("",12,0xFFF7EEFF,false);
@@ -1177,6 +1225,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     applyRoomOrientation(config.orientation==Configuration.ORIENTATION_LANDSCAPE);
   }
   private void setTypingLayout(boolean typing){
+    if(sendIcon!=null)sendIcon.setVisibility(typing&&chatInput.getText().toString().trim().length()>0?View.VISIBLE:View.GONE);
     if(roomHeader==null||chatComposer==null)return;
     roomHeader.setVisibility(typing||isLandscapeLayout?View.GONE:View.VISIBLE);
     if(micIcon!=null)micIcon.setVisibility(typing?View.GONE:View.VISIBLE);
@@ -1230,7 +1279,77 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(vote==null||!vote.optBoolean("available")){toast("Skip voting needs an enabled vote and a queued YouTube video.");return;}
     try{socket.send(new JSONObject().put("type","skip-vote").put("sourceId",sourceId));}catch(Exception ignored){}
   }
+  private void command(String type,Object... pairs){
+    try{JSONObject event=new JSONObject().put("type",type);
+      for(int i=0;i<pairs.length;i+=2)event.put((String)pairs[i],pairs[i+1]);
+      socket.send(event);
+    }catch(org.json.JSONException e){toast("Could not send room action");}
+  }
+  private String mode(){return room==null?"HOST_APPROVAL":room.optString("mode","HOST_APPROVAL");}
+  private void roomAuthority(){
+    if(room==null)return;
+    java.util.ArrayList<String> names=new java.util.ArrayList<>();
+    java.util.ArrayList<Runnable> actions=new java.util.ArrayList<>();
+    if(isHost)for(String mode:new String[]{"HOST_APPROVAL","HOST_ONLY","SHARED_CONTROL"}){
+      names.add((mode.equals(mode())?"✓ ":"")+mode.replace('_',' '));actions.add(()->command("party-mode","mode",mode));
+    }
+    if(!isHost&&"SHARED_CONTROL".equals(mode())){names.add("Request control");actions.add(()->send("request-control"));}
+    JSONArray requests=room.optJSONArray("requests");
+    if(requests!=null)for(int i=0;i<requests.length();i++){
+      JSONObject q=requests.optJSONObject(i);
+      if(q==null||!"HOST_REVIEW".equals(q.optString("status")))continue;
+      String id=q.optString("id");JSONObject a=q.optJSONObject("action");
+      if(a==null)continue;
+      if(isHost){names.add(q.optString("name")+" · "+a.optString("intent",a.optString("type")));
+        actions.add(()->new AlertDialog.Builder(this).setTitle("Review request")
+          .setPositiveButton("Approve",(d,w)->command("review-request","id",id,"approve",true))
+          .setNegativeButton("Decline",(d,w)->command("review-request","id",id,"approve",false)).show());
+      }else if(myId.equals(q.optString("by"))){names.add("Cancel my request");actions.add(()->command("cancel-request","id",id));}
+    }
+    names.add("Participants and call permissions");actions.add(this::openParticipants);
+    names.add("Room settings");actions.add(this::showRoomSettings);
+    new AlertDialog.Builder(this).setTitle("Room controls · "+mode().replace('_',' ')).setItems(names.toArray(new String[0]),(d,i)->actions.get(i).run()).show();
+  }
+  private void clearFailure(){if(failurePanel!=null&&failurePanel.getParent() instanceof ViewGroup)((ViewGroup)failurePanel.getParent()).removeView(failurePanel);failurePanel=null;}
+  private void showFailure(String detail){
+    if(playerFrame==null||!roomActive)return;
+    clearFailure();videoState.setText(detail);
+    LinearLayout panel=column();panel.setGravity(Gravity.CENTER);panel.setBackgroundColor(0xf01a1724);
+    panel.addView(text(playerName()+" · Unable to play",17,WHITE,true));
+    panel.addView(text(detail,13,WHITE,false));
+    LinearLayout actions=new LinearLayout(this);
+    actions.addView(button("Retry",this::loadSource,false));
+    actions.addView(button(isHost?"Skip":"Vote to skip",()->{if(isHost)send("next");else voteToSkip();},false));
+    actions.addView(button("Queue",this::showQueueControls,false));panel.addView(actions);
+    failurePanel=panel;playerFrame.addView(panel,new FrameLayout.LayoutParams(-1,-1));
+  }
   private void showQueueControls(){
+    if(room==null)return;
+    JSONArray queue=room.optJSONArray("queue");
+    java.util.ArrayList<String> labels=new java.util.ArrayList<>();
+    java.util.ArrayList<Runnable> actions=new java.util.ArrayList<>();
+    labels.add("Add media");actions.add(()->{openSourceChooser();choosingQueue=true;});
+    labels.add("Queue settings and skip votes");actions.add(this::queueSettings);
+    java.util.ArrayList<JSONObject> items=new java.util.ArrayList<>();
+    if(queue!=null)for(int i=0;i<queue.length();i++){JSONObject q=queue.optJSONObject(i);if(q!=null)items.add(q);}
+    if("votes".equals(room.optString("queueOrder")))items.sort((a,b)->Integer.compare(votes(b),votes(a)));
+    for(JSONObject q:items){
+      labels.add(q.optString("title")+"  ·  "+votes(q)+" votes");
+      actions.add(()->{
+        String[] options=isHost?new String[]{"Vote / withdraw","Play now","Move up","Move down","Remove"}:new String[]{"Vote / withdraw"};
+        new AlertDialog.Builder(this).setTitle(q.optString("title")).setItems(options,(d,i)->{
+          String id=q.optString("id");
+          if(i==2||i==3)command("queue-move","id",id,"direction",i==2?-1:1);
+          else command(i==0?"queue-vote":i==1?"queue-play":"queue-remove","id",id);
+        }).show();
+      });
+    }
+    if(isHost){labels.add("Order by "+("votes".equals(room.optString("queueOrder"))?"addition":"votes"));
+      actions.add(()->command("queue-order","order","votes".equals(room.optString("queueOrder"))?"fifo":"votes"));}
+    new AlertDialog.Builder(this).setTitle("Room queue · "+items.size()).setItems(labels.toArray(new String[0]),(d,i)->actions.get(i).run()).show();
+  }
+  private int votes(JSONObject item){JSONArray a=item.optJSONArray("votes");return a==null?0:a.length();}
+  private void queueSettings(){
     if(room==null)return;
     JSONObject vote=room.optJSONObject("skipVoting");boolean enabled=vote!=null&&vote.optBoolean("enabled");
     boolean advance=room.optBoolean("autoAdvance",true);
@@ -1276,7 +1395,19 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     for(int i=0;i<modes.length;i++)if(playerFit==modes[i])index=i;
     playerFit=modes[(index+1)%modes.length];
     if(playerView!=null)playerView.setResizeMode(playerFit);
+    applyWebScale();
     getPreferences(MODE_PRIVATE).edit().putInt("video_scale",playerFit).apply();
+  }
+  private void applyWebScale(){
+    if(youtube==null)return;
+    boolean video="youtube".equals(sourceType);
+    float ratio=youtube.getWidth()/(float)Math.max(1,youtube.getHeight());
+    float target=16f/9f;
+    boolean zoom=video&&playerFit==AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
+    boolean fill=video&&playerFit==AspectRatioFrameLayout.RESIZE_MODE_FILL;
+    float x=Math.max(1,target/Math.max(.1f,ratio)),y=Math.max(1,ratio/target);
+    youtube.setScaleX(zoom?Math.max(1.15f,Math.max(x,y)):fill?x:1);
+    youtube.setScaleY(zoom?Math.max(1.15f,Math.max(x,y)):fill?y:1);
   }
   private void showVolume(){
     AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
@@ -1930,7 +2061,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void selectYoutubeRecommendation(String video,String title){
     if(!roomActive||!"youtube".equals(sourceType)||!video.matches("[A-Za-z0-9_-]{11}"))return;
     if(video.equals(youtubeId))return;
-    if(!isHost){toast("Ask the host to select this video for the room.");followPlayback();return;}
+    if(!isHost&&"HOST_ONLY".equals(mode())){followPlayback();return;}
     try{
       JSONObject next=new JSONObject().put("type","youtube").put("videoId",video)
         .put("title",title==null||title.isEmpty()?"YouTube recommended video":title);
@@ -1983,7 +2114,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           case "ready":youtubeReady=true;videoState.setText(playerName()+" ready");sendReady(playerName()+" ready");followPlayback();break;
           case "state":if(youtubeReady)state(value,seconds);break;
           case "progress":progress(seconds,value);break;
-          default:videoState.setText(event.length()>140?event.substring(0,140):event);
+          default:showFailure(event);
         }
       });
     }
@@ -2003,6 +2134,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     public void state(int state,double seconds){
       runOnUiThread(()->{
         if(!roomActive||!webPlayback()||!youtubeReady)return;
+        if(state==0){advanceQueue();return;}
+        if(!isHost&&!"SHARED_CONTROL".equals(mode())){if(playback!=null&&(state==1||state==2)&&(state==1)!=playback.optBoolean("playing"))followPlayback();return;}
         if(state!=1)localPlayerAdvancedUntil=0;
         if(state!=1&&state!=2&&state!=0)return;
         if(SystemClock.uptimeMillis()<youtubeSyncQuietUntil)return;
@@ -2030,7 +2163,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
     public void error(int code){
       runOnUiThread(()->{
-        if("youtube".equals(sourceType))videoState.setText("YouTube player error "+code+" · choose another video");
+        if("youtube".equals(sourceType))showFailure("YouTube player error "+code+" · choose another video");
       });
     }
     public void blocked(){
@@ -2050,7 +2183,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!roomActive||source==null||player==null)return;
     if(!"iptv".equals(sourceType)){
       if(videoState!=null)videoState.setText("Video unavailable · "+error.getErrorCodeName());
-      toast("Video could not play. Check the source and connection.");
+      showFailure("Video could not play. Check the source and connection.");
       return;
     }
     final int code=serverHttpCode(error);
@@ -2083,7 +2216,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     else if(code>=500)message="XPTV provider unavailable ("+code+")";
     else if(code>0)message="XPTV channel returned HTTP "+code;
     else message="XPTV stream unavailable · check internet or try another";
-    if(videoState!=null)videoState.setText(message);
+    showFailure(message);
     android.util.Log.w("XPTV","Live channel failure: "+message+" "+error.getErrorCodeName());
     toast(message);
   }
@@ -2093,10 +2226,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     try{socket.send(new JSONObject().put("type","ready").put("sourceId",sourceId)
       .put("ready",true).put("status",status));}catch(Exception ignored){}
   }
+  private void advanceQueue(){if(isHost&&room!=null&&room.optBoolean("autoAdvance",true))command("next","automatic",true,"sourceId",sourceId);}
   private void sendNativePlayback(boolean playing,double seconds,String intent){
     if(source==null)return;
     try{socket.send(new JSONObject()
-      .put("type","playback").put("sourceId",sourceId)
+      .put("type",!isHost&&"HOST_APPROVAL".equals(mode())?"party-request":"playback").put("sourceId",sourceId)
       .put("playing",playing).put("position",Math.max(0,seconds))
       .put("intent",intent));}catch(Exception ignored){}
   }
@@ -2132,6 +2266,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     videoState.setText("Start the title, then link playback");
   }
   private void loadSource(){
+    clearFailure();
     detachProvider();
     if(player==null)return;
     if(liveRetry!=null){handler.removeCallbacks(liveRetry);liveRetry=null;}
@@ -2153,7 +2288,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if(immersive!=null)immersive.setSource("",false);
       return;
     }
-    sourceType=source.optString("type","");
+    sourceType=source.optString("type","");applyWebScale();
     if(immersive!=null)immersive.setSource(sourceType,true);
     getPreferences(MODE_PRIVATE).edit().putString("last_source",sourceType).apply();
     sourceUrl=source.optString("url","");
@@ -2195,7 +2330,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           iframe{display:block;position:absolute;inset:0;width:100%;height:100%;border:0}
         </style></head><body>
         <div id="player"></div>
-        <script src="https://www.youtube.com/iframe_api"></script>
+        <link rel="preconnect" href="https://www.youtube.com"><link rel="preconnect" href="https://i.ytimg.com">
         <script>
           let ytPlayer=null;
           function onYouTubeIframeAPIReady(){
@@ -2215,8 +2350,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           window.xpartySync=function(playing,time){
             if(!ytPlayer||typeof ytPlayer.getPlayerState!=='function')return;
             const actual=ytPlayer.getCurrentTime()||0;
-            if(Math.abs(actual-time)>2.5)ytPlayer.seekTo(Math.max(0,time),true);
-            if(playing&&ytPlayer.getPlayerState()!==YT.PlayerState.PLAYING)ytPlayer.playVideo();
+            if(Math.abs(actual-time)>1.0)ytPlayer.seekTo(Math.max(0,time),true);
+            if(playing&&![YT.PlayerState.PLAYING,YT.PlayerState.BUFFERING].includes(ytPlayer.getPlayerState()))ytPlayer.playVideo();
             else if(!playing&&ytPlayer.getPlayerState()===YT.PlayerState.PLAYING)ytPlayer.pauseVideo();
           };
           window.xpartyPlay=function(playing){
@@ -2237,8 +2372,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
                 XpartyYT.changed(info.video_id,info.title||'YouTube suggestion');
               }
             }catch(e){}
-          },850);
-        </script></body></html>
+          },500);
+        </script><script async src="https://www.youtube.com/iframe_api"></script></body></html>
         """.replace("__VIDEO_ID__",youtubeId);
       try{html=html.replace("<head>","<head>"+playerBridge());}catch(Exception e){videoState.setText("Player unavailable");return;}
       youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",html,"text/html","UTF-8",null);
@@ -2263,7 +2398,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       double position=playback.optDouble("position",0);
       if(playing){
         long anchored=playback.optLong("updatedAt",System.currentTimeMillis());
-        position+=Math.max(0,(System.currentTimeMillis()-anchored)/1000.0);
+        position+=Math.max(0,(SystemClock.elapsedRealtime()+serverOffset-anchored)/1000.0);
       }
       youtubeSyncQuietUntil=SystemClock.uptimeMillis()+1400;
       youtube.evaluateJavascript("window.xpartySync("+playing+","+Math.max(0,position)+")",null);
@@ -2275,9 +2410,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if("direct".equals(sourceType)&&player.getDuration()>0){
       long anchored=playback.optLong("updatedAt",System.currentTimeMillis());
       double position=playback.optDouble("position",0);
-      if(playing)position+=Math.max(0,(System.currentTimeMillis()-anchored)/1000.0);
+      if(playing)position+=Math.max(0,(SystemClock.elapsedRealtime()+serverOffset-anchored)/1000.0);
       long target=(long)(position*1000);
-      if(Math.abs(player.getCurrentPosition()-target)>2500)player.seekTo(target);
+      if(Math.abs(player.getCurrentPosition()-target)>1000)player.seekTo(target);
     }
   }
   private void togglePlayback(){
@@ -2295,7 +2430,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         try{pos=Double.parseDouble(raw);}catch(Exception ignored){}
         sendNativePlayback(!wasPlaying,pos,wasPlaying?"pause":"play");
         youtubeSyncQuietUntil=SystemClock.uptimeMillis()+900;
-        youtube.evaluateJavascript("window.xpartyPlay("+!wasPlaying+")",null);
+        if(isHost)youtube.evaluateJavascript("window.xpartyPlay("+!wasPlaying+")",null);
       });
       return;
     }
@@ -2326,6 +2461,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void toast(String message){Toast.makeText(this,message,Toast.LENGTH_SHORT).show();}
 
   private void openSourceChooser(){
+    choosingQueue=false;
     if(!roomActive){toast("Create or join a room first.");return;}
     if(sourceSheet!=null)sourceSheet.open(sourceType,token,source==null?"":source.optString("title"));
   }
@@ -2336,6 +2472,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       .setNegativeButton("Cancel",null).setPositiveButton("Play",(d,w)->{
         String v=field.getText().toString().trim();
         if("youtube".equals(type)){
+          if(sourceSheet.openPlaylist(v))return;
           String id=parseYoutubeId(v);
           if(id==null){toast("Use a valid YouTube video link.");return;}
           try{sendSource(new JSONObject().put("type","youtube").put("videoId",id).put("title","YouTube video"));}catch(Exception ignored){}
@@ -2353,9 +2490,14 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     Pattern pattern=Pattern.compile("(?:youtu\\.be/|[?&]v=|/shorts/|/embed/)([A-Za-z0-9_-]{11})");
     Matcher m=pattern.matcher(value);return m.find()?m.group(1):null;
   }
+  private void addToQueue(JSONObject src){
+    if("file".equals(src.optString("type"))){toast("Local files must be played directly");return;}
+    command("queue-add","provider",src.optString("type"),"videoId",src.optString("videoId"),"url",src.optString("url"),"title",src.optString("title"));
+  }
   private void sendSource(JSONObject data){
     if(!roomActive){toast("Join a room first.");return;}
-    if(!isHost){toast("Only the host may change the video in this version.");return;}
+    if(choosingQueue){choosingQueue=false;addToQueue(data);return;}
+    if(!isHost&&"HOST_ONLY".equals(mode())){toast("The host controls media in this room.");return;}
     try{socket.send(new JSONObject().put("type","source").put("source",data));}catch(Exception ignored){}
   }
   private void openChannels(){

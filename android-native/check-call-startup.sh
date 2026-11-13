@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-app=com.pkx404.xpartynative.micfix2
+app=com.pkx404.xpartynative.playbackqa055
 apk=android-native/app/build/outputs/apk/release/app-universal-release.apk
 adb install "$apk"
 adb install -r "$apk"

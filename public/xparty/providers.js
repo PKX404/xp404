@@ -72,7 +72,7 @@ export async function createSoundCloudPlayer(host,id,onState=()=>{},onError=()=>
  if(!validProviderId('soundcloud',id))throw Error('Use a public SoundCloud track link.');
  const SC=await bounded(loadProviderSDK('SoundCloud','https://w.soundcloud.com/player/api.js',()=>window.SC?.Widget?window.SC:null),'SoundCloud SDK',options);
  const iframe=document.createElement('iframe');iframe.title='SoundCloud track player';iframe.allow='autoplay';iframe.scrolling='no';iframe.setAttribute('frameborder','0');iframe.className='provider-embed-mount soundcloud-embed';iframe.width='100%';iframe.height='100%';
- const url=new URL('https://w.soundcloud.com/player/');for(const [key,value]of Object.entries({url:id,auto_play:'false',visual:'true',show_artwork:'true',show_user:'true',show_comments:'false',single_active:'false',color:'#bca2ff'}))url.searchParams.set(key,value);iframe.src=url.href;host.append(iframe);
+ const url=new URL('https://w.soundcloud.com/player/');for(const [key,value]of Object.entries({url:id,auto_play:'false',visual:'false',show_artwork:'true',show_user:'true',show_comments:'true',single_active:'false',color:'#bca2ff'}))url.searchParams.set(key,value);iframe.src=url.href;host.append(iframe);
  let widget,disposed=false,time=0,duration=0,state=2,timeRevision=0;const events=new Set();
  const fail=error=>{if(!disposed)onError(error instanceof Error?error:Error('This SoundCloud track could not play. It may be unavailable or embedding may be disabled.'));};
  const call=(method,...args)=>{if(disposed)return;try{return widget?.[method]?.(...args);}catch(error){fail(error);}};

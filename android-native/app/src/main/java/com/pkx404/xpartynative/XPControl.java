@@ -51,6 +51,10 @@ public final class XPControl extends View {
         for(int i=0;i<8;i++){double angle=Math.PI*i/4;float x=(float)Math.cos(angle),y=(float)Math.sin(angle);
           line(c,18+x*11.5f,18+y*11.5f,18+x*15,18+y*15);}
         break;
+      case "key":
+        circle(c,12,12,7);path(c,17,17,30,30,32,26,29,24,27,26,24,23,26,21);break;
+      case "queue":
+        for(int y:new int[]{9,18,27}){line(c,12,y,30,y);circle(c,6,y,1);}break;
       case "search":
         circle(c,15.5f,14.5f,8.3f);line(c,22,22,29.5f,30);break;
       case "home":
@@ -99,10 +103,10 @@ public final class XPControl extends View {
         p.setStyle(active?Paint.Style.FILL:Paint.Style.STROKE);
         c.drawPath(h,p);break;
       case "scale":
-        c.drawRoundRect(new RectF(7,10,29,26),3,3,p);
+        c.drawRoundRect(new RectF(4,7,32,29),3,3,p);
         path(c,15,15,10,18,15,21);path(c,21,15,26,18,21,21);break;
       case "volume":
-        path(c,6,14,12,14,19,8,19,28,12,22,6,22,6,14);
+        path(c,4,14,12,14,19,6,19,28,12,22,6,22,6,14);
         c.drawArc(new RectF(14,10,27,26),-58,116,false,p);
         c.drawArc(new RectF(11,5,33,31),-58,116,false,p);break;
       case "mic":

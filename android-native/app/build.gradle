@@ -7,8 +7,8 @@ android {
         testInstrumentationRunner 'com.pkx404.xpartynative.RoomUiCheck'
         minSdk 26
         targetSdk 35
-        versionCode 54
-        versionName '0.5.4'
+        versionCode 55
+        versionName '0.5.5'
     }
     splits {
         abi {
@@ -31,7 +31,7 @@ android {
     }
     buildTypes {
         release {
-            applicationIdSuffix '.micfix2'
+            applicationIdSuffix project.hasProperty('qaSigning') ? '.playbackqa055' : '.micfix2'
             if (project.hasProperty('qaSigning')) versionNameSuffix '-qa'
             if (System.getenv('XP_KEYSTORE')) signingConfig signingConfigs.productRelease
             else if (project.hasProperty('qaSigning')) signingConfig signingConfigs.debug

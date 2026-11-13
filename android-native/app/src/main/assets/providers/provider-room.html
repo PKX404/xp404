@@ -17,7 +17,7 @@ try {
   window.xpartySeek=t=>{if(player.canSeek!==false)player.seekTo(t)};
   window.xpartyPlay=p=>p?player.playVideo():player.pauseVideo();
   window.xpartySync=(p,t)=>{
-    if(Math.abs(player.getCurrentTime()-t)>2.5)window.xpartySeek(t);
+    if(Math.abs(player.getCurrentTime()-t)>1.0)window.xpartySeek(t);
     if(p!==(player.getPlayerState()===1))window.xpartyPlay(p);
   };
   setInterval(()=>report('progress',Math.round(player.getDuration()||0),player.getCurrentTime()),700);

@@ -47,6 +47,7 @@ import java.io.IOException;
 final class NativeSourceSheet {
   interface Actions {
     void selected(JSONObject source);
+    void playlist(JSONArray tracks);
     void pickLocal();
     void enterLink(String source);
     void notice(String message);
@@ -349,6 +350,7 @@ final class NativeSourceSheet {
     add(body,link,6);
     if("soundcloud".equals(type))add(body,label("Play public tracks together with the official SoundCloud player. Some tracks may not permit embedding.",12,MUTED,false),6);
     add(body,chip("Watch in room",true,()->{
+      if("soundcloud".equals(type)&&openPlaylist(link.getText().toString().trim()))return;
       JSONObject item=ProviderLink.parse(type,link.getText().toString(),null);
       if(item==null){link.setError("Use a full "+ProviderLink.name(type)+" title or video URL");return;}
       choose(item);
@@ -362,6 +364,7 @@ final class NativeSourceSheet {
       }
     });
     add(body,chip("Use current page",false,()->{
+      if("soundcloud".equals(type)&&openPlaylist(web.getUrl()))return;
       JSONObject item=ProviderLink.parse(type,web.getUrl(),web.getTitle());
       if(item!=null)choose(item);
       else actions.notice("Open a movie, episode, video or channel first.");
@@ -652,7 +655,53 @@ final class NativeSourceSheet {
     Matcher match=Pattern.compile("(?:youtu\\.be/|[?&]v=|/shorts/|/embed/)([A-Za-z0-9_-]{11})").matcher(url);
     return match.find()?match.group(1):null;
   }
+  boolean openPlaylist(String raw){
+    if(raw==null)return false;
+    android.net.Uri uri=android.net.Uri.parse(raw);
+    if(!"https".equals(uri.getScheme())||uri.getHost()==null||!uri.isHierarchical())return false;
+    String host=uri.getHost().toLowerCase(java.util.Locale.ROOT);
+    boolean yt=host.equals("youtube.com")||host.endsWith(".youtube.com")||host.equals("youtu.be");
+    String list=yt?uri.getQueryParameter("list"):null;
+    boolean sc=(host.equals("soundcloud.com")||host.equals("www.soundcloud.com"))&&uri.getPath()!=null&&uri.getPath().matches("/[A-Za-z0-9_-]+/sets/[A-Za-z0-9_-]+/?")&&uri.getQuery()==null;
+    if(!sc&&(list==null||!list.matches("[A-Za-z0-9_-]{2,128}")))return false;
+    if(playlistDialog!=null&&playlistDialog.isShowing())return true;
+    WebView reader=new WebView(activity);
+    reader.getSettings().setJavaScriptEnabled(true);reader.getSettings().setAllowFileAccess(false);reader.getSettings().setAllowContentAccess(false);
+    reader.setWebViewClient(new WebViewClient(){
+      @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return r.isForMainFrame();}
+    });
+    android.widget.LinearLayout frame=new android.widget.LinearLayout(activity);frame.setOrientation(1);
+    TextView status=label("Loading playlist…",15,WHITE,false);frame.addView(status);frame.addView(reader,new LinearLayout.LayoutParams(-1,dp(205)));
+    android.app.AlertDialog modal=new android.app.AlertDialog.Builder(activity).setTitle("Add playlist to room").setView(frame).setNegativeButton("Cancel",null).create();
+    playlistDialog=modal;
+    android.os.Handler timer=new android.os.Handler(android.os.Looper.getMainLooper());
+    modal.setOnDismissListener(d->{timer.removeCallbacksAndMessages(null);frame.removeView(reader);reader.destroy();playlistDialog=null;});
+    modal.show();
+    String page;
+    if(sc){
+      String track="https://soundcloud.com"+uri.getPath();
+      page="<iframe id='p' width='100%' height='100%' src='https://w.soundcloud.com/player/?auto_play=false&amp;url="+android.net.Uri.encode(track)+"'></iframe><script src='https://w.soundcloud.com/player/api.js'></script><script>const w=SC.Widget('p');w.bind(SC.Widget.Events.READY,()=>w.getSounds(rows=>window.items=rows.map(s=>({type:'soundcloud',videoId:s.permalink_url,title:s.title}))));</script>";
+    }else{
+      page="<div id='p'></div><script>function onYouTubeIframeAPIReady(){const p=new YT.Player('p',{width:'100%',height:'100%',playerVars:{listType:'playlist',list:'"+list+"',playsinline:1},events:{onReady:()=>{window.readItems=()=>p.getPlaylist()?.map((id,i)=>({type:'youtube',videoId:id,title:'Playlist track '+(i+1)}));}}});}</script><script src='https://www.youtube.com/iframe_api'></script>";
+    }
+    reader.loadDataWithBaseURL("https://xparty-native-room.onrender.com/","<meta name='viewport' content='width=device-width'>"+page,"text/html","UTF-8",null);
+    final long deadline=android.os.SystemClock.elapsedRealtime()+35000;
+    timer.postDelayed(new Runnable(){public void run(){
+      if(!modal.isShowing())return;
+      reader.evaluateJavascript("(window.items||window.readItems?.()||[]).slice(0,51)",raw->{
+        if(!modal.isShowing())return;
+        try{JSONArray tracks=new JSONArray(raw);if(tracks.length()>0){
+          modal.dismiss();actions.playlist(tracks);dismiss();return;
+        }}catch(org.json.JSONException ignored){}
+        if(android.os.SystemClock.elapsedRealtime()<deadline)timer.postDelayed(this,500);
+        else status.setText("The provider did not return playable tracks. Check the connection or choose a public playlist.");
+      });
+    }},500);
+    return true;
+  }
+  private android.app.AlertDialog playlistDialog;
   private boolean playFromYoutubeUrl(String url){
+    if(openPlaylist(url))return true;
     String id=videoId(url);
     if(id==null)return false;
     try{
