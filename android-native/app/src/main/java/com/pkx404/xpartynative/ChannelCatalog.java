@@ -17,9 +17,9 @@ import java.util.concurrent.Executors;
 /** Simple native IPTV-org category browser using publicly listed HLS channels. */
 final class ChannelCatalog {
   static final class Channel {
-    final String title,url,logo;
-    Channel(String title,String url,String logo){
-      this.title=title;this.url=url;this.logo=logo;
+    final String title,url,logo,group;
+    Channel(String title,String url,String logo,String group){
+      this.title=title;this.url=url;this.logo=logo;this.group=group;
     }
   }
   interface Result {void loaded(List<Channel> channels,String error);}
@@ -72,7 +72,7 @@ final class ChannelCatalog {
       List<Channel> channels=new ArrayList<>();
       String error=null;
       String group=category.matches("[a-z]{2}")?"countries":"categories";
-      String endpoint="https://iptv-org.github.io/iptv/"+group+"/"+category+".m3u";
+      String endpoint="https://iptv-org.github.io/iptv/"+("world".equals(category)?"index.m3u":group+"/"+category+".m3u");
       HttpURLConnection con=null;
       try{
         con=(HttpURLConnection)new URL(endpoint).openConnection();
@@ -80,29 +80,43 @@ final class ChannelCatalog {
         con.setRequestProperty("User-Agent","XParty/0.4.7 Android XPTV");
         if(con.getResponseCode()!=200)throw new Exception("Channel list HTTP "+con.getResponseCode());
         try(BufferedReader br=new BufferedReader(new InputStreamReader(con.getInputStream()))){
-          String name=null,logo=null,line;int size=0;
-          while((line=br.readLine())!=null&&++size<22000&&channels.size()<750){
-            if(line.length()>2500)continue;
+          String name=null,logo="",tags="",line;
+          java.util.regex.Pattern attributes=java.util.regex.Pattern.compile("(tvg-logo|group-title)=\"([^\"]*)\"");
+          java.util.LinkedHashSet<String> seen=new java.util.LinkedHashSet<>();
+          int bytes=0;
+          while((line=br.readLine())!=null){
+            bytes+=line.length()+1;
+            if(bytes>24*1024*1024)throw new java.io.IOException("Channel directory exceeded 24 MB");
+            line=line.trim();
             if(line.startsWith("#EXTINF")){
-              int idx=line.lastIndexOf(',');
-              name=idx>=0?line.substring(idx+1).trim():"Live channel";
-              if(name.length()>65)name=name.substring(0,65);
-              java.util.regex.Matcher match=java.util.regex.Pattern.compile("tvg-logo=\\\"([^\\\"]+)\\\"").matcher(line);
-              logo=match.find()?match.group(1):"";
-              if(!logo.startsWith("https://"))logo="";
-            }else if(name!=null&&line.startsWith("https://")&&line.toLowerCase(Locale.ROOT).matches("https://[^ ]+\\.m3u8(?:\\?.*)?")){
-              channels.add(new Channel(name,line.trim(),logo));
-              name=null;logo=null;
-            }else if(!line.startsWith("#"))name=null;
+              int idx=line.indexOf(',');
+              name=idx>=0?line.substring(idx+1).trim():"Live channel";logo="";tags="";
+              java.util.regex.Matcher attr=attributes.matcher(line);
+              while(attr.find()){
+                if("group-title".equals(attr.group(1)))tags=attr.group(2);
+                else if(attr.group(2).startsWith("https://"))logo=attr.group(2);
+              }
+            }else if(!line.isEmpty()&&!line.startsWith("#")){
+              if(name!=null&&compatibleStream(line)&&seen.add(line))channels.add(new Channel(name,line,logo,tags));
+              name=null;
+            }
           }
         }
       }catch(Exception ex){error="Unable to load live channels: "+ex.getMessage();}
       finally{if(con!=null)con.disconnect();}
-      if(!channels.isEmpty())cache.put(category,new CacheEntry(channels));
+      if(error==null&&!channels.isEmpty()){if(cache.size()>12)cache.clear();cache.put(category,new CacheEntry(channels));}
       else if(hit!=null&&!hit.channels.isEmpty())channels=new ArrayList<>(hit.channels);
       List<Channel> response=channels;String message=channels.isEmpty()?error:null;
       ui.post(()->callback.loaded(response,message));
     });
+  }
+  static boolean compatibleStream(String raw){
+    try{
+      java.net.URI u=java.net.URI.create(raw);String host=u.getHost();
+      return raw.length()<=2048&&"https".equalsIgnoreCase(u.getScheme())&&host!=null&&host.contains(".")
+        &&!host.matches("[0-9.]+")&&u.getRawUserInfo()==null&&(u.getPort()==-1||u.getPort()==443)
+        &&u.getRawFragment()==null&&u.getPath().toLowerCase(Locale.ROOT).endsWith(".m3u8");
+    }catch(IllegalArgumentException e){return false;}
   }
   void shutdown(){worker.shutdownNow();unavailable.clear();}
 }

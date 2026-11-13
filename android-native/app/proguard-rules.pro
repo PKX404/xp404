@@ -24,6 +24,7 @@
   public void message(org.json.JSONObject);
   private android.webkit.WebView youtube;
   private java.lang.String playerBridge();
+  private void openChannels();
   private void showLobby();
   private void showProfileHome();
 }

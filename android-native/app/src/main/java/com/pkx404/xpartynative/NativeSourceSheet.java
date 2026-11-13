@@ -70,7 +70,7 @@ final class NativeSourceSheet {
   private TextView modeTitle;
   private boolean specialSearch=false;
   private float touchX,touchY;
-  private static final String[] CATEGORIES={"All","Saved","Movies","Entertainment","News","Sports","Kids","Music","Radio"};
+  private static final String[] CATEGORIES={"All","Saved","Movies","Entertainment","News","Sports","Knowledge","Kids","Music","Radio"};
   private EditText channelSearch,youtubeSearch;
   private String roomToken="",currentTab="all",category="All",typedSearch="",youtubeQuery="";
   private final List<ChannelCatalog.Channel> channels=new ArrayList<>();
@@ -79,12 +79,25 @@ final class NativeSourceSheet {
   private String nextYouTubePage="";
   private String tileMode="grid2";
   private String loadedCategory="";
+  private String country;
+  private static final String[][] INDIA_GUIDE={
+    {"Discovery India · English","discovery/242","Knowledge"},
+    {"Discovery India HD · Hindi","discovery-hd-hindi/3444","Knowledge"},
+    {"Discovery HD World","discovery-hd-world/463","Knowledge"},
+    {"Investigation Discovery (Discovery ID) HD · English","investigation-discovery-hd-english/3435","Knowledge"},
+    {"Investigation Discovery (Discovery ID) HD · Hindi","investigation-discovery-hd-hindi/3434","Knowledge"},
+    {"Discovery Science · English","discovery-science/568","Knowledge"},
+    {"Discovery Kids · Hindi","discovery-kids-hindi/554","Kids"},
+    {"Animal Planet HD · English","animal-planet-hd-world/286","Knowledge"}
+  };
+
   private Runnable youtubeDebounce;
 
   NativeSourceSheet(Activity activity,ChannelCatalog directory,NativeArtwork artwork,Actions actions,String backend){
     this.activity=activity;this.directory=directory;this.artwork=artwork;this.actions=actions;this.backend=backend;
     prefs=activity.getPreferences(Context.MODE_PRIVATE);
-    category=prefs.getString("last_iptv_category","Movies");
+    country=prefs.getString("iptv_country","in");
+    category=prefs.getString("last_iptv_category","All");
     tileMode=prefs.getString("native_source_tile_layout","grid2");
   }
   private int dp(float n){return Math.round(n*activity.getResources().getDisplayMetrics().density);}
@@ -405,8 +418,54 @@ final class NativeSourceSheet {
       add(body,row,8);
     }
   }
+  private String countryName(String code){
+    return code.isEmpty()?"Worldwide":new Locale("",code.toUpperCase(Locale.ROOT)).getDisplayCountry();
+  }
+  private void pickCountry(){
+    java.util.List<String> codes=new ArrayList<>(java.util.Arrays.asList(Locale.getISOCountries()));
+    if(!codes.contains("XK"))codes.add("XK");
+    codes.sort((a,b)->countryName(a).compareToIgnoreCase(countryName(b)));codes.add(0,"");
+    LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);
+    EditText query=input("Search country or code");content.addView(query);
+    android.widget.ListView list=new android.widget.ListView(activity);content.addView(list);
+    java.util.List<String> filtered=new ArrayList<>();
+    android.widget.ArrayAdapter<String> adapter=new android.widget.ArrayAdapter<>(activity,android.R.layout.simple_list_item_1);
+    list.setAdapter(adapter);
+    Runnable refresh=()->{
+      String term=query.getText().toString().trim().toLowerCase(Locale.ROOT);
+      adapter.clear();filtered.clear();
+      for(String code:codes){
+        String name=countryName(code);
+        if(name.toLowerCase(Locale.ROOT).contains(term)||code.equalsIgnoreCase(term)){
+          filtered.add(code);adapter.add((country.equalsIgnoreCase(code)?"✓  ":"")+name);
+        }
+      }
+    };
+    query.addTextChangedListener(new TextWatcher(){
+      public void beforeTextChanged(CharSequence t,int st,int count,int after){}
+      public void onTextChanged(CharSequence t,int st,int before,int count){refresh.run();}
+      public void afterTextChanged(Editable e){}
+    });
+    refresh.run();
+    AlertDialog chooser=new AlertDialog.Builder(activity).setTitle("Live TV country").setView(content).setNegativeButton("Cancel",null).create();
+    list.setOnItemClickListener((parent,v,pos,id)->{
+      country=filtered.get(pos).toLowerCase(Locale.ROOT);
+      category="All";typedSearch="";shownChannels=28;
+      prefs.edit().putString("iptv_country",country).putString("last_iptv_category",category).apply();
+      chooser.dismiss();showIPTV(false);
+    });
+    chooser.show();
+  }
+  private static boolean matchesGroup(ChannelCatalog.Channel c,String category){
+    if("All".equals(category))return true;
+    String group=c.group.toLowerCase(Locale.ROOT);
+    if("Knowledge".equals(category))return group.contains("documentary")||group.contains("education")||group.contains("science")
+      ||c.title.toLowerCase(Locale.ROOT).matches(".*(discovery|animal planet|national geographic|nat geo).*");
+    return group.contains(category.toLowerCase(Locale.ROOT));
+  }
   private void showIPTV(boolean keepSearch){
     currentTab="iptv";clear();mode("XPTV  ⇄  YouTube");
+    add(body,chip("Country · "+countryName(country),true,this::pickCountry),6);
     HorizontalScrollView carousel=new HorizontalScrollView(activity);
     carousel.setHorizontalScrollBarEnabled(false);
     LinearLayout chips=new LinearLayout(activity);
@@ -445,12 +504,13 @@ final class NativeSourceSheet {
       }
       @Override public void afterTextChanged(Editable s){}
     });
-    if("Saved".equals(category)){renderIPTV();return;}
-    if(!channels.isEmpty()&&keepSearch&&loadedCategory.equals(category)){renderIPTV();return;}
-    channels.clear();loadedCategory=category;
     int request=++categoryRequest;
+    String target=country.isEmpty()?("All".equals(category)?"world":"Knowledge".equals(category)?"world":category.toLowerCase(Locale.ROOT)):country;
+    if("Saved".equals(category)){renderIPTV();return;}
+    if(!channels.isEmpty()&&keepSearch&&loadedCategory.equals(target)){renderIPTV();return;}
+    channels.clear();loadedCategory=target;
     TextView loading=label("Loading XPTV channels…",14,MUTED,false);add(providerView,loading,12);
-    String target="All".equals(category)?"in":category.toLowerCase(Locale.ROOT);
+
     directory.load(target,(list,error)->{
       if(!showing()||request!=categoryRequest||!"iptv".equals(currentTab))return;
       channels.clear();channels.addAll(list);
@@ -470,6 +530,7 @@ final class NativeSourceSheet {
       }
     }else{
       for(ChannelCatalog.Channel c:channels){
+        if(!matchesGroup(c,category))continue;
         if(!c.title.toLowerCase(Locale.ROOT).contains(typedSearch.toLowerCase(Locale.ROOT)))continue;
         try{rows.add(new JSONObject().put("type","iptv").put("url",c.url)
           .put("title",c.title).put("logo",c.logo));}catch(Exception ignored){}
@@ -515,7 +576,22 @@ final class NativeSourceSheet {
         shownChannels+=28;renderIPTV();
       });add(providerView,more,10);
     }
-    if(rows.isEmpty())add(providerView,label("No matching XPTV channels. Try another category or search.",13,MUTED,false),10);
+    if(("in".equals(country)||country.isEmpty())&&!"Saved".equals(category)){
+      boolean heading=false;
+      String term=typedSearch.trim().toLowerCase(Locale.ROOT);
+      for(String[] channel:INDIA_GUIDE){
+        if(!"All".equals(category)&&!category.equals(channel[2]))continue;
+        if(!channel[0].toLowerCase(Locale.ROOT).contains(term))continue;
+        if(!heading){add(providerView,label("India · Watch on JioTV",14,WHITE,true),6);heading=true;}
+        add(providerView,chip(channel[0]+"  ↗",false,()->{
+          android.content.Intent open=new android.content.Intent(android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("https://www.jiotv.com/live-channel/"+channel[1]));
+          try{activity.startActivity(open);}catch(android.content.ActivityNotFoundException e){actions.notice("Install a browser or JioTV to open this channel.");}
+        }),4);
+      }
+      if(heading)return;
+    }
+    if(rows.isEmpty())add(providerView,label("No matching room streams. Try All, another country, or a different search.",13,MUTED,false),10);
   }
   private void showYoutube(boolean browse){
     clear();currentTab="youtube";mode("YouTube search  ·  swipe ↔ XPTV");

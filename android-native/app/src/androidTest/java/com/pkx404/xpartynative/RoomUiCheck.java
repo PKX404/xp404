@@ -34,11 +34,38 @@ public final class RoomUiCheck extends Instrumentation {
     return null;
   }
   private static void require(boolean value,String msg){if(!value)throw new AssertionError(msg);}
+  private android.view.accessibility.AccessibilityNodeInfo uiText(String text){
+    for(int attempt=0;attempt<60;attempt++){
+      android.view.accessibility.AccessibilityNodeInfo root=getUiAutomation().getRootInActiveWindow();
+      if(root!=null)for(android.view.accessibility.AccessibilityNodeInfo item:root.findAccessibilityNodeInfosByText(text)){
+        if(text.contentEquals(item.getText()==null?"":item.getText())&&item.isVisibleToUser())return item;
+      }
+      android.os.SystemClock.sleep(150);
+    }
+    throw new AssertionError("Missing country picker control: "+text);
+  }
+  private void tapText(String text){
+    android.view.accessibility.AccessibilityNodeInfo item=uiText(text);
+    while(item!=null&&!item.isClickable())item=item.getParent();
+    require(item!=null&&item.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK),"tap "+text);
+  }
   @Override public void onStart(){
     Bundle result=new Bundle();
     try {
       Intent launch=new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
       MainActivity app=(MainActivity)startActivitySync(launch);
+      if("country".equals(media)){
+        runOnMainSync(()->{try{
+          JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","me");
+          app.message(new JSONObject().put("type","welcome").put("id","me").put("room",room));
+          java.lang.reflect.Method open=MainActivity.class.getDeclaredMethod("openChannels");open.setAccessible(true);open.invoke(app);
+        }catch(Exception e){throw new IllegalStateException(e);}});
+        tapText("Country · India");
+        tapText("Afghanistan");
+        uiText("Country · Afghanistan");
+        require("af".equals(app.getPreferences(0).getString("iptv_country","")),"country choice persisted");
+        runOnMainSync(app::finish);result.putString("result","PASS country activation");finish(Activity.RESULT_OK,result);return;
+      }
       if("bridge".equals(media)){
         java.util.concurrent.atomic.AtomicBoolean ready=new java.util.concurrent.atomic.AtomicBoolean(false);
         runOnMainSync(()->{try{
