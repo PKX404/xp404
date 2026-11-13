@@ -419,11 +419,11 @@ final class NativeSourceSheet {
     }
   }
   private String countryName(String code){
-    return code.isEmpty()?"Worldwide":new Locale("",code.toUpperCase(Locale.ROOT)).getDisplayCountry();
+    return code.isEmpty()?"Worldwide":new Locale("","uk".equalsIgnoreCase(code)?"GB":code.toUpperCase(Locale.ROOT)).getDisplayCountry();
   }
   private void pickCountry(){
-    java.util.List<String> codes=new ArrayList<>(java.util.Arrays.asList(Locale.getISOCountries()));
-    if(!codes.contains("XK"))codes.add("XK");
+    // Country playlist filenames published by IPTV-org, including its UK code.
+    java.util.List<String> codes=new ArrayList<>(java.util.Arrays.asList("ad ae af ag al am ao ar at au aw az ba bb bd be bf bg bh bi bj bn bo bq br bs bt by bz ca cd cg ch ci cl cm cn co cr cu cv cw cy cz de dk do dz ec ee eg eh er es et fi fj fr ge gf gg gh gm gn gp gq gr gt gu gy hk hn hr ht hu id ie il in iq ir is it jm jo jp ke kg kh kn kp kr kw kz la lb lc li lk lt lu lv ly ma mc md me mk ml mm mn mo mq mr mt mu mv mx my mz na nc ne ng ni nl no np nz om pa pe pf pg ph pk pl pr ps pt py qa re ro rs ru rw sa sd se sg si sk sl sm sn so sr sv sx sy td tg th tj tm tn tr tt tw tz ua ug uk us uy uz va vc ve vg vn ws xk ye za zw".split(" ")));
     codes.sort((a,b)->countryName(a).compareToIgnoreCase(countryName(b)));codes.add(0,"");
     LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);
     EditText query=input("Search country or code");content.addView(query);
@@ -436,7 +436,7 @@ final class NativeSourceSheet {
       adapter.clear();filtered.clear();
       for(String code:codes){
         String name=countryName(code);
-        if(name.toLowerCase(Locale.ROOT).contains(term)||code.equalsIgnoreCase(term)){
+        if(name.toLowerCase(Locale.ROOT).contains(term)||code.equalsIgnoreCase(term)||("uk".equals(code)&&"gb".equals(term))){
           filtered.add(code);adapter.add((country.equalsIgnoreCase(code)?"✓  ":"")+name);
         }
       }
@@ -588,6 +588,10 @@ final class NativeSourceSheet {
             android.net.Uri.parse("https://www.jiotv.com/live-channel/"+channel[1]));
           try{activity.startActivity(open);}catch(android.content.ActivityNotFoundException e){actions.notice("Install a browser or JioTV to open this channel.");}
         }),4);
+      }
+      if(("Knowledge".equals(category)||"All".equals(category))&&"discovery turbo".contains(term)){
+        add(providerView,label("Discovery Turbo · India",14,WHITE,true),2);
+        add(providerView,label("No compatible room stream currently listed",12,MUTED,false),6);heading=true;
       }
       if(heading)return;
     }
