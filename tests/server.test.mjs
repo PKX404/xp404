@@ -15,7 +15,7 @@ test('room access, sync, signaling, readiness, resume and end-to-end cleanup',as
   const third=await client(port);third.send('join',{code:aw.room.code});assert.match((await third.next('error')).message,/full/);
   third.send('create',{capacity:4});const tw=await third.next('welcome');assert.equal(tw.room.capacity,4);
   a.send('signal',{to:tw.id,signal:{description:{type:'offer',sdp:'no'}}});await new Promise(r=>setTimeout(r,50));assert.equal(third.queue.some(m=>m.type==='signal'),false);
-  a.send('chat',{text:'<script>alert(1)</script>'});assert.equal((await b.next('chat')).text,'<script>alert(1)</script>');assert.equal(third.queue.some(m=>m.type==='chat'),false);
+  a.send('chat',{text:'<script>alert(1)</script>'});assert.equal((await b.next('chat',m=>!m.activity)).text,'<script>alert(1)</script>');assert.equal(third.queue.some(m=>m.type==='chat'&&!m.activity),false);
   b.send('source',{source:{type:'youtube',videoId:'dQw4w9WgXcQ'}});await new Promise(r=>setTimeout(r,50));assert.equal(app.rooms.get(aw.room.code).source,null);
   a.send('source',{source:{type:'youtube',videoId:'dQw4w9WgXcQ'}});const source=(await b.next('state',m=>m.room.source?.type==='youtube')).room.source;
   a.send('party-mode',{mode:'SHARED_CONTROL'});await b.next('state',m=>m.room.mode==='SHARED_CONTROL');
@@ -54,7 +54,7 @@ test('ten-person capacity, six call seats, private delivery, typing, and owner r
  const guests=[];for(let i=0;i<9;i++){const c=await client(port);c.send('join',{code:hw.room.code,name:'Guest '+i});const w=await c.next('welcome');guests.push({c,w});}const r=app.rooms.get(hw.room.code);assert.equal(r.people.size,10);assert.equal([...r.people.values()].filter(p=>p.inCall).length,6);
  const extra=await client(port);extra.send('join',{code:hw.room.code});assert.match((await extra.next('error')).message,/full/);
  const a=guests[0],b=guests[1],watcher=guests[8];watcher.c.send('call-join');assert.match((await watcher.c.next('error')).message,/six/);watcher.c.send('media',{mic:true,camera:true});await host.next('state',m=>m.room.people.some(p=>p.id===watcher.w.id&&!p.mic&&!p.camera));
- a.c.send('chat',{to:b.w.id,text:'Private secret'});assert.equal((await b.c.next('chat')).text,'Private secret');await a.c.next('chat');await new Promise(r=>setTimeout(r,80));assert.equal(host.queue.some(m=>m.type==='chat'),false);assert.equal(watcher.c.queue.some(m=>m.type==='chat'),false);
+ a.c.send('chat',{to:b.w.id,text:'Private secret'});assert.equal((await b.c.next('chat',m=>!m.activity)).text,'Private secret');await a.c.next('chat',m=>!m.activity);await new Promise(r=>setTimeout(r,80));assert.equal(host.queue.some(m=>m.type==='chat'&&!m.activity),false);assert.equal(watcher.c.queue.some(m=>m.type==='chat'&&!m.activity),false);
  a.c.send('typing',{to:b.w.id,active:true});assert.equal((await b.c.next('typing')).from,a.w.id);assert.equal(host.queue.some(m=>m.type==='typing'),false);
  const restored=await client(port);restored.send('resume',{token:watcher.w.token});const rw=await restored.next('welcome');assert.equal(rw.history.some(m=>m.text==='Private secret'),false);
  const restoredB=await client(port);restoredB.send('resume',{token:b.w.token});assert.equal((await restoredB.next('welcome')).history.some(m=>m.text==='Private secret'),true);
@@ -77,7 +77,7 @@ test('availability checks, theme delegation, autoplay and private read receipts'
  const app=createXparty();await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const port=app.server.address().port;
  try{const a=await client(port);a.send('create',{capacity:4});const aw=await a.next('welcome');const b=await client(port),c=await client(port);b.send('join',{code:aw.room.code});const bw=await b.next('welcome');c.send('join',{code:aw.room.code});await c.next('welcome');
  const lookup=await fetch(`http://127.0.0.1:${port}/api/room-status?code=${aw.room.code}`);assert.equal((await lookup.json()).status,'available');a.send('theme-access',{enabled:true});await b.next('state',m=>m.room.guestThemes);b.send('room-theme',{theme:'ocean'});await a.next('state',m=>m.room.theme==='ocean');a.send('autoplay',{enabled:false});await b.next('state',m=>m.room.autoplay===false);b.send('autoplay',{enabled:true});assert.equal(app.rooms.get(aw.room.code).autoplay,false);
- a.send('chat',{text:'private',to:bw.id});const message=await b.next('chat');await a.next('chat');c.send('read',{ids:[message.id]});await new Promise(r=>setTimeout(r,40));assert.equal(a.queue.some(m=>m.type==='read'),false);b.send('read',{ids:[message.id]});assert.equal((await a.next('read')).by,bw.id);assert.equal(c.queue.some(m=>m.type==='read'),false);
+ a.send('chat',{text:'private',to:bw.id});const message=await b.next('chat',m=>!m.activity);await a.next('chat',m=>!m.activity);c.send('read',{ids:[message.id]});await new Promise(r=>setTimeout(r,40));assert.equal(a.queue.some(m=>m.type==='read'),false);b.send('read',{ids:[message.id]});assert.equal((await a.next('read')).by,bw.id);assert.equal(c.queue.some(m=>m.type==='read'),false);
  a.send('end-room');await b.next('ended');
  }finally{await app.close();}
 });
