@@ -247,6 +247,30 @@ export function createXparty(options={}) {
    if(m.type==='lock'&&host){r.locked=m.locked===true;state(r);return;}
    if(m.type==='video-like'&&r.source&&m.sourceId===r.source.id&&typeof m.liked==='boolean'&&rate('video-like:'+p.id,20,10000)){const likes=new Set(r.sourceLikes||[]);if(m.liked)likes.add(p.id);else likes.delete(p.id);r.sourceLikes=[...likes];state(r);return;}
    if(m.type==='source'&&host){control.cancel(r,'Video changed.');return choose(r,p,m.source);}
+   if(m.type==='queue-import' && p.id===r.hostId){
+    if(!Array.isArray(m.items)||m.items.length>51||!m.items.length)return false;
+    const tracks=m.items.filter(t=>t&&['youtube','soundcloud'].includes(t.type)&&validProviderId(t.type,t.videoId));
+    if(!tracks.length)return false;
+    const first=m.playFirst===true?tracks.shift():null;
+    const existing=new Set(r.queue.map(q=>q.videoId));
+    if(first)existing.add(first.videoId);
+    let added=0;
+    for(const t of tracks){
+      if(r.queue.length>=50)break;
+      if(existing.has(t.videoId))continue;
+      existing.add(t.videoId);
+      r.queue.push({id:randomUUID(),provider:t.type,videoId:t.videoId,title:clean(t.title,150)||'Playlist track',addedBy:p.name,createdAt:Date.now()});
+      added++;
+    }
+    send(ws,{type:'queue-imported',added,limited:!!m.truncated||tracks.some(t=>!existing.has(t.videoId))});
+    if(first){control.cancel(r,'Video changed.');return choose(r,p,first);}
+    state(r);return true;
+   }
+   if(m.type==='queue-clear' && p.id===r.hostId){r.queue=[];state(r);return true;}
+   if(m.type==='queue-shuffle' && p.id===r.hostId){
+    for(let i=r.queue.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r.queue[i],r.queue[j]]=[r.queue[j],r.queue[i]];}
+    r.queueOrder='fifo';r.autoplay=true;state(r);return true;
+   }
    if(m.type==='queue-add'&&host){const provider=m.provider||'youtube',companion=normalizeCompanionSource({type:provider,url:m.url,videoId:m.videoId});if((!validProviderId(provider,m.videoId)&&!(provider==='direct'&&publicVideoURL(m.url))&&!(provider==='iptv'&&publicStreamURL(m.url))&&!companion)||r.queue.length>=50)return false;const item={...(provider==='youtube'?{}:{provider}),...(companion?{url:companion.url,videoId:companion.videoId}:provider==='iptv'?{url:publicStreamURL(m.url)}:provider==='direct'?{url:publicVideoURL(m.url)}:{videoId:m.videoId})};if(!r.queue.some(q=>(q.provider||'youtube')===provider&&(item.url?q.url===item.url:q.videoId===item.videoId)))r.queue.push({id:randomUUID(),...item,title:clean(m.title,150)||'Video',addedBy:p.name,createdAt:Date.now()});state(r);return true;}
    if(m.type==='vote')return;
    if(m.type==='queue-remove'&&host){r.queue=r.queue.filter(q=>q.id!==m.id);state(r);return true;}

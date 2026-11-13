@@ -29,3 +29,24 @@ test('majority threshold adjusts to disconnects but a solo participant cannot sk
  members[2].ws.close();await once(members[2].ws,'close');await command(host,'ping');assert.equal(host.room.source.videoId,'bbbbbbbbbbb');assert.equal(host.room.skipVoting.threshold,2);assert.equal(host.room.skipVoting.count,0);
  for(const member of members.slice(0,2)){member.ws.close();await once(member.ws,'close');}await command(host,'ping');const second=host.room.source.id;assert.equal(host.room.skipVoting.eligible,1);await command(host,'skip-vote',{sourceId:second});assert.equal(host.room.skipVoting.count,1);assert.equal(host.room.skipVoting.ready,false);assert.equal(host.room.source.id,second);assert.equal(host.room.queue.length,1);
 });
+
+test('native playlist import keeps provider order, rejects guest changes and permits SoundCloud skip votes', async t => {
+  const { client } = await fixture(t);
+  const host = await client({type:'create'});
+  const guest = await client({type:'join',code:host.room.code});
+  const track = {type:'soundcloud',videoId:'https://soundcloud.com/artist/first',title:'First'};
+  const next = {...track,videoId:'https://soundcloud.com/artist/second',title:'Second'};
+  const items = [track,next,next,{...next,videoId:'https://example.org/private'}];
+  await command(guest,'queue-import',{items,playFirst:true});
+  assert.equal(guest.room.source,null);
+  await command(host,'queue-import',{items,playFirst:true});
+  assert.equal(host.room.source.videoId,track.videoId);
+  assert.deepEqual(host.room.queue.map(q=>q.videoId),[next.videoId]);
+  await command(host,'skip-settings',{enabled:true});
+  assert.equal(host.room.skipVoting.available,true);
+  await command(guest,'queue-clear');
+  await command(host,'queue-shuffle');
+  assert.equal(host.room.queue.length,1);
+  await command(host,'queue-clear');
+  assert.equal(host.room.queue.length,0);
+});

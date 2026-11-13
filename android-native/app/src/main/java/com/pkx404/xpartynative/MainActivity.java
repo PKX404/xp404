@@ -236,21 +236,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
       @Override public void playlist(JSONArray items){
         if(!isHost||!roomActive){toast("The host can import a playlist into the room queue.");return;}
-        JSONArray queued=room.optJSONArray("queue");
-        java.util.HashSet<String> seen=new java.util.HashSet<>();
-        if(queued!=null)for(int i=0;i<queued.length();i++){JSONObject q=queued.optJSONObject(i);if(q!=null)seen.add(q.optString("videoId"));}
-        int slots=50-(queued==null?0:queued.length()),added=0;
         boolean playFirst=!choosingQueue;choosingQueue=false;
-        for(int i=0;i<items.length();i++){
-          JSONObject item=items.optJSONObject(i);if(item==null)continue;
-          String id=item.optString("videoId");
-          if("soundcloud".equals(item.optString("type"))){item=ProviderLink.parse("soundcloud",id,item.optString("title"));if(item==null)continue;}
-          else if(!"youtube".equals(item.optString("type"))||!id.matches("[A-Za-z0-9_-]{11}"))continue;
-          if(playFirst){sendSource(item);playFirst=false;seen.add(id);continue;}
-          if(added>=slots)break;
-          if(seen.add(id)){addToQueue(item);added++;}
-        }
-        toast("Sent "+added+" tracks to the room queue · 50-track limit");
+        command("queue-import","items",items,"playFirst",playFirst,"truncated",items.length()==51&&!playFirst);
       }
       @Override public void pickLocal(){chooseLocal();}
       @Override public void enterLink(String kind){
@@ -777,6 +764,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }else if("pong".equals(type)){
       long now=SystemClock.elapsedRealtime(),trip=now-event.optLong("sent",0);
       if(trip>=0&&trip<=bestClockTrip&&event.has("serverTime")){bestClockTrip=trip;serverOffset=event.optLong("serverTime")+trip/2-now;}
+    }else if("queue-imported".equals(type)){
+      toast("Added "+event.optInt("added")+" tracks"+(event.optBoolean("limited")?" · queue limit reached":""));
     }else if("request-status".equals(type)){
       JSONObject q=event.optJSONObject("request");if(q!=null)toast(q.optString("reason","Request sent to host"));
     }else if("state".equals(type)){
@@ -1014,19 +1003,18 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     playSlot.addView(playIcon,new FrameLayout.LayoutParams(-1,-1));
     playSlot.addView(pauseIcon,new FrameLayout.LayoutParams(-1,-1));
     pauseIcon.setVisibility(View.GONE);
-    roomControls.addView(playSlot,new LinearLayout.LayoutParams(dp(45),dp(52)));
+    roomControls.addView(playSlot,new LinearLayout.LayoutParams(0,dp(48),1));
     TextView live=text("● XPTV",12,WHITE,true);
     mediaTypeBadge=live;
     live.setGravity(Gravity.CENTER_VERTICAL);live.setTextColor(0xFFF5F1FF);
-    roomControls.addView(live,new LinearLayout.LayoutParams(-2,dp(52)));
+    roomControls.addView(live,new LinearLayout.LayoutParams(-2,dp(48)));
+    live.setSingleLine();live.setMaxWidth(dp(56));live.setEllipsize(android.text.TextUtils.TruncateAt.END);
     // Native white vector buttons: same hitbox, identical alignment.
-    View spacer=new View(this);roomControls.addView(spacer,new LinearLayout.LayoutParams(0,1,1));
     likeIcon=xpIcon("heart",this::toggleVideoLike);
-    iconIn(roomControls,xpIcon("queue",this::showQueueControls),44,52);
-    iconIn(roomControls,likeIcon,44,52);
-    iconIn(roomControls,xpIcon("scale",this::cycleVideoScaling),44,52);
-    iconIn(roomControls,xpIcon("settings",this::showPlaybackSettings),44,52);
-    iconIn(roomControls,xpIcon("volume",this::showVolume),44,52);
+    for(XPControl control:new XPControl[]{xpIcon("queue",this::showQueueControls),likeIcon,
+      xpIcon("next",()->{if(isHost)send("next");else voteToSkip();}),xpIcon("scale",this::cycleVideoScaling),
+      xpIcon("settings",this::showPlaybackSettings),xpIcon("volume",this::showVolume)})
+      roomControls.addView(control,new LinearLayout.LayoutParams(0,dp(48),1));
     playerFrame.addView(roomControls,new FrameLayout.LayoutParams(-1,dp(52),Gravity.BOTTOM));
     roomControls.setVisibility(View.GONE);
     progress.setVisibility(View.GONE);
@@ -1072,7 +1060,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     secondaryLikeIcon.active(liked);
     iconIn(watching,secondaryLikeIcon,44,50);
     XPControl next=xpIcon("next",()->{
-      if(isHost)send("next");else voteToSkip();
+      if(room==null||room.optJSONArray("queue")==null||room.optJSONArray("queue").length()==0){toast("Add a track to the queue first");return;}if(isHost)send("next");else voteToSkip();
     });
     iconIn(watching,next,44,50);
     roomPane.addView(watching,new LinearLayout.LayoutParams(-1,dp(52)));
@@ -1276,7 +1264,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   }
   private void voteToSkip(){
     JSONObject vote=room==null?null:room.optJSONObject("skipVoting");
-    if(vote==null||!vote.optBoolean("available")){toast("Skip voting needs an enabled vote and a queued YouTube video.");return;}
+    if(vote==null||!vote.optBoolean("available")){toast("Skip voting needs an enabled vote and a queued track.");return;}
     try{socket.send(new JSONObject().put("type","skip-vote").put("sourceId",sourceId));}catch(Exception ignored){}
   }
   private void command(String type,Object... pairs){
@@ -1319,7 +1307,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     panel.addView(text(detail,13,WHITE,false));
     LinearLayout actions=new LinearLayout(this);
     actions.addView(button("Retry",this::loadSource,false));
-    actions.addView(button(isHost?"Skip":"Vote to skip",()->{if(isHost)send("next");else voteToSkip();},false));
+    actions.addView(button(isHost?"Skip":"Vote to skip",()->{if(room==null||room.optJSONArray("queue")==null||room.optJSONArray("queue").length()==0){toast("Add a track to the queue first");return;}if(isHost)send("next");else voteToSkip();},false));
     actions.addView(button("Queue",this::showQueueControls,false));panel.addView(actions);
     failurePanel=panel;playerFrame.addView(panel,new FrameLayout.LayoutParams(-1,-1));
   }
@@ -1343,6 +1331,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           else command(i==0?"queue-vote":i==1?"queue-play":"queue-remove","id",id);
         }).show();
       });
+    }
+    if(isHost&&!items.isEmpty()){
+      labels.add("Shuffle queue");actions.add(()->send("queue-shuffle"));
+      labels.add("Clear queue");actions.add(()->new AlertDialog.Builder(this).setMessage("Remove all upcoming tracks?")
+        .setNegativeButton("Cancel",null).setPositiveButton("Clear",(d,w)->send("queue-clear")).show());
     }
     if(isHost){labels.add("Order by "+("votes".equals(room.optString("queueOrder"))?"addition":"votes"));
       actions.add(()->command("queue-order","order","votes".equals(room.optString("queueOrder"))?"fifo":"votes"));}
@@ -2061,7 +2054,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void selectYoutubeRecommendation(String video,String title){
     if(!roomActive||!"youtube".equals(sourceType)||!video.matches("[A-Za-z0-9_-]{11}"))return;
     if(video.equals(youtubeId))return;
-    if(!isHost&&"HOST_ONLY".equals(mode())){followPlayback();return;}
+    if(!isHost){followPlayback();return;}
     try{
       JSONObject next=new JSONObject().put("type","youtube").put("videoId",video)
         .put("title",title==null||title.isEmpty()?"YouTube recommended video":title);
@@ -2568,6 +2561,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   @Override protected void onResume(){super.onResume();if(youtube!=null)youtube.onResume();}
   @Override protected void onDestroy(){
     closing=true;
+    handler.removeCallbacks(clockProbe);
     detachProvider();
     handler.removeCallbacks(progressTicker);
     handler.removeCallbacks(hidePlaybackUi);

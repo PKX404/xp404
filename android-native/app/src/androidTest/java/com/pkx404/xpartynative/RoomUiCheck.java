@@ -104,6 +104,9 @@ public final class RoomUiCheck extends Instrumentation {
           require(find(root,"My message  ✓✓")!=null,"receipt");
           other.put("text","Edited");app.message(new JSONObject().put("type","message-update").put("message",other));
           require(find(root,"Maya: Hi there")==null&&find(root,"Maya: Edited")!=null,"in-place update");
+          require(findDescription(root,"key")!=null,"31.6 control key");
+          require(findDescription(root,"queue")!=null,"queue in player toolbar");
+          require(findDescription(root,"send").getVisibility()==View.GONE,"idle composer hides send");
           require(findDescription(root,"Share room invite")!=null,"visible native room Share button");
           android.app.Instrumentation.ActivityMonitor monitor=addMonitor(new android.content.IntentFilter(Intent.ACTION_CHOOSER),new ActivityResult(Activity.RESULT_CANCELED,null),true);
           findDescription(root,"Share room invite").performClick();

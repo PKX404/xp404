@@ -726,6 +726,7 @@ final class NativeSourceSheet {
     }
   }
   void releaseYoutube(){
+    if(playlistDialog!=null)playlistDialog.dismiss();
     dismiss();
     if(cachedYoutube!=null){cachedYoutube.stopLoading();cachedYoutube.destroy();cachedYoutube=null;}
   }
