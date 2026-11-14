@@ -54,6 +54,30 @@ public final class RoomUiCheck extends Instrumentation {
     try {
       Intent launch=new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
       MainActivity app=(MainActivity)startActivitySync(launch);
+      if("soundcloud".equals(media)){
+        java.util.concurrent.atomic.AtomicBoolean playing=new java.util.concurrent.atomic.AtomicBoolean(false);
+        java.util.concurrent.atomic.AtomicReference<String> diagnostic=new java.util.concurrent.atomic.AtomicReference<>("");
+        runOnMainSync(()->{try{
+          JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","me");
+          app.message(new JSONObject().put("type","welcome").put("id","me").put("room",room));
+          JSONObject song=new JSONObject().put("type","soundcloud").put("id","fixture").put("videoId","https://soundcloud.com/forss/flickermood").put("title","SoundCloud runtime check");
+          room.put("source",song).put("playback",new JSONObject().put("position",0).put("playing",true).put("updatedAt",System.currentTimeMillis()));
+          app.message(new JSONObject().put("type","state").put("room",room));
+        }catch(Exception e){throw new IllegalStateException(e);}});
+        for(int i=0;i<90&&!playing.get();i++){
+          android.os.SystemClock.sleep(1000);
+          runOnMainSync(()->{try{
+            java.lang.reflect.Field field=MainActivity.class.getDeclaredField("youtube");field.setAccessible(true);
+            android.webkit.WebView browser=(android.webkit.WebView)field.get(app);
+            browser.evaluateJavascript("JSON.stringify({href:location.href,time:window.xpartyTime?.()||0,ready:!!window.xpartySync})",raw->{
+              diagnostic.set(raw);
+              try{String json=(String)new org.json.JSONTokener(raw).nextValue();JSONObject state=new JSONObject(json);playing.set(state.optDouble("time")>1);}catch(Exception ignored){}
+            });
+          }catch(Exception e){throw new IllegalStateException(e);}});
+        }
+        result.putString("result",(playing.get()?"PASS":"UNVERIFIED")+" soundcloud playback "+diagnostic.get());
+        runOnMainSync(app::finish);finish(Activity.RESULT_OK,result);return;
+      }
       if("country".equals(media)){
         runOnMainSync(()->{try{
           JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","me");

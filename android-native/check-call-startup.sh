@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-app=com.pkx404.xpartynative.tvqa056
+app=com.pkx404.xpartynative.soundqa057
 apk=android-native/app/build/outputs/apk/release/app-universal-release.apk
 adb install "$apk"
 adb install -r "$apk"
@@ -18,3 +18,7 @@ done
 adb shell am force-stop "$app"
 adb shell am start -W -n "$app/com.pkx404.xpartynative.MainActivity"
 adb shell dumpsys meminfo "$app" | grep -E 'TOTAL PSS|TOTAL RSS|TOTAL ' | head
+
+adb shell am force-stop "$app"
+adb shell am instrument -w -e media soundcloud "$runner" | tee /tmp/xp-soundcloud
+adb logcat -d -s XPartyPlayer chromium | tail -80

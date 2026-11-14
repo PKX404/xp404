@@ -760,7 +760,7 @@ final class NativeSourceSheet {
     String page;
     if(sc){
       String track="https://soundcloud.com"+uri.getPath();
-      page="<iframe id='p' width='100%' height='100%' src='https://w.soundcloud.com/player/?auto_play=false&amp;url="+android.net.Uri.encode(track)+"'></iframe><script src='https://w.soundcloud.com/player/api.js'></script><script>const w=SC.Widget('p');w.bind(SC.Widget.Events.READY,()=>w.getSounds(rows=>window.items=rows.map(s=>({type:'soundcloud',videoId:s.permalink_url,title:s.title}))));</script>";
+      page="<iframe id='p' width='100%' height='100%' src='https://w.soundcloud.com/player/?auto_play=false&amp;url="+android.net.Uri.encode(track)+"'></iframe><script src='https://w.soundcloud.com/player/api.js'></script><script>const w=SC.Widget('p');w.bind(SC.Widget.Events.READY,()=>w.getSounds(rows=>window.items=rows.map(s=>({type:'soundcloud',videoId:s.permalink_url,title:s.title,artist:s.user?.username||'',duration:(s.duration||0)/1000,artwork:s.artwork_url||s.user?.avatar_url||''}))));</script>";
     }else{
       page="<div id='p'></div><script>function onYouTubeIframeAPIReady(){const p=new YT.Player('p',{width:'100%',height:'100%',playerVars:{listType:'playlist',list:'"+list+"',playsinline:1},events:{onReady:()=>{window.readItems=()=>p.getPlaylist()?.map((id,i)=>({type:'youtube',videoId:id,title:'Playlist track '+(i+1)}));}}});}</script><script src='https://www.youtube.com/iframe_api'></script>";
     }

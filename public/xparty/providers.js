@@ -85,7 +85,7 @@ export async function createSoundCloudPlayer(host,id,onState=()=>{},onError=()=>
   widget=SC.Widget(iframe);const E=SC.Widget.Events;
   const ready=new Promise((resolve,reject)=>{bind(E.READY,resolve);bind(E.ERROR,error=>{const issue=Error('This SoundCloud track could not play. It may be unavailable or embedding may be disabled.');reject(issue);fail(error instanceof Error?error:issue);});});
   bind(E.PLAY_PROGRESS,update);bind(E.SEEK,update);bind(E.PLAY,event=>{update(event);readDuration();change(1);});bind(E.PAUSE,event=>{update(event);change(2);});bind(E.FINISH,event=>{update(event);change(0);});
-  await bounded(ready,'SoundCloud track',options);readDuration();const revision=timeRevision;call('getPosition',value=>{if(!disposed&&revision===timeRevision)time=seconds(value)/1000;});
+  await bounded(ready,'SoundCloud track',options);readDuration();call('getCurrentSound',sound=>{if(!disposed)options.onMetadata?.(sound);});const revision=timeRevision;call('getPosition',value=>{if(!disposed&&revision===timeRevision)time=seconds(value)/1000;});
  }catch(error){destroy();throw error;}
  return {isLive:false,canSeek:true,getCurrentTime:()=>time,getDuration:()=>duration,getPlayerState:()=>state,
   playVideo:()=>call('play'),pauseVideo:()=>call('pause'),stopVideo:()=>call('pause'),seekTo:t=>{if(!disposed){timeRevision++;time=seconds(t);call('seekTo',time*1000);}},setVolume:v=>call('setVolume',volume(v)),unMute:()=>{},destroy};

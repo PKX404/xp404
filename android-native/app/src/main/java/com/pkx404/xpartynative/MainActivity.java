@@ -80,6 +80,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private LinearLayout providerPanel;
   private ProviderSession providerSession;
   private XPControl fullscreenControl;
+  private volatile String providerDocument="";
   private boolean youtubeReady=false;
   private long youtubeSyncQuietUntil=0L;
   private String nativeReadySource="";
@@ -746,6 +747,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       bestClockTrip=Long.MAX_VALUE;serverOffset=received.optLong("serverTime",System.currentTimeMillis())-SystemClock.elapsedRealtime();
       handler.removeCallbacks(clockProbe);handler.post(clockProbe);
       updateRoom(received);
+      if(isHost)command("queue-order","order","votes");
       if(pendingProfileSource!=null){
         JSONObject selected=pendingProfileSource;pendingProfileSource=null;
         if(isHost)sendSource(selected);
@@ -908,10 +910,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     youtube.getSettings().setAllowFileAccess(false);
     youtube.getSettings().setAllowContentAccess(false);
     youtube.getSettings().setMediaPlaybackRequiresUserGesture(false);
-    youtube.setWebChromeClient(new WebChromeClient());
+    youtube.setWebChromeClient(new WebChromeClient(){
+      @Override public boolean onConsoleMessage(android.webkit.ConsoleMessage message){
+        android.util.Log.d("XPartyPlayer",message.message());return true;
+      }
+    });
     youtube.setWebViewClient(new android.webkit.WebViewClient(){
       @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view,android.webkit.WebResourceRequest request){
         android.net.Uri u=request.getUrl();String path=u.getPath();
+        if("https".equals(u.getScheme())&&"xparty-native-room.onrender.com".equals(u.getHost())&&"/providers/room.html".equals(path)){
+          return new android.webkit.WebResourceResponse("text/html","UTF-8",new java.io.ByteArrayInputStream(providerDocument.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
         if("https".equals(u.getScheme())&&"xparty-native-room.onrender.com".equals(u.getHost())
           &&("/providers/providers.js".equals(path)||"/providers/sync.js".equals(path))){
           try{return new android.webkit.WebResourceResponse("application/javascript","UTF-8",getAssets().open(path.substring(1)));}
@@ -922,7 +931,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       @Override public boolean shouldOverrideUrlLoading(WebView view,android.webkit.WebResourceRequest request){
         if(!request.isForMainFrame())return false;
         String url=request.getUrl().toString();
-        if("about:blank".equals(url))return false;
+        if("about:blank".equals(url)||url.startsWith("https://xparty-native-room.onrender.com/providers/room.html?generation="))return false;
         java.util.regex.Matcher match=java.util.regex.Pattern.compile(
           "(?:youtu\\.be/|[?&]v=|/shorts/|/embed/)([A-Za-z0-9_-]{11})").matcher(url);
         if(match.find()){selectYoutubeRecommendation(match.group(1),"YouTube recommendation");return true;}
@@ -1311,35 +1320,70 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     actions.addView(button("Queue",this::showQueueControls,false));panel.addView(actions);
     failurePanel=panel;playerFrame.addView(panel,new FrameLayout.LayoutParams(-1,-1));
   }
+  private android.app.Dialog queueDialog;
+  private LinearLayout queueRows;
   private void showQueueControls(){
     if(room==null)return;
+    if(queueDialog!=null&&queueDialog.isShowing()){renderQueue();return;}
+    queueDialog=new android.app.Dialog(this);
+    LinearLayout contents=column();contents.setPadding(dp(12),dp(12),dp(12),dp(12));
+    contents.setBackgroundColor(0xFF171321);
+    LinearLayout tools=new LinearLayout(this);
+    tools.addView(button("Add media",()->{queueDialog.dismiss();openSourceChooser();choosingQueue=true;},false),new LinearLayout.LayoutParams(0,dp(48),1));
+    if(isHost){
+      tools.addView(button("Shuffle",()->send("queue-shuffle"),false),new LinearLayout.LayoutParams(0,dp(48),1));
+      tools.addView(button("Clear",()->new AlertDialog.Builder(this).setMessage("Clear upcoming tracks?")
+        .setNegativeButton("Cancel",null).setPositiveButton("Clear",(d,w)->send("queue-clear")).show(),false),new LinearLayout.LayoutParams(0,dp(48),1));
+    }
+    contents.addView(tools);
+    ScrollView scroll=new ScrollView(this);queueRows=column();scroll.addView(queueRows);
+    contents.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    queueDialog.setContentView(contents);queueDialog.setOnDismissListener(d->{queueDialog=null;queueRows=null;});
+    queueDialog.show();
+    queueDialog.getWindow().setLayout(-1,Math.round(getResources().getDisplayMetrics().heightPixels*.78f));
+    renderQueue();
+  }
+  private void renderQueue(){
+    if(queueDialog==null||queueRows==null||room==null)return;
+    queueRows.removeAllViews();
     JSONArray queue=room.optJSONArray("queue");
-    java.util.ArrayList<String> labels=new java.util.ArrayList<>();
-    java.util.ArrayList<Runnable> actions=new java.util.ArrayList<>();
-    labels.add("Add media");actions.add(()->{openSourceChooser();choosingQueue=true;});
-    labels.add("Queue settings and skip votes");actions.add(this::queueSettings);
     java.util.ArrayList<JSONObject> items=new java.util.ArrayList<>();
     if(queue!=null)for(int i=0;i<queue.length();i++){JSONObject q=queue.optJSONObject(i);if(q!=null)items.add(q);}
-    if("votes".equals(room.optString("queueOrder")))items.sort((a,b)->Integer.compare(votes(b),votes(a)));
-    for(JSONObject q:items){
-      labels.add(q.optString("title")+"  ·  "+votes(q)+" votes");
-      actions.add(()->{
-        String[] options=isHost?new String[]{"Vote / withdraw","Play now","Move up","Move down","Remove"}:new String[]{"Vote / withdraw"};
-        new AlertDialog.Builder(this).setTitle(q.optString("title")).setItems(options,(d,i)->{
-          String id=q.optString("id");
-          if(i==2||i==3)command("queue-move","id",id,"direction",i==2?-1:1);
-          else command(i==0?"queue-vote":i==1?"queue-play":"queue-remove","id",id);
-        }).show();
-      });
+    items.sort((a,b)->{
+      int byVotes=Integer.compare(votes(b),votes(a));
+      if(byVotes!=0)return byVotes;
+      int byTime=Long.compare(a.optLong("createdAt"),b.optLong("createdAt"));
+      return byTime!=0?byTime:a.optString("id").compareTo(b.optString("id"));
+    });
+    add(queueRows,text("Vote queue · "+items.size(),20,WHITE,true),12);
+    if(items.isEmpty())add(queueRows,text("Add tracks to start the queue",14,MUTED,false),8);
+    for(JSONObject item:items){
+      String id=item.optString("id"),provider=item.optString("provider","youtube");
+      LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,dp(6),0,dp(6));
+      FrameLayout tile=new FrameLayout(this);tile.setBackground(shape(0xFF282335,12));
+      android.widget.ImageView cover=new android.widget.ImageView(this);cover.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+      tile.addView(cover,new FrameLayout.LayoutParams(-1,-1));
+      String picture=item.optString("artwork");
+      if("youtube".equals(provider))picture="https://i.ytimg.com/vi/"+item.optString("videoId")+"/mqdefault.jpg";
+      artwork.show(picture,cover);
+      TextView duration=text("♪",14,WHITE,true);
+      double seconds=item.optDouble("duration",0);
+      if(seconds>0)duration.setText(String.format(Locale.ROOT,"%d:%02d",(int)seconds/60,(int)seconds%60));
+      duration.setBackgroundColor(0xB0000000);duration.setPadding(dp(4),dp(2),dp(4),dp(2));
+      tile.addView(duration,new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.RIGHT));
+      row.addView(tile,new LinearLayout.LayoutParams(dp(102),dp(72)));
+      LinearLayout details=column();details.setPadding(dp(10),0,dp(4),0);
+      TextView title=text(item.optString("title","Track"),15,WHITE,true);title.setMaxLines(2);details.addView(title);
+      details.addView(text(item.optString("artist",provider),12,MUTED,false));
+      row.addView(details,new LinearLayout.LayoutParams(0,-2,1));
+      boolean selected=false;JSONArray voters=item.optJSONArray("votes");
+      if(voters!=null)for(int i=0;i<voters.length();i++)if(myId.equals(voters.optString(i)))selected=true;
+      Button vote=button((selected?"♥ ":"♡ ")+votes(item),()->command("queue-vote","id",id),selected);
+      vote.setContentDescription("Vote for "+item.optString("title"));row.addView(vote,new LinearLayout.LayoutParams(dp(62),dp(54)));
+      if(isHost)row.setOnLongClickListener(v->{new AlertDialog.Builder(this).setTitle(item.optString("title"))
+        .setItems(new String[]{"Play now","Remove"},(d,i)->command(i==0?"queue-play":"queue-remove","id",id)).show();return true;});
+      add(queueRows,row,3);
     }
-    if(isHost&&!items.isEmpty()){
-      labels.add("Shuffle queue");actions.add(()->send("queue-shuffle"));
-      labels.add("Clear queue");actions.add(()->new AlertDialog.Builder(this).setMessage("Remove all upcoming tracks?")
-        .setNegativeButton("Cancel",null).setPositiveButton("Clear",(d,w)->send("queue-clear")).show());
-    }
-    if(isHost){labels.add("Order by "+("votes".equals(room.optString("queueOrder"))?"addition":"votes"));
-      actions.add(()->command("queue-order","order","votes".equals(room.optString("queueOrder"))?"fifo":"votes"));}
-    new AlertDialog.Builder(this).setTitle("Room queue · "+items.size()).setItems(labels.toArray(new String[0]),(d,i)->actions.get(i).run()).show();
   }
   private int votes(JSONObject item){JSONArray a=item.optJSONArray("votes");return a==null?0:a.length();}
   private void queueSettings(){
@@ -2046,6 +2090,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       loadSource();
     }
     followPlayback();
+    renderQueue();
   }
   /**
    * Only the official YouTube IFrame API runs in WebView; all room controls,
@@ -2305,7 +2350,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       try{
         JSONObject args=new JSONObject().put("type",sourceType).put("id",source.optString("videoId")).put("key",sourceId);
         String html=providerAsset("provider-room.html").replace("<head>","<head>"+playerBridge()).replace("__SOURCE__",args.toString().replace("<","\\u003c"));
-        youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/providers/",html,"text/html","UTF-8",null);
+        providerDocument=html;
+        youtube.loadUrl("https://xparty-native-room.onrender.com/providers/room.html?generation="+playerGeneration);
       }catch(Exception e){videoState.setText("Could not load the provider player");}
       return;
     }
@@ -2435,6 +2481,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!roomActive)return;
     socket.disconnect(true);
     roomActive=false;
+    if(queueDialog!=null)queueDialog.dismiss();
     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     if(fullscreenNative)exitNativeFullscreen();
     if(homeOverlay!=null){
@@ -2561,6 +2608,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   @Override protected void onResume(){super.onResume();if(youtube!=null)youtube.onResume();}
   @Override protected void onDestroy(){
     closing=true;
+    if(queueDialog!=null)queueDialog.dismiss();
     handler.removeCallbacks(clockProbe);
     detachProvider();
     handler.removeCallbacks(progressTicker);

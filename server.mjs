@@ -193,7 +193,7 @@ export function createXparty(options={}) {
     if(!rate('typing:'+p.id,4,2000))return;const target=m.to?r.people.get(m.to):null;if(m.to&&!target)return;const event={type:'typing',from:p.id,name:p.name,to:target?.id||null,active:m.active===true};if(target)send(target.ws,event);else for(const x of r.people.values())if(x!==p)send(x.ws,event);return;
    }
    if(m.type==='reaction'){if(['❤️','👏','😂','🎉'].includes(m.emoji)&&rate('reaction:'+p.id,3,3000))broadcast(r,{type:'reaction',name:p.name,emoji:m.emoji});return;}
-   if(m.type==='queue-vote'){const item=r.queue.find(q=>q.id===m.id);if(item&&rate('vote:'+p.id,10,5000)){item.votes??=[];item.votes=item.votes.includes(p.id)?item.votes.filter(id=>id!==p.id):[...item.votes,p.id];state(r);}return;}
+   if(m.type==='queue-vote'){const item=r.queue.find(q=>q.id===m.id);if(item&&rate('vote:'+p.id,10,5000)){r.queueOrder='votes';r.autoplay=false;item.votes??=[];item.votes=item.votes.includes(p.id)?item.votes.filter(id=>id!==p.id):[...item.votes,p.id];state(r);}return;}
    if(m.type==='chat'){
     const clientId=typeof m.clientId==='string'&&/^[a-f0-9-]{36}$/.test(m.clientId)?m.clientId:null;
     const fail=message=>send(ws,clientId?{type:'chat-error',clientId,message}:{type:'error',message});
@@ -251,6 +251,7 @@ export function createXparty(options={}) {
     if(!Array.isArray(m.items)||m.items.length>51||!m.items.length)return false;
     const tracks=m.items.filter(t=>t&&['youtube','soundcloud'].includes(t.type)&&validProviderId(t.type,t.videoId));
     if(!tracks.length)return false;
+    r.queueOrder='votes';r.autoplay=false;
     const first=m.playFirst===true?tracks.shift():null;
     const existing=new Set(r.queue.map(q=>q.videoId));
     if(first)existing.add(first.videoId);
@@ -259,7 +260,7 @@ export function createXparty(options={}) {
       if(r.queue.length>=50)break;
       if(existing.has(t.videoId))continue;
       existing.add(t.videoId);
-      r.queue.push({id:randomUUID(),provider:t.type,videoId:t.videoId,title:clean(t.title,150)||'Playlist track',addedBy:p.name,createdAt:Date.now()});
+      r.queue.push({id:randomUUID(),provider:t.type,videoId:t.videoId,title:clean(t.title,150)||'Playlist track',artist:clean(t.artist,100),duration:finite(t.duration,604800)?t.duration:0,artwork:safeChannelLogo(t.artwork)||'',addedBy:p.name,createdAt:Date.now()});
       added++;
     }
     send(ws,{type:'queue-imported',added,limited:!!m.truncated||tracks.some(t=>!existing.has(t.videoId))});
@@ -269,7 +270,7 @@ export function createXparty(options={}) {
    if(m.type==='queue-clear' && p.id===r.hostId){r.queue=[];state(r);return true;}
    if(m.type==='queue-shuffle' && p.id===r.hostId){
     for(let i=r.queue.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r.queue[i],r.queue[j]]=[r.queue[j],r.queue[i]];}
-    r.queueOrder='fifo';r.autoplay=true;state(r);return true;
+    r.queue.forEach((q,i)=>{q.createdAt=Date.now()+i;});r.queueOrder='votes';r.autoplay=false;state(r);return true;
    }
    if(m.type==='queue-add'&&host){const provider=m.provider||'youtube',companion=normalizeCompanionSource({type:provider,url:m.url,videoId:m.videoId});if((!validProviderId(provider,m.videoId)&&!(provider==='direct'&&publicVideoURL(m.url))&&!(provider==='iptv'&&publicStreamURL(m.url))&&!companion)||r.queue.length>=50)return false;const item={...(provider==='youtube'?{}:{provider}),...(companion?{url:companion.url,videoId:companion.videoId}:provider==='iptv'?{url:publicStreamURL(m.url)}:provider==='direct'?{url:publicVideoURL(m.url)}:{videoId:m.videoId})};if(!r.queue.some(q=>(q.provider||'youtube')===provider&&(item.url?q.url===item.url:q.videoId===item.videoId)))r.queue.push({id:randomUUID(),...item,title:clean(m.title,150)||'Video',addedBy:p.name,createdAt:Date.now()});state(r);return true;}
    if(m.type==='vote')return;

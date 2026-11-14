@@ -1,16 +1,28 @@
 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>*{box-sizing:border-box}html,body,#player,#player>div,.provider-embed-mount,iframe{margin:0;width:100%;height:100%;border:0;background:#000}#player iframe{position:absolute;inset:0}</style></head>
-<body><div id="player"></div><script type="module">
-import {createTwitchPlayer,createVimeoPlayer,createSoundCloudPlayer} from './providers.js';
+<style>*{box-sizing:border-box}html,body,#player,#player>div,.provider-embed-mount,iframe{margin:0;width:100%;height:100%;border:0;background:#000}#player iframe{position:absolute;inset:0}
+#art{width:45%;height:100%;object-fit:cover;position:absolute;left:0;top:0}
+body.audio-art #player{position:absolute;left:45%;width:55%;height:100%}
+#player{position:relative}</style></head>
+<body><img id="art" alt="" hidden><div id="player"></div><script>
+window.addEventListener('error',e=>XpartyYT.providerEvent(document.documentElement.dataset.key||'','Player script failed: '+e.message,0,0));
+window.addEventListener('unhandledrejection',e=>XpartyYT.providerEvent(document.documentElement.dataset.key||'',String(e.reason?.message||'Player initialization failed'),0,0));
+</script><script type="module">
+
 const {type,id,key}=JSON.parse(document.getElementById('source').textContent);
+document.documentElement.dataset.key=key;
 (async()=>{
 let player;
 const report=(kind,state=0,time=0)=>XpartyYT.providerEvent(key,kind,state,Number(time)||0);
 const changed=e=>{if(player)report('state',e.data,player.getCurrentTime())};
 const failed=e=>report(String(e?.message||'Provider player unavailable').slice(0,140));
 try {
+  const {createTwitchPlayer,createVimeoPlayer,createSoundCloudPlayer}=await import('./providers.js');
   const creator=type==='twitch'?createTwitchPlayer:type==='soundcloud'?createSoundCloudPlayer:createVimeoPlayer;
-  player=await creator(document.getElementById('player'),id,changed,failed);
+  player=await creator(document.getElementById('player'),id,changed,failed,{timeoutMs:35000,onMetadata:sound=>{
+    const image=document.getElementById('art');
+    const url=sound?.artwork_url||sound?.user?.avatar_url;
+    if(url&&new URL(url).protocol==='https:'){image.src=url;image.hidden=false;document.body.classList.add('audio-art');}
+  }});
   window.xpartyTime=()=>player.getCurrentTime();
   // SoundCloud's official Widget API reports playback positions in milliseconds;
   // the adapter converts them to seconds before room synchronization.
