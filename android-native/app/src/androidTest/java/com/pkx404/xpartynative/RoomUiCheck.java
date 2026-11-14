@@ -69,7 +69,7 @@ public final class RoomUiCheck extends Instrumentation {
           runOnMainSync(()->{try{
             java.lang.reflect.Field field=MainActivity.class.getDeclaredField("youtube");field.setAccessible(true);
             android.webkit.WebView browser=(android.webkit.WebView)field.get(app);
-            browser.evaluateJavascript("JSON.stringify({href:location.href,time:window.xpartyTime?.()||0,ready:!!window.xpartySync,state:window.xpartyState?.(),progress:window.xpartyProgressCount||0})",raw->{
+            browser.evaluateJavascript("JSON.stringify({href:location.href,time:window.xpartyTime?window.xpartyTime():0,ready:!!window.xpartySync,state:window.xpartyState?window.xpartyState():-1,progress:window.xpartyProgressCount||0})",raw->{
               diagnostic.set(raw);
               try{String json=(String)new org.json.JSONTokener(raw).nextValue();JSONObject state=new JSONObject(json);playing.set(state.optInt("state")==1&&state.optInt("progress")>=3&&state.optDouble("time")>1);}catch(Exception ignored){}
             });

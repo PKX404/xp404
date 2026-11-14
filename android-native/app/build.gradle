@@ -55,9 +55,11 @@ dependencies {
     implementation 'io.github.webrtc-sdk:android:144.7559.15'
 }
 
-def roomAssets = tasks.register('copyRoomProviderScripts', Sync) {
-    from('../../public/xparty') { include 'providers.js', 'sync.js' }
-    into layout.buildDirectory.dir('generated/roomAssets/providers')
+def roomAssets = tasks.register('copyRoomProviderScripts', Exec) {
+    workingDir '../..'
+    commandLine 'npm', 'run', 'build:android-providers'
+    inputs.files('../../public/xparty/providers.js', '../../public/xparty/sync.js', '../../package.json', '../../package-lock.json')
+    outputs.file(layout.buildDirectory.file('generated/roomAssets/providers/providers.js'))
 }
 android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('generated/roomAssets'))
 tasks.named('preBuild').configure { dependsOn roomAssets }
