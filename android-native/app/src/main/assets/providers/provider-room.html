@@ -18,12 +18,13 @@ const failed=e=>report(String(e?.message||'Provider player unavailable').slice(0
 try {
   const {createTwitchPlayer,createVimeoPlayer,createSoundCloudPlayer}=await import('./providers.js');
   const creator=type==='twitch'?createTwitchPlayer:type==='soundcloud'?createSoundCloudPlayer:createVimeoPlayer;
-  player=await creator(document.getElementById('player'),id,changed,failed,{timeoutMs:35000,onMetadata:sound=>{
+  player=await creator(document.getElementById('player'),id,changed,failed,{timeoutMs:35000,onProgress:()=>{window.xpartyProgressCount=(window.xpartyProgressCount||0)+1;},onMetadata:sound=>{
     const image=document.getElementById('art');
     const url=sound?.artwork_url||sound?.user?.avatar_url;
     if(url&&new URL(url).protocol==='https:'){image.src=url;image.hidden=false;document.body.classList.add('audio-art');}
   }});
   window.xpartyTime=()=>player.getCurrentTime();
+  window.xpartyState=()=>player.getPlayerState();
   // SoundCloud's official Widget API reports playback positions in milliseconds;
   // the adapter converts them to seconds before room synchronization.
   window.xpartySeek=t=>{if(player.canSeek!==false)player.seekTo(t)};
