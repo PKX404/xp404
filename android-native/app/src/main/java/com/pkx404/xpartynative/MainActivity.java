@@ -1353,7 +1353,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       int byVotes=Integer.compare(votes(b),votes(a));
       if(byVotes!=0)return byVotes;
       int byTime=Long.compare(a.optLong("createdAt"),b.optLong("createdAt"));
-      return byTime!=0?byTime:a.optString("id").compareTo(b.optString("id"));
+      return byTime;
     });
     add(queueRows,text("Vote queue · "+items.size(),20,WHITE,true),12);
     if(items.isEmpty())add(queueRows,text("Add tracks to start the queue",14,MUTED,false),8);

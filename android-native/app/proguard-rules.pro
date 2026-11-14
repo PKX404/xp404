@@ -25,6 +25,7 @@
   private android.webkit.WebView youtube;
   private java.lang.String playerBridge();
   private void openChannels();
+  private void showQueueControls();
   private void showLobby();
   private void showProfileHome();
 }

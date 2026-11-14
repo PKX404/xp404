@@ -78,6 +78,19 @@ public final class RoomUiCheck extends Instrumentation {
         result.putString("result",(playing.get()?"PASS":"UNVERIFIED")+" soundcloud playback "+diagnostic.get());
         runOnMainSync(app::finish);finish(Activity.RESULT_OK,result);return;
       }
+      if("queue".equals(media)){
+        runOnMainSync(()->{try{
+          JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","other");
+          org.json.JSONArray queue=new org.json.JSONArray();
+          queue.put(new JSONObject().put("id","a").put("title","First track").put("provider","soundcloud").put("artist","Artist").put("duration",330).put("votes",new org.json.JSONArray()));
+          queue.put(new JSONObject().put("id","b").put("title","Second track").put("provider","soundcloud").put("votes",new org.json.JSONArray().put("other")));
+          room.put("queue",queue);
+          app.message(new JSONObject().put("type","welcome").put("id","me").put("room",room));
+          java.lang.reflect.Method open=MainActivity.class.getDeclaredMethod("showQueueControls");open.setAccessible(true);open.invoke(app);
+        }catch(Exception e){throw new IllegalStateException(e);}});
+        uiText("Vote queue · 2");uiText("First track");uiText("Second track");uiText("5:30");
+        runOnMainSync(app::finish);result.putString("result","PASS queue activation");finish(Activity.RESULT_OK,result);return;
+      }
       if("country".equals(media)){
         runOnMainSync(()->{try{
           JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","me");

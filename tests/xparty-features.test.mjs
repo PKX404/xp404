@@ -50,3 +50,28 @@ test('native playlist import keeps provider order, rejects guest changes and per
   await command(host,'queue-clear');
   assert.equal(host.room.queue.length,0);
 });
+
+test('all room members vote, ties preserve playlist order and the winner advances once', async t => {
+ const {client}=await fixture(t);
+ const host=await client({type:'create',capacity:3});
+ const first=await client({type:'join',code:host.room.code});
+ const second=await client({type:'join',code:host.room.code});
+ const items=['aaaaaaaaaaa','bbbbbbbbbbb','ccccccccccc'].map((videoId,i)=>({type:'youtube',videoId,title:'Track '+i}));
+ await command(host,'queue-import',{items,playFirst:true});
+ const [b,c]=host.room.queue.map(q=>q.id);
+ await command(first,'queue-vote',{id:c});
+ await command(second,'queue-vote',{id:c});
+ await command(host,'ping');
+ assert.equal(host.room.queueOrder,'votes');
+ assert.equal(host.room.queue.find(q=>q.id===c).votes.length,2);
+ await command(second,'queue-vote',{id:c});
+ await command(second,'queue-vote',{id:b});
+ await command(host,'ping');
+ const sourceId=host.room.source.id;
+ await command(host,'next',{automatic:true,sourceId});
+ assert.equal(host.room.source.videoId,'bbbbbbbbbbb');
+ await command(host,'next',{automatic:true,sourceId});
+ assert.equal(host.room.source.videoId,'bbbbbbbbbbb');
+ await command(host,'next',{automatic:true,sourceId:host.room.source.id});
+ assert.equal(host.room.source.videoId,'ccccccccccc');
+});
