@@ -235,6 +235,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         if(choosingQueue){choosingQueue=false;addToQueue(selected);}else sendSource(selected);
         if(homeOverlay!=null)returnToRoom();
       }
+      @Override public void queue(){showQueueControls();}
       @Override public void playlist(JSONArray items){
         if(!isHost||!roomActive){toast("The host can import a playlist into the room queue.");return;}
         boolean playFirst=!choosingQueue;choosingQueue=false;
@@ -2091,6 +2092,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }
     followPlayback();
     renderQueue();
+    if(sourceSheet!=null){JSONArray queued=room.optJSONArray("queue");sourceSheet.updateQueue(queued==null?0:queued.length());}
   }
   /**
    * Only the official YouTube IFrame API runs in WebView; all room controls,

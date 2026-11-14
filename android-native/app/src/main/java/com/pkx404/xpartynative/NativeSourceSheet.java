@@ -48,6 +48,7 @@ final class NativeSourceSheet {
   interface Actions {
     void selected(JSONObject source);
     void playlist(JSONArray tracks);
+    void queue();
     void pickLocal();
     void enterLink(String source);
     void notice(String message);
@@ -67,7 +68,10 @@ final class NativeSourceSheet {
   private final java.util.ArrayList<WebView> popupBrowsers=new java.util.ArrayList<>();
   private LinearLayout body,providerView,sheetRoot;
   private ScrollView sheetScroll;
-  private TextView modeTitle;
+  private TextView modeTitle,queueEntry;
+  private int queueCount;
+  void updateQueue(int count){queueCount=count;if(queueEntry!=null)queueEntry.setText("Vote queue · "+count);}
+
   private boolean specialSearch=false;
   private float touchX,touchY;
   private static final String[] CATEGORIES={"All","Saved","Movies","Entertainment","News","Sports","Knowledge","Kids","Music","Radio"};
@@ -253,6 +257,8 @@ final class NativeSourceSheet {
     close.setOnClickListener(v->dismiss());
     tabs.addView(close,new LinearLayout.LayoutParams(dp(39),dp(40)));
     add(root,tabs,2);
+    queueEntry=chip("Vote queue · "+queueCount,false,()->{dismiss();actions.queue();});
+    add(root,queueEntry,3);
     sheetScroll=new ScrollView(activity);sheetScroll.setFillViewport(true);
     sheetScroll.setVerticalScrollBarEnabled(false);
     sheetScroll.setOnTouchListener((v,e)->horizontalSwitch(e));
