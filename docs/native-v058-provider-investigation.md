@@ -65,3 +65,5 @@ TV preloading means the selected country's directory, not opening every live str
 ## Progress bar and permissions follow-up
 
 The player progress bar now uses red played progress, grey buffered progress and a muted remaining track, with a red circular scrub thumb. Buffer data comes from Media3 buffered position, YouTube `getVideoLoadedFraction`, or SoundCloud `LOAD_PROGRESS.loadProgress`. No estimated loading animation is used. The supplied Rave manifest declares `POST_NOTIFICATIONS` (posting its own notifications), but inspection found no `NotificationListenerService`, `BIND_NOTIFICATION_LISTENER_SERVICE`, or accessibility service binding. XParty does not add any of these permissions. Posting notifications is different from reading other applications' notifications.
+
+A targeted JADX pass additionally recovered SoundCloud resolution of distinct track and playlist models and a bounded resolve cache. It reported nine method errors; no credentials or private endpoints were reused. Room creation now displays connection feedback immediately, prevents duplicate taps, and offers cancellation; terminal errors restore the action.

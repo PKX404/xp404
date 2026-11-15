@@ -393,6 +393,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private int homeTab=0;
 
   private void showLobby(){
+    setRoomStarting(false);
     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
     boolean overlayRoom=roomActive&&roomNativeRoot!=null&&socket.isConnected();
     if(overlayRoom&&homeOverlay!=null)return;
@@ -838,6 +839,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
     }else if("chat-error".equals(type)){toast(event.optString("message","Unable to send message"));
     }else if("error".equals(type)||"resume-failed".equals(type)||"ended".equals(type)||"kicked".equals(type)){
+      if(!roomActive)setRoomStarting(false);
       toast(event.optString("message","Room unavailable"));
       if("resume-failed".equals(type)||"ended".equals(type)||"kicked".equals(type)){socket.disconnect(false);showLobby();}
     }
