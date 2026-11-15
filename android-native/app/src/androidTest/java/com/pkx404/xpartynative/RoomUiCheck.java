@@ -54,13 +54,13 @@ public final class RoomUiCheck extends Instrumentation {
     try {
       Intent launch=new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
       MainActivity app=(MainActivity)startActivitySync(launch);
-      if("soundcloud".equals(media)){
+      if("soundcloud".equals(media)||"youtube".equals(media)){
         java.util.concurrent.atomic.AtomicBoolean playing=new java.util.concurrent.atomic.AtomicBoolean(false);
         java.util.concurrent.atomic.AtomicReference<String> diagnostic=new java.util.concurrent.atomic.AtomicReference<>("");
         runOnMainSync(()->{try{
           JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","me");
           app.message(new JSONObject().put("type","welcome").put("id","me").put("room",room));
-          JSONObject song=new JSONObject().put("type","soundcloud").put("id","fixture").put("videoId","https://soundcloud.com/forss/flickermood").put("title","SoundCloud runtime check");
+          JSONObject song=new JSONObject().put("type",media).put("id","fixture").put("videoId","youtube".equals(media)?"M7lc1UVf-VE":"https://soundcloud.com/forss/flickermood").put("title","SoundCloud runtime check");
           room.put("source",song).put("playback",new JSONObject().put("position",0).put("playing",true).put("updatedAt",System.currentTimeMillis()));
           app.message(new JSONObject().put("type","state").put("room",room));
         }catch(Exception e){throw new IllegalStateException(e);}});
@@ -75,8 +75,24 @@ public final class RoomUiCheck extends Instrumentation {
             });
           }catch(Exception e){throw new IllegalStateException(e);}});
         }
-        result.putString("result",(playing.get()?"PASS":"UNVERIFIED")+" soundcloud playback "+diagnostic.get());
+        result.putString("result",(playing.get()?"PASS":"UNVERIFIED")+" "+media+" playback "+diagnostic.get());
         runOnMainSync(app::finish);finish(Activity.RESULT_OK,result);return;
+      }
+      if("composer".equals(media)){
+        runOnMainSync(()->{try{
+          JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","me");
+          app.message(new JSONObject().put("type","welcome").put("id","me").put("room",room));
+          java.lang.reflect.Field f=MainActivity.class.getDeclaredField("chatInput");f.setAccessible(true);
+          android.widget.EditText input=(android.widget.EditText)f.get(app);
+          java.lang.reflect.Field sf=MainActivity.class.getDeclaredField("sendIcon");sf.setAccessible(true);View send=(View)sf.get(app);
+          require(send.getVisibility()==View.GONE,"empty composer hides Send");
+          input.setText("A real message");require(send.getVisibility()==View.VISIBLE,"text shows Send without IME");
+          java.lang.reflect.Method layout=MainActivity.class.getDeclaredMethod("setTypingLayout",boolean.class);layout.setAccessible(true);
+          layout.invoke(app,false);require(send.getVisibility()==View.VISIBLE,"keyboard close preserves Send");
+          layout.invoke(app,true);require(send.getVisibility()==View.VISIBLE,"keyboard open preserves Send");
+          input.setText("   ");require(send.getVisibility()==View.GONE,"blank composer hides Send");
+        }catch(Exception e){throw new IllegalStateException(e);}});
+        runOnMainSync(app::finish);result.putString("result","PASS composer activation");finish(Activity.RESULT_OK,result);return;
       }
       if("queue".equals(media)){
         runOnMainSync(()->{try{

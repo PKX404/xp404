@@ -75,3 +75,16 @@ test('all room members vote, ties preserve playlist order and the winner advance
  await command(host,'next',{automatic:true,sourceId:host.room.source.id});
  assert.equal(host.room.source.videoId,'ccccccccccc');
 });
+
+test('host metadata updates preserve playback and survive queue advancement; guest and stale updates rejected',async t=>{
+ const {client}=await fixture(t);const host=await client({type:'create'});const guest=await client({type:'join',code:host.room.code});
+ await command(host,'queue-import',{items:[{type:'youtube',videoId:'aaaaaaaaaaa',title:'First'},{type:'soundcloud',videoId:'https://soundcloud.com/artist/song',title:'Song',artist:'Artist',artwork:'https://i1.sndcdn.com/art.jpg',duration:200}],playFirst:true});
+ const id=host.room.source.id,revision=host.room.playback.revision,q=host.room.queue[0].id;
+ await command(guest,'media-metadata',{sourceId:id,title:'Hijacked'});await command(host,'ping');assert.equal(host.room.source.title,'First');
+ await command(host,'media-metadata',{sourceId:'stale',title:'Wrong'});assert.equal(host.room.source.title,'First');
+ await command(host,'media-metadata',{sourceId:id,title:'Real title',artist:'Real artist',artwork:'https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg'});
+ assert.equal(host.room.source.title,'Real title');assert.equal(host.room.source.id,id);assert.equal(host.room.playback.revision,revision);
+ await command(host,'media-metadata',{queueId:q,title:'Named track',artist:'Performer',artwork:'file:///private'});
+ assert.equal(host.room.queue[0].title,'Named track');assert.equal(host.room.queue[0].artwork,'');
+ await command(host,'next',{automatic:true,sourceId:id});assert.equal(host.room.source.title,'Named track');assert.equal(host.room.source.artist,'Performer');assert.equal(host.room.source.duration,200);
+});

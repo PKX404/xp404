@@ -4,7 +4,7 @@
   const events=[];
   window.xpartyReadEvents=()=>events.splice(0);
   window.XpartyYT={};
-  for(const name of ["onReady","changed","state","progress","error","blocked","providerEvent"]){
+  for(const name of ["onReady","metadata","changed","state","progress","error","blocked","providerEvent"]){
     XpartyYT[name]=(...args)=>{
       if(events.length>=32)events.shift();
       events.push([name,...args]);

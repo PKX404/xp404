@@ -19,6 +19,7 @@ try {
   const {createTwitchPlayer,createVimeoPlayer,createSoundCloudPlayer}=window.XPartyProviders;
   const creator=type==='twitch'?createTwitchPlayer:type==='soundcloud'?createSoundCloudPlayer:createVimeoPlayer;
   player=await creator(document.getElementById('player'),id,changed,failed,{timeoutMs:35000,onProgress:()=>{window.xpartyProgressCount=(window.xpartyProgressCount||0)+1;},onMetadata:sound=>{
+    XpartyYT.metadata(key,sound&&sound.title||'',sound&&sound.user&&sound.user.username||'',sound&&sound.artwork_url||sound&&sound.user&&sound.user.avatar_url||'');
     const image=document.getElementById('art');
     const url=sound&&sound.artwork_url||sound&&sound.user&&sound.user.avatar_url;
     if(url&&new URL(url).protocol==='https:'){image.src=url;image.hidden=false;document.body.classList.add('audio-art');}

@@ -62,12 +62,15 @@ final class ChannelCatalog {
     return "Recently failed";
   }
   private final ExecutorService worker=Executors.newFixedThreadPool(3);
+  private final Map<String,List<Result>> loading=new java.util.HashMap<>();
   void load(String category,Result callback){
     CacheEntry hit=cache.get(category);
     if(hit!=null&&System.currentTimeMillis()-hit.savedAt<CACHE_TTL_MS){
       ui.post(()->callback.loaded(new ArrayList<>(hit.channels),null));
       return;
     }
+    if(loading.containsKey(category)){loading.get(category).add(callback);return;}
+    List<Result> listeners=new ArrayList<>();listeners.add(callback);loading.put(category,listeners);
     worker.execute(()->{
       List<Channel> channels=new ArrayList<>();
       String error=null;
@@ -107,7 +110,7 @@ final class ChannelCatalog {
       if(error==null&&!channels.isEmpty()){if(cache.size()>12)cache.clear();cache.put(category,new CacheEntry(channels));}
       else if(hit!=null&&!hit.channels.isEmpty())channels=new ArrayList<>(hit.channels);
       List<Channel> response=channels;String message=channels.isEmpty()?error:null;
-      ui.post(()->callback.loaded(response,message));
+      ui.post(()->{List<Result> waiting=loading.remove(category);if(waiting!=null)for(Result listener:waiting)listener.loaded(new ArrayList<>(response),message);});
     });
   }
   static boolean compatibleStream(String raw){

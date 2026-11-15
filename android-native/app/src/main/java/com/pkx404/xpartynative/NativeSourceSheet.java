@@ -70,6 +70,7 @@ final class NativeSourceSheet {
   private ScrollView sheetScroll;
   private TextView modeTitle,queueEntry;
   private int queueCount;
+  void prewarmLiveTv(){directory.load(country.isEmpty()?"world":country,(items,error)->{});}
   void updateQueue(int count){queueCount=count;if(queueEntry!=null)queueEntry.setText("Vote queue · "+count);}
 
   private boolean specialSearch=false;
@@ -766,15 +767,15 @@ final class NativeSourceSheet {
     String page;
     if(sc){
       String track="https://soundcloud.com"+uri.getPath();
-      page="<iframe id='p' width='100%' height='100%' src='https://w.soundcloud.com/player/?auto_play=false&amp;url="+android.net.Uri.encode(track)+"'></iframe><script src='https://w.soundcloud.com/player/api.js'></script><script>const w=SC.Widget('p');w.bind(SC.Widget.Events.READY,()=>w.getSounds(rows=>window.items=rows.map(s=>({type:'soundcloud',videoId:s.permalink_url,title:s.title,artist:s.user?.username||'',duration:(s.duration||0)/1000,artwork:s.artwork_url||s.user?.avatar_url||''}))));</script>";
+      page="<iframe id='p' width='100%' height='100%' src='https://w.soundcloud.com/player/?auto_play=false&amp;url="+android.net.Uri.encode(track)+"'></iframe><script src='https://w.soundcloud.com/player/api.js'></script><script>const w=SC.Widget('p');w.bind(SC.Widget.Events.READY,()=>w.getSounds(rows=>window.items=rows.map(s=>({type:'soundcloud',videoId:s.permalink_url,title:s.title,artist:(s.user&&s.user.username)||'',duration:(s.duration||0)/1000,artwork:s.artwork_url||(s.user&&s.user.avatar_url)||''}))));</script>";
     }else{
-      page="<div id='p'></div><script>function onYouTubeIframeAPIReady(){const p=new YT.Player('p',{width:'100%',height:'100%',playerVars:{listType:'playlist',list:'"+list+"',playsinline:1},events:{onReady:()=>{window.readItems=()=>p.getPlaylist()?.map((id,i)=>({type:'youtube',videoId:id,title:'Playlist track '+(i+1)}));}}});}</script><script src='https://www.youtube.com/iframe_api'></script>";
+      page="<div id='p'></div><script>function onYouTubeIframeAPIReady(){const p=new YT.Player('p',{width:'100%',height:'100%',playerVars:{listType:'playlist',list:'"+list+"',playsinline:1},events:{onReady:()=>{window.readItems=()=>(p.getPlaylist()||[]).map((id,i)=>({type:'youtube',videoId:id,title:'YouTube · '+id,artwork:'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg'}));}}});}</script><script src='https://www.youtube.com/iframe_api'></script>";
     }
     reader.loadDataWithBaseURL("https://xparty-native-room.onrender.com/","<meta name='viewport' content='width=device-width'>"+page,"text/html","UTF-8",null);
     final long deadline=android.os.SystemClock.elapsedRealtime()+35000;
     timer.postDelayed(new Runnable(){public void run(){
       if(!modal.isShowing())return;
-      reader.evaluateJavascript("(window.items||window.readItems?.()||[]).slice(0,51)",raw->{
+      reader.evaluateJavascript("(window.items||(window.readItems?window.readItems():[])||[]).slice(0,51)",raw->{
         if(!modal.isShowing())return;
         try{JSONArray tracks=new JSONArray(raw);if(tracks.length()>0){
           modal.dismiss();actions.playlist(tracks);dismiss();return;

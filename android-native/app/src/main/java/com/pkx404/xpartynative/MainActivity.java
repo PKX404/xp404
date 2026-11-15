@@ -858,7 +858,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private void showRoom(){
     isLandscapeLayout=false;
     if(homeAnimator!=null){homeAnimator.cancel();homeAnimator=null;}
-    handler.post(()->{if(roomActive)sourceSheet.prewarmYoutube();});
+    handler.post(()->{if(roomActive){sourceSheet.prewarmYoutube();sourceSheet.prewarmLiveTv();}});
     roomActive=true;imeShown=false;fullscreenNative=false;showChat=true;
     profileTickAt=0;profileWatchCarry=0;
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -1113,7 +1113,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatInput.addTextChangedListener(new android.text.TextWatcher(){
       @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
       @Override public void onTextChanged(CharSequence s,int start,int before,int count){
-        if(sendIcon!=null)sendIcon.setVisibility(imeShown&&s.toString().trim().length()>0?View.VISIBLE:View.GONE);
+        if(sendIcon!=null)sendIcon.setVisibility(s.toString().trim().length()>0?View.VISIBLE:View.GONE);
         if(s.length()>0&&System.currentTimeMillis()-lastTypingAt<1300)return;
         lastTypingAt=System.currentTimeMillis();
         try{socket.send(new JSONObject().put("type","typing").put("active",s.length()>0));}
@@ -1223,7 +1223,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     applyRoomOrientation(config.orientation==Configuration.ORIENTATION_LANDSCAPE);
   }
   private void setTypingLayout(boolean typing){
-    if(sendIcon!=null)sendIcon.setVisibility(typing&&chatInput.getText().toString().trim().length()>0?View.VISIBLE:View.GONE);
+    if(sendIcon!=null)sendIcon.setVisibility(chatInput!=null&&chatInput.getText().toString().trim().length()>0?View.VISIBLE:View.GONE);
     if(roomHeader==null||chatComposer==null)return;
     roomHeader.setVisibility(typing||isLandscapeLayout?View.GONE:View.VISIBLE);
     if(micIcon!=null)micIcon.setVisibility(typing?View.GONE:View.VISIBLE);
@@ -2089,7 +2089,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(!newId.equals(sourceId)){
       sourceId=newId;source=next;
       loadSource();
-    }
+    }else if(next!=null){source=next;renderNowPlaying();}
+    resolveRoomMetadata();
     followPlayback();
     renderQueue();
     if(sourceSheet!=null){JSONArray queued=room.optJSONArray("queue");sourceSheet.updateQueue(queued==null?0:queued.length());}
@@ -2108,6 +2109,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       sendSource(next);
     }catch(Exception ignored){}
   }
+  private final TrackMetadata trackMetadata=new TrackMetadata();
   private final YoutubeBridge playerEvents=new YoutubeBridge();
   private String playerGeneration="";
   private boolean pollingPlayer;
@@ -2128,6 +2130,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           for(int i=0;i<events.length();i++){JSONArray args=events.optJSONArray(i);if(args==null)continue;
               switch(args.getString(0)){
                 case "providerEvent":playerEvents.providerEvent(args.getString(1),args.getString(2),args.getInt(3),args.getDouble(4));break;
+                case "metadata":applyPlayerMetadata(args.getString(1),args.getString(2),args.getString(3),args.getString(4));break;
                 case "onReady":playerEvents.onReady();break;
                 case "state":playerEvents.state(args.getInt(1),args.getDouble(2));break;
                 case "progress":playerEvents.progress(args.getDouble(1),args.getDouble(2));break;
@@ -2289,6 +2292,39 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       ((ViewGroup)providerPanel.getParent()).removeView(providerPanel);
     providerPanel=null;
   }
+  private void renderNowPlaying(){
+    if(source==null||playerLabel==null)return;
+    String title=source.optString("title",""),artist=source.optString("artist","");
+    playerLabel.setText(title+(artist.isEmpty()?"":" · "+artist));
+    if(artwork!=null&&nativeChannelLogo!=null)artwork.show(source.optString("artwork",source.optString("logo","")),nativeChannelLogo);
+  }
+  private void applyPlayerMetadata(String id,String title,String artist,String art){
+    if(source==null||!sourceId.equals(id)||title.trim().isEmpty())return;
+    try{publishMetadata(source,new JSONObject().put("title",title).put("artist",artist).put("artwork",art),false);}catch(Exception ignored){}
+  }
+  private void publishMetadata(JSONObject item,JSONObject data,boolean queued){
+    if(!roomActive)return;
+    String id=item.optString("id");
+    JSONObject current=null;
+    if(!queued){if(!sourceId.equals(id)||source==null)return;current=source;}
+    else{JSONArray list=room.optJSONArray("queue");if(list!=null)for(int i=0;i<list.length();i++){JSONObject q=list.optJSONObject(i);if(q!=null&&id.equals(q.optString("id")))current=q;}}
+    if(current==null)return;
+    boolean changed=false;
+    try{
+      for(String field:new String[]{"title","artist","artwork"}){
+        String value=data.optString(field,"");
+        if(!value.isEmpty()&&!value.equals(current.optString(field))){current.put(field,value);changed=true;}
+      }
+      if(!changed)return;
+      if(isHost)socket.send(new JSONObject().put("type","media-metadata").put(queued?"queueId":"sourceId",id).put("title",current.optString("title")).put("artist",current.optString("artist")).put("artwork",current.optString("artwork")));
+      if(queued)renderQueue();else renderNowPlaying();
+    }catch(Exception ignored){}
+  }
+  private void resolveRoomMetadata(){
+    if(source!=null){JSONObject item=source;trackMetadata.resolve(item,data->publishMetadata(item,data,false));}
+    JSONArray list=room.optJSONArray("queue");
+    if(list!=null)for(int i=0;i<list.length();i++){JSONObject item=list.optJSONObject(i);if(item!=null)trackMetadata.resolve(item,data->publishMetadata(item,data,true));}
+  }
   private void showProviderTitle(){
     JSONObject checked=ProviderLink.parse(sourceType,sourceUrl,source.optString("title"));
     if(checked==null||!checked.optString("videoId").equals(source.optString("videoId"))){
@@ -2336,9 +2372,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● XPTV":
       "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
     if(artwork!=null&&nativeChannelLogo!=null)
-      artwork.show(source.optString("logo",""),nativeChannelLogo);
+      artwork.show(source.optString("artwork",source.optString("logo","")),nativeChannelLogo);
     playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"XPTV  ":"")
       +source.optString("title","Video"));
+    renderNowPlaying();
     boolean isYouTube="youtube".equals(sourceType);
     // v0.3 hid ALL playback controls for YouTube. Keep the same overlay for all sources.
     revealPlaybackControls();
@@ -2379,7 +2416,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
               videoId:'__VIDEO_ID__',
               playerVars:{fs:0,playsinline:1,rel:0,enablejsapi:1,origin:'https://xparty-native-room.onrender.com'},
               events:{
-                onReady:function(){XpartyYT.onReady();},
+                onReady:function(){XpartyYT.onReady();reportMetadata();},
                 onError:function(e){XpartyYT.error(e.data);},
                 onAutoplayBlocked:function(){XpartyYT.blocked();},
                 onStateChange:function(e){
@@ -2388,6 +2425,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
               }
             });
           }
+          function reportMetadata(){
+            if(!ytPlayer)return;const d=ytPlayer.getVideoData();
+            if(d&&d.video_id==='__VIDEO_ID__'&&d.title)XpartyYT.metadata('__SOURCE_ID__',d.title,d.author||'','https://i.ytimg.com/vi/__VIDEO_ID__/hqdefault.jpg');
+          }
+          window.xpartyState=function(){return ytPlayer?ytPlayer.getPlayerState():-1;};
           window.xpartySync=function(playing,time){
             if(!ytPlayer||typeof ytPlayer.getPlayerState!=='function')return;
             const actual=ytPlayer.getCurrentTime()||0;
@@ -2407,6 +2449,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             if(!ytPlayer)return;
             try{
               XpartyYT.progress(ytPlayer.getCurrentTime()||0,ytPlayer.getDuration()||0);
+              if(ytPlayer.getPlayerState()===1)window.xpartyProgressCount=(window.xpartyProgressCount||0)+1;
+              reportMetadata();
               const info=ytPlayer.getVideoData&&ytPlayer.getVideoData();
               if(info&&/^[A-Za-z0-9_-]{11}$/.test(info.video_id)
                 &&info.video_id!=='__VIDEO_ID__'){
@@ -2415,9 +2459,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             }catch(e){}
           },500);
         </script><script async src="https://www.youtube.com/iframe_api"></script></body></html>
-        """.replace("__VIDEO_ID__",youtubeId);
+        """.replace("__VIDEO_ID__",youtubeId).replace("__SOURCE_ID__",sourceId);
       try{html=html.replace("<head>","<head>"+playerBridge());}catch(Exception e){videoState.setText("Player unavailable");return;}
-      youtube.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",html,"text/html","UTF-8",null);
+      providerDocument=html;
+      youtube.loadUrl("https://xparty-native-room.onrender.com/providers/room.html?generation="+playerGeneration);
     }else if("iptv".equals(sourceType)||"direct".equals(sourceType)){
       if(!sourceUrl.startsWith("https://")){videoState.setText("Unsupported media URL");return;}
       MediaItem.Builder item=new MediaItem.Builder().setUri(sourceUrl);
@@ -2627,6 +2672,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(artwork!=null)artwork.shutdown();
     if(youtube!=null){youtube.stopLoading();youtube.destroy();youtube=null;}
     if(player!=null){player.release();player=null;}
+    trackMetadata.close();
     super.onDestroy();
   }
 }

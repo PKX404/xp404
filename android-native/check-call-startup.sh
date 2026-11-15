@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-app=com.pkx404.xpartynative.soundqa057
+app=com.pkx404.xpartynative.mediaqa058
 apk=android-native/app/build/outputs/apk/release/app-universal-release.apk
 adb install "$apk"
 adb install -r "$apk"
@@ -10,7 +10,7 @@ test_apk=$(find android-native/app/build/outputs/apk/androidTest -name '*.apk' |
 adb install -r "$test_apk"
 runner=$(adb shell pm list instrumentation | tr -d '\r' | sed -n 's/^instrumentation:\([^ ]*RoomUiCheck\).*/\1/p' | head -1)
 test -n "$runner"
-for mode in mic camera bridge country queue room; do
+for mode in mic camera bridge country queue composer room; do
   adb shell am force-stop "$app"
   adb shell am instrument -w -e media "$mode" "$runner" | tee /tmp/xp-probe
   if [[ $mode == room ]]; then grep -F 'PASS provider routes and chat' /tmp/xp-probe; else grep -F "PASS $mode activation" /tmp/xp-probe; fi
@@ -22,3 +22,7 @@ adb shell dumpsys meminfo "$app" | grep -E 'TOTAL PSS|TOTAL RSS|TOTAL ' | head
 adb shell am force-stop "$app"
 adb shell am instrument -w -e media soundcloud "$runner" | tee /tmp/xp-soundcloud
 adb logcat -d -s XPartyPlayer chromium | tail -80
+
+adb shell am force-stop "$app"
+adb shell am instrument -w -e media youtube "$runner" | tee /tmp/xp-youtube
+adb logcat -d -s XPartyPlayer chromium | tail -50
