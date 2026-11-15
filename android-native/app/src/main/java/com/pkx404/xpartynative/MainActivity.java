@@ -986,7 +986,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     tracks.setId(0,android.R.id.background);tracks.setId(1,android.R.id.secondaryProgress);tracks.setId(2,android.R.id.progress);
     for(int i=0;i<3;i++){tracks.setLayerGravity(i,Gravity.CENTER_VERTICAL);tracks.setLayerHeight(i,dp(3));}
     progress.setProgressDrawable(tracks);progress.setSplitTrack(false);
-    android.graphics.drawable.GradientDrawable thumb=new android.graphics.drawable.GradientDrawable();thumb.setShape(android.graphics.drawable.GradientDrawable.OVAL);thumb.setColor(0xFFFF0033);thumb.setSize(dp(12),dp(12));progress.setThumb(thumb);
+    android.graphics.drawable.GradientDrawable thumb=new android.graphics.drawable.GradientDrawable();thumb.setShape(android.graphics.drawable.GradientDrawable.OVAL);thumb.setColor(0xFFFF0033);thumb.setSize(dp(12),dp(12));progress.setThumb(thumb);progress.setThumbTintList(ColorStateList.valueOf(0xFFFF0033));
     progress.setProgressTintList(ColorStateList.valueOf(0xFFFF0033));progress.setSecondaryProgressTintList(ColorStateList.valueOf(0xFFB0B0B0));progress.setProgressBackgroundTintList(ColorStateList.valueOf(0x88606060));
     progress.setPadding(dp(5),0,dp(5),0);
     // Controls overlay the fixed 16:9 native video surface rather than adding

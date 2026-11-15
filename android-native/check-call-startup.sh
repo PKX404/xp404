@@ -26,3 +26,7 @@ adb logcat -d -s XPartyPlayer chromium | tail -80
 adb shell am force-stop "$app"
 adb shell am instrument -w -e media youtube "$runner" | tee /tmp/xp-youtube
 adb logcat -d -s XPartyPlayer chromium | tail -50
+
+mkdir -p qa-shots
+adb pull /sdcard/Download/xparty-soundcloud.png qa-shots/ || true
+adb pull /sdcard/Download/xparty-youtube.png qa-shots/ || true

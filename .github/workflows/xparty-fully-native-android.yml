@@ -54,3 +54,9 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -no-boot-anim -gpu swiftshader_indirect -camera-front emulated -camera-back emulated -noaudio
           script: bash android-native/check-call-startup.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: XParty-0.5.8-QA-screens-api-${{ matrix.api }}
+          path: qa-shots/
+          if-no-files-found: ignore

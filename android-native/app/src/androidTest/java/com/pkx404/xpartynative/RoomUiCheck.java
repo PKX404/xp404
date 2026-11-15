@@ -75,6 +75,7 @@ public final class RoomUiCheck extends Instrumentation {
             });
           }catch(Exception e){throw new IllegalStateException(e);}});
         }
+        try(android.os.ParcelFileDescriptor shot=getUiAutomation().executeShellCommand("screencap -p /sdcard/Download/xparty-"+media+".png");java.io.InputStream stream=new android.os.ParcelFileDescriptor.AutoCloseInputStream(shot)){while(stream.read()!=-1){}}catch(Exception ignored){}
         result.putString("result",(playing.get()?"PASS":"UNVERIFIED")+" "+media+" playback "+diagnostic.get());
         runOnMainSync(app::finish);finish(Activity.RESULT_OK,result);return;
       }
