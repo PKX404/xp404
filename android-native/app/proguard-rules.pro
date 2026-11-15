@@ -23,6 +23,7 @@
 -keepclassmembers class com.pkx404.xpartynative.MainActivity {
   public void message(org.json.JSONObject);
   private android.webkit.WebView youtube;
+  private java.lang.String playerGeneration;
   private android.widget.EditText chatInput;
   private com.pkx404.xpartynative.XPControl sendIcon;
   private void setTypingLayout(boolean);

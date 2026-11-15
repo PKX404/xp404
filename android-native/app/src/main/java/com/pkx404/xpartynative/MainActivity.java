@@ -2109,6 +2109,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       sendSource(next);
     }catch(Exception ignored){}
   }
+  private final java.util.Set<String> requestedMetadata=new java.util.HashSet<>();
+  private String nowPlayingArtwork="";
   private final TrackMetadata trackMetadata=new TrackMetadata();
   private final YoutubeBridge playerEvents=new YoutubeBridge();
   private String playerGeneration="";
@@ -2296,7 +2298,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(source==null||playerLabel==null)return;
     String title=source.optString("title",""),artist=source.optString("artist","");
     playerLabel.setText(title+(artist.isEmpty()?"":" · "+artist));
-    if(artwork!=null&&nativeChannelLogo!=null)artwork.show(source.optString("artwork",source.optString("logo","")),nativeChannelLogo);
+    String art=source.optString("artwork",source.optString("logo",""));
+    if(!art.equals(nowPlayingArtwork)&&artwork!=null&&nativeChannelLogo!=null){nowPlayingArtwork=art;artwork.show(art,nativeChannelLogo);}
   }
   private void applyPlayerMetadata(String id,String title,String artist,String art){
     if(source==null||!sourceId.equals(id)||title.trim().isEmpty())return;
@@ -2312,7 +2315,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     boolean changed=false;
     try{
       for(String field:new String[]{"title","artist","artwork"}){
-        String value=data.optString(field,"");
+        String value=data.optString(field,"").trim();
+        int max="title".equals(field)?150:"artist".equals(field)?100:512;
+        if(value.length()>max)value="artwork".equals(field)?"":value.substring(0,max);
         if(!value.isEmpty()&&!value.equals(current.optString(field))){current.put(field,value);changed=true;}
       }
       if(!changed)return;
@@ -2321,9 +2326,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     }catch(Exception ignored){}
   }
   private void resolveRoomMetadata(){
-    if(source!=null){JSONObject item=source;trackMetadata.resolve(item,data->publishMetadata(item,data,false));}
+    if(source!=null&&requestedMetadata.add("source:"+sourceId)){JSONObject item=source;trackMetadata.resolve(item,data->publishMetadata(item,data,false));}
     JSONArray list=room.optJSONArray("queue");
-    if(list!=null)for(int i=0;i<list.length();i++){JSONObject item=list.optJSONObject(i);if(item!=null)trackMetadata.resolve(item,data->publishMetadata(item,data,true));}
+    if(list!=null)for(int i=0;i<list.length();i++){JSONObject item=list.optJSONObject(i);if(item!=null&&requestedMetadata.add("queue:"+item.optString("id")))trackMetadata.resolve(item,data->publishMetadata(item,data,true));}
   }
   private void showProviderTitle(){
     JSONObject checked=ProviderLink.parse(sourceType,sourceUrl,source.optString("title"));
@@ -2371,8 +2376,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(profileStore!=null)profileStore.recordOpened(source);
     if(mediaTypeBadge!=null)mediaTypeBadge.setText("iptv".equals(sourceType)?"● XPTV":
       "youtube".equals(sourceType)?"YOUTUBE": "direct".equals(sourceType)?"VIDEO":"LOCAL");
-    if(artwork!=null&&nativeChannelLogo!=null)
-      artwork.show(source.optString("artwork",source.optString("logo","")),nativeChannelLogo);
+    nowPlayingArtwork="";
     playerLabel.setText("Now watching · "+("iptv".equals(sourceType)?"XPTV  ":"")
       +source.optString("title","Video"));
     renderNowPlaying();
@@ -2527,7 +2531,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     detachProvider();
     if(!roomActive)return;
     socket.disconnect(true);
-    roomActive=false;
+    roomActive=false;requestedMetadata.clear();nowPlayingArtwork="";
     if(queueDialog!=null)queueDialog.dismiss();
     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     if(fullscreenNative)exitNativeFullscreen();

@@ -91,6 +91,12 @@ public final class RoomUiCheck extends Instrumentation {
           layout.invoke(app,false);require(send.getVisibility()==View.VISIBLE,"keyboard close preserves Send");
           layout.invoke(app,true);require(send.getVisibility()==View.VISIBLE,"keyboard open preserves Send");
           input.setText("   ");require(send.getVisibility()==View.GONE,"blank composer hides Send");
+          JSONObject song=new JSONObject().put("id","metadata-fixture").put("type","youtube").put("videoId","M7lc1UVf-VE").put("title","Initial title");
+          room.put("source",song);app.message(new JSONObject().put("type","state").put("room",room));
+          java.lang.reflect.Field generation=MainActivity.class.getDeclaredField("playerGeneration");generation.setAccessible(true);Object before=generation.get(app);
+          song.put("title","Real song").put("artist","Real artist");app.message(new JSONObject().put("type","state").put("room",room));
+          require(find(app.getWindow().getDecorView(),"Real song · Real artist")!=null,"main panel updates track metadata");
+          require(before.equals(generation.get(app)),"metadata does not recreate player");
         }catch(Exception e){throw new IllegalStateException(e);}});
         runOnMainSync(app::finish);result.putString("result","PASS composer activation");finish(Activity.RESULT_OK,result);return;
       }
