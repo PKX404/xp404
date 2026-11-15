@@ -461,7 +461,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     joinInput=entry("7-character room code");
     joinInput.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});
     LinearLayout bottom=new LinearLayout(this);bottom.setGravity(Gravity.CENTER_VERTICAL);
-    TextView create=text("＋  Create room",15,0xFF191328,true);
+    TextView create=text("＋  Create room",15,0xFF191328,true);createRoomButton=create;
     create.setGravity(Gravity.CENTER);create.setBackground(shape(0xFFD4BDFB,15));
     create.setOnClickListener(v->startRoom("create"));
     bottom.addView(create,new LinearLayout.LayoutParams(0,dp(56),1));
@@ -484,7 +484,8 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     connection=text("",10,0xFFBFB1D5,false);
     connection.setGravity(Gravity.CENTER);
     connection.setVisibility(View.GONE);
-    home.addView(connection,new LinearLayout.LayoutParams(-1,dp(1)));
+    connection.setOnClickListener(v->{if(!roomActive&&roomStarting){socket.disconnect(false);setRoomStarting(false);connection.setText("Connection cancelled. Tap Create or Join to retry.");}});
+    home.addView(connection,new LinearLayout.LayoutParams(-1,dp(24)));
     renderExploreContent();
   }
   private void onHomeTab(int tab,LinearLayout navigation){
@@ -724,22 +725,31 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       }
     });
   }
+  private boolean roomStarting;
+  private TextView createRoomButton;
+  private void setRoomStarting(boolean value){
+    roomStarting=value;if(createRoomButton!=null){createRoomButton.setEnabled(!value);createRoomButton.setText(value?"Connecting…":"＋  Create room");}
+  }
   private void startRoom(String action){
+    if(roomStarting)return;
     nickname=nameInput.getText().toString().trim();
     if(nickname.isEmpty())nickname="Guest";
     if(nickname.length()>24)nickname=nickname.substring(0,24);
     getPreferences(MODE_PRIVATE).edit().putString("nickname",nickname).apply();
     String code=joinInput.getText().toString().trim().toUpperCase(Locale.ROOT);
     if("join".equals(action)&&!code.matches("[A-Z2-9]{7}")){toast("Enter a valid 7-character code.");return;}
-    connection.setText("Connecting to the room server…");
+    setRoomStarting(true);connection.setVisibility(View.VISIBLE);
+    connection.setText("Connecting to the room server… Tap here to cancel.");
     socket.start(action,nickname,code,null);
   }
   @Override public void status(String value){
+    if(!roomActive&&value.startsWith("Connection unavailable"))setRoomStarting(false);
     if(connection!=null){connection.setText(value);if(roomActive)connection.setVisibility(value.toLowerCase(Locale.ROOT).startsWith("connected")?View.GONE:View.VISIBLE);}
   }
   @Override public void message(JSONObject event){
     String type=event.optString("type");
     if("welcome".equals(type)){
+      setRoomStarting(false);
       myId=event.optString("id");token=event.optString("token");
       callIceServers=event.optJSONArray("iceServers");
       if(calls!=null)calls.configureIce(callIceServers);
@@ -1258,6 +1268,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         }
         @Override public void action(String type){send(type);}
         @Override public void status(String value){
+    if(!roomActive&&value.startsWith("Connection unavailable"))setRoomStarting(false);
           if(callStatusText!=null)callStatusText.setText(value);
         }
       });
