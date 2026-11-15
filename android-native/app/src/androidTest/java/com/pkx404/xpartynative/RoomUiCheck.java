@@ -60,7 +60,7 @@ public final class RoomUiCheck extends Instrumentation {
         runOnMainSync(()->{try{
           JSONObject room=new JSONObject().put("code","ROOM234").put("hostId","me");
           app.message(new JSONObject().put("type","welcome").put("id","me").put("room",room));
-          JSONObject song=new JSONObject().put("type",media).put("id","fixture").put("videoId","youtube".equals(media)?"M7lc1UVf-VE":"https://soundcloud.com/forss/flickermood").put("title","SoundCloud runtime check");
+          JSONObject song=new JSONObject().put("type",media).put("id","fixture").put("videoId","youtube".equals(media)?"aqz-KE-bpKQ":"https://soundcloud.com/forss/flickermood").put("title","SoundCloud runtime check");
           room.put("source",song).put("playback",new JSONObject().put("position",0).put("playing",true).put("updatedAt",System.currentTimeMillis()));
           app.message(new JSONObject().put("type","state").put("room",room));
         }catch(Exception e){throw new IllegalStateException(e);}});
