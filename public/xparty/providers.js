@@ -73,7 +73,7 @@ export async function createSoundCloudPlayer(host,id,onState=()=>{},onError=()=>
  const SC=await bounded(loadProviderSDK('SoundCloud','https://w.soundcloud.com/player/api.js',()=>window.SC?.Widget?window.SC:null),'SoundCloud SDK',options);
  const iframe=document.createElement('iframe');iframe.title='SoundCloud track player';iframe.allow='autoplay; encrypted-media';iframe.scrolling='no';iframe.setAttribute('frameborder','0');iframe.className='provider-embed-mount soundcloud-embed';iframe.width='100%';iframe.height='100%';
  const url=new URL('https://w.soundcloud.com/player/');for(const [key,value]of Object.entries({url:id,auto_play:'false',visual:'false',show_artwork:'true',show_user:'true',show_comments:'true',single_active:'false',color:'#bca2ff'}))url.searchParams.set(key,value);iframe.src=url.href;host.append(iframe);
- let widget,disposed=false,time=0,duration=0,state=2,timeRevision=0;const events=new Set();
+ let widget,disposed=false,time=0,duration=0,state=2,timeRevision=0,loaded=0;const events=new Set();
  const fail=error=>{if(!disposed)onError(error instanceof Error?error:Error('This SoundCloud track could not play. It may be unavailable or embedding may be disabled.'));};
  const call=(method,...args)=>{if(disposed)return;try{return widget?.[method]?.(...args);}catch(error){fail(error);}};
  const bind=(event,handler)=>{if(!event)return;widget.bind(event,(...args)=>{if(!disposed)handler(...args);});events.add(event);};
@@ -84,10 +84,11 @@ export async function createSoundCloudPlayer(host,id,onState=()=>{},onError=()=>
  try{
   widget=SC.Widget(iframe);const E=SC.Widget.Events;
   const ready=new Promise((resolve,reject)=>{bind(E.READY,resolve);bind(E.ERROR,error=>{const issue=Error('This SoundCloud track could not play. It may be unavailable or embedding may be disabled.');reject(issue);fail(error instanceof Error?error:issue);});});
+  bind(E.LOAD_PROGRESS,event=>{if(Number.isFinite(event?.loadProgress))loaded=Math.max(0,Math.min(1,event.loadProgress));});
   bind(E.PLAY_PROGRESS,event=>{update(event);options.onProgress?.(time);});bind(E.SEEK,update);bind(E.PLAY,event=>{update(event);readDuration();change(1);});bind(E.PAUSE,event=>{update(event);change(2);});bind(E.FINISH,event=>{update(event);change(0);});
   await bounded(ready,'SoundCloud track',options);readDuration();call('getCurrentSound',sound=>{if(!disposed)options.onMetadata?.(sound);});const revision=timeRevision;call('getPosition',value=>{if(!disposed&&revision===timeRevision)time=seconds(value)/1000;});
  }catch(error){destroy();throw error;}
- return {isLive:false,canSeek:true,getCurrentTime:()=>time,getDuration:()=>duration,getPlayerState:()=>state,
+ return {isLive:false,canSeek:true,getCurrentTime:()=>time,getDuration:()=>duration,getPlayerState:()=>state,getVideoLoadedFraction:()=>loaded,
   playVideo:()=>call('play'),pauseVideo:()=>call('pause'),stopVideo:()=>call('pause'),seekTo:t=>{if(!disposed){timeRevision++;time=seconds(t);call('seekTo',time*1000);}},setVolume:v=>call('setVolume',volume(v)),unMute:()=>{},destroy};
 }
 let sdk;

@@ -52,12 +52,13 @@ test('Twitch initialization cleans up a timeout and an aborted source change',as
 });
 
 function soundcloudMock({ready=true}={}){
- const instances=[];const Events=Object.fromEntries(['READY','ERROR','PLAY_PROGRESS','SEEK','PLAY','PAUSE','FINISH'].map(name=>[name,name]));
+ const instances=[];const Events=Object.fromEntries(['READY','ERROR','LOAD_PROGRESS','PLAY_PROGRESS','SEEK','PLAY','PAUSE','FINISH'].map(name=>[name,name]));
  function Widget(iframe){const widget={iframe,handlers:new Map(),calls:[],bind(event,handler){this.handlers.set(event,handler);},unbind(event){this.handlers.delete(event);},emit(event,payload){this.handlers.get(event)?.(payload);},getDuration(callback){this.durationCallback=callback;callback(123456);},getPosition(callback){this.positionCallback=callback;},play(){this.calls.push(['play']);},pause(){this.calls.push(['pause']);},seekTo(value){this.calls.push(['seek',value]);},setVolume(value){this.calls.push(['volume',value]);}};instances.push(widget);if(ready)queueMicrotask(()=>widget.emit(Events.READY));return widget;}
  Widget.Events=Events;return {SC:{Widget},instances};
 }
 test('SoundCloud converts widget milliseconds to seconds and guards stale callbacks after seeking or destroying',async t=>{
  const mock=soundcloudMock(),host=browser(t,mock),states=[],errors=[];const player=await createSoundCloudPlayer(host,'https://soundcloud.com/artist/song',event=>states.push(event.data),error=>errors.push(error));const raw=mock.instances[0],iframe=host.children[0],url=new URL(iframe.src);
+ raw.emit(mock.SC.Widget.Events.LOAD_PROGRESS,{loadProgress:0.65});assert.equal(player.getVideoLoadedFraction(),0.65);raw.emit(mock.SC.Widget.Events.LOAD_PROGRESS,{loadProgress:2});assert.equal(player.getVideoLoadedFraction(),1);
  assert.equal(url.origin,'https://w.soundcloud.com');assert.equal(url.searchParams.get('url'),'https://soundcloud.com/artist/song');assert.equal(url.searchParams.get('auto_play'),'false');assert.equal(player.getDuration(),123.456);
  raw.emit(mock.SC.Widget.Events.PLAY_PROGRESS,{currentPosition:15500});assert.equal(player.getCurrentTime(),15.5);raw.positionCallback(0);assert.equal(player.getCurrentTime(),15.5);
  player.seekTo(20.25);player.setVolume(35);assert.equal(player.getCurrentTime(),20.25);assert.deepEqual(raw.calls,[['seek',20250],['volume',35]]);

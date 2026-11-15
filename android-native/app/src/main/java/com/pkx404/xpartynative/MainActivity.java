@@ -162,6 +162,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
         if(duration>0&&duration!=androidx.media3.common.C.TIME_UNSET){
           int value=(int)Math.max(0,Math.min(1000,player.getCurrentPosition()*1000.0/duration));
           if(!progress.isPressed())progress.setProgress(value);
+          progress.setSecondaryProgress((int)Math.max(value,Math.min(1000,player.getBufferedPosition()*1000.0/duration)));
         }
       }
       captureProfileWatchTime();
@@ -967,10 +968,16 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     playerFrame.getLayoutParams().height=savedVideoHeight;
 
     progress=new SeekBar(this);
-    progress.setMax(1000);progress.setProgress(0);
-    progress.setProgressTintList(ColorStateList.valueOf(0xFFD9CCFF));
-    progress.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF625B87));
-    progress.setThumbTintList(ColorStateList.valueOf(0xFFFFFFFF));
+    progress.setMax(1000);progress.setProgress(0);progress.setSecondaryProgress(0);
+    android.graphics.drawable.GradientDrawable remaining=new android.graphics.drawable.GradientDrawable();remaining.setColor(0x88606060);remaining.setSize(dp(1),dp(3));
+    android.graphics.drawable.GradientDrawable loaded=new android.graphics.drawable.GradientDrawable();loaded.setColor(0xFFB0B0B0);loaded.setSize(dp(1),dp(3));
+    android.graphics.drawable.GradientDrawable played=new android.graphics.drawable.GradientDrawable();played.setColor(0xFFFF0033);played.setSize(dp(1),dp(3));
+    android.graphics.drawable.LayerDrawable tracks=new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{remaining,new android.graphics.drawable.ClipDrawable(loaded,Gravity.LEFT,android.graphics.drawable.ClipDrawable.HORIZONTAL),new android.graphics.drawable.ClipDrawable(played,Gravity.LEFT,android.graphics.drawable.ClipDrawable.HORIZONTAL)});
+    tracks.setId(0,android.R.id.background);tracks.setId(1,android.R.id.secondaryProgress);tracks.setId(2,android.R.id.progress);
+    for(int i=0;i<3;i++){tracks.setLayerGravity(i,Gravity.CENTER_VERTICAL);tracks.setLayerHeight(i,dp(3));}
+    progress.setProgressDrawable(tracks);progress.setSplitTrack(false);
+    android.graphics.drawable.GradientDrawable thumb=new android.graphics.drawable.GradientDrawable();thumb.setShape(android.graphics.drawable.GradientDrawable.OVAL);thumb.setColor(0xFFFF0033);thumb.setSize(dp(12),dp(12));progress.setThumb(thumb);
+    progress.setProgressTintList(ColorStateList.valueOf(0xFFFF0033));progress.setSecondaryProgressTintList(ColorStateList.valueOf(0xFFB0B0B0));progress.setProgressBackgroundTintList(ColorStateList.valueOf(0x88606060));
     progress.setPadding(dp(5),0,dp(5),0);
     // Controls overlay the fixed 16:9 native video surface rather than adding
     // extra height. This matches the v31.6 room geometry and avoids video resize.
@@ -2132,6 +2139,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           for(int i=0;i<events.length();i++){JSONArray args=events.optJSONArray(i);if(args==null)continue;
               switch(args.getString(0)){
                 case "providerEvent":playerEvents.providerEvent(args.getString(1),args.getString(2),args.getInt(3),args.getDouble(4));break;
+                case "buffered":playerEvents.buffered(args.getString(1),args.getDouble(2));break;
                 case "metadata":applyPlayerMetadata(args.getString(1),args.getString(2),args.getString(3),args.getString(4));break;
                 case "onReady":playerEvents.onReady();break;
                 case "state":playerEvents.state(args.getInt(1),args.getDouble(2));break;
@@ -2162,6 +2170,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           default:showFailure(event);
         }
       });
+    }
+    public void buffered(String id,double fraction){
+      if(roomActive&&sourceId.equals(id)&&progress!=null&&Double.isFinite(fraction))progress.setSecondaryProgress((int)Math.max(progress.getProgress(),Math.min(1000,Math.max(0,fraction)*1000)));
     }
     public void changed(String id,String title){
       runOnUiThread(()->selectYoutubeRecommendation(id,title));
@@ -2342,9 +2353,9 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(checked.optString("url"))));}
       catch(Exception e){toast("Install "+label+" or open its website.");}
     },true));
-    providerPanel.addView(button("Link playback",()->providerSession.link(sourceType,source.optString("title")),false));
+    providerPanel.addView(text("Playback opens in "+label+". In-room synchronization is not available yet.",13,MUTED,false));
     playerFrame.addView(providerPanel,0,new FrameLayout.LayoutParams(-1,-1));
-    videoState.setText("Start the title, then link playback");
+    videoState.setText("External playback · room sync unavailable");
   }
   private void loadSource(){
     clearFailure();
@@ -2355,6 +2366,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     player.stop();player.clearMediaItems();
     renderedVideo=false;youtubeReady=false;nativeReadySource="";nativeRecoveryUsed=false;
     youtubeDurationSeconds=0;
+    if(progress!=null){progress.setProgress(0);progress.setSecondaryProgress(0);}
     resetPlaybackControls();
     liked=profileStore!=null&&profileStore.isLiked(source);
     if(likeIcon!=null)likeIcon.active(liked);
@@ -2418,11 +2430,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
           function onYouTubeIframeAPIReady(){
             ytPlayer=new YT.Player('player',{
               videoId:'__VIDEO_ID__',
-              playerVars:{fs:0,playsinline:1,rel:0,enablejsapi:1,origin:'https://xparty-native-room.onrender.com'},
+              playerVars:{autoplay:__AUTOPLAY__,fs:0,playsinline:1,rel:0,enablejsapi:1,origin:'https://xparty-native-room.onrender.com'},
               events:{
                 onReady:function(){XpartyYT.onReady();reportMetadata();},
-                onError:function(e){XpartyYT.error(e.data);},
-                onAutoplayBlocked:function(){XpartyYT.blocked();},
+                onError:function(e){window.xpartyError=e.data;XpartyYT.error(e.data);},
+                onAutoplayBlocked:function(){window.xpartyAutoplayBlocked=true;XpartyYT.blocked();},
                 onStateChange:function(e){
                   try{XpartyYT.state(e.data,ytPlayer.getCurrentTime()||0);}catch(ex){}
                 }
@@ -2433,9 +2445,11 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             if(!ytPlayer)return;const d=ytPlayer.getVideoData();
             if(d&&d.video_id==='__VIDEO_ID__'&&d.title)XpartyYT.metadata('__SOURCE_ID__',d.title,d.author||'','https://i.ytimg.com/vi/__VIDEO_ID__/hqdefault.jpg');
           }
-          window.xpartyState=function(){return ytPlayer?ytPlayer.getPlayerState():-1;};
+          window.xpartyState=function(){return ytPlayer&&typeof ytPlayer.getPlayerState==='function'?ytPlayer.getPlayerState():-1;};
           window.xpartySync=function(playing,time){
             if(!ytPlayer||typeof ytPlayer.getPlayerState!=='function')return;
+            const state=ytPlayer.getPlayerState();
+            if(playing&&(state===YT.PlayerState.UNSTARTED||state===YT.PlayerState.CUED)){ytPlayer.loadVideoById({videoId:'__VIDEO_ID__',startSeconds:Math.max(0,time)});return;}
             const actual=ytPlayer.getCurrentTime()||0;
             if(Math.abs(actual-time)>1.0)ytPlayer.seekTo(Math.max(0,time),true);
             if(playing&&![YT.PlayerState.PLAYING,YT.PlayerState.BUFFERING].includes(ytPlayer.getPlayerState()))ytPlayer.playVideo();
@@ -2445,7 +2459,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             if(!ytPlayer)return;
             if(playing)ytPlayer.playVideo();else ytPlayer.pauseVideo();
           };
-          window.xpartyTime=function(){return ytPlayer?ytPlayer.getCurrentTime()||0:0;};
+          window.xpartyTime=function(){return ytPlayer&&typeof ytPlayer.getCurrentTime==='function'?ytPlayer.getCurrentTime()||0:0;};
           window.xpartySeek=function(seconds){
             if(ytPlayer)ytPlayer.seekTo(Math.max(0,seconds),true);
           };
@@ -2454,6 +2468,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             try{
               XpartyYT.progress(ytPlayer.getCurrentTime()||0,ytPlayer.getDuration()||0);
               if(ytPlayer.getPlayerState()===1)window.xpartyProgressCount=(window.xpartyProgressCount||0)+1;
+              XpartyYT.buffered('__SOURCE_ID__',ytPlayer.getVideoLoadedFraction()||0);
               reportMetadata();
               const info=ytPlayer.getVideoData&&ytPlayer.getVideoData();
               if(info&&/^[A-Za-z0-9_-]{11}$/.test(info.video_id)
@@ -2463,7 +2478,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
             }catch(e){}
           },500);
         </script><script async src="https://www.youtube.com/iframe_api"></script></body></html>
-        """.replace("__VIDEO_ID__",youtubeId).replace("__SOURCE_ID__",sourceId);
+        """.replace("__VIDEO_ID__",youtubeId).replace("__SOURCE_ID__",sourceId).replace("__AUTOPLAY__",playback!=null&&playback.optBoolean("playing",false)?"1":"0");
       try{html=html.replace("<head>","<head>"+playerBridge());}catch(Exception e){videoState.setText("Player unavailable");return;}
       providerDocument=html;
       youtube.loadUrl("https://xparty-native-room.onrender.com/providers/room.html?generation="+playerGeneration);

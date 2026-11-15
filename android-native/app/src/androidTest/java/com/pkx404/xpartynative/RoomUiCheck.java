@@ -69,7 +69,7 @@ public final class RoomUiCheck extends Instrumentation {
           runOnMainSync(()->{try{
             java.lang.reflect.Field field=MainActivity.class.getDeclaredField("youtube");field.setAccessible(true);
             android.webkit.WebView browser=(android.webkit.WebView)field.get(app);
-            browser.evaluateJavascript("JSON.stringify({href:location.href,time:window.xpartyTime?window.xpartyTime():0,ready:!!window.xpartySync,state:window.xpartyState?window.xpartyState():-1,progress:window.xpartyProgressCount||0})",raw->{
+            browser.evaluateJavascript("JSON.stringify({href:location.href,time:window.xpartyTime?window.xpartyTime():0,ready:!!window.xpartySync,state:window.xpartyState?window.xpartyState():-1,progress:window.xpartyProgressCount||0,error:window.xpartyError||0,blocked:!!window.xpartyAutoplayBlocked})",raw->{
               diagnostic.set(raw);
               try{String json=(String)new org.json.JSONTokener(raw).nextValue();JSONObject state=new JSONObject(json);playing.set(state.optInt("state")==1&&state.optInt("progress")>=3&&state.optDouble("time")>1);}catch(Exception ignored){}
             });
@@ -136,12 +136,13 @@ public final class RoomUiCheck extends Instrumentation {
           android.webkit.WebView browser=(android.webkit.WebView)field.get(app);
           java.lang.reflect.Method binder=MainActivity.class.getDeclaredMethod("playerBridge");binder.setAccessible(true);
           String bridge=(String)binder.invoke(app);
-          String document="<html><head>"+bridge+"</head><body><script>XpartyYT.error(713);</script></body></html>";
+          String document="<html><head>"+bridge+"</head><body><script>XpartyYT.buffered('fixture',0.6);XpartyYT.error(713);</script></body></html>";
           browser.loadDataWithBaseURL("https://xparty-native-room.onrender.com/",document,"text/html","UTF-8",null);
         }catch(Exception e){throw new IllegalStateException(e);}});
         for(int i=0;i<50&&!ready.get();i++){android.os.SystemClock.sleep(200);
           runOnMainSync(()->ready.set(find(app.findViewById(android.R.id.content),"YouTube player error 713 · choose another video")!=null));}
-        require(ready.get(),"Top document player port could not reach Android");runOnMainSync(app::finish);
+        require(ready.get(),"Top document player port could not reach Android");
+        runOnMainSync(()->{try{java.lang.reflect.Field f=MainActivity.class.getDeclaredField("progress");f.setAccessible(true);android.widget.SeekBar bar=(android.widget.SeekBar)f.get(app);require(bar.getSecondaryProgress()==600,"reported buffered fraction reaches progress bar");}catch(Exception e){throw new IllegalStateException(e);}app.finish();});
         result.putString("result","PASS bridge activation");finish(Activity.RESULT_OK,result);return;
       }
       if("mic".equals(media)||"camera".equals(media)){

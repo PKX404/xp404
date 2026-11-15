@@ -34,7 +34,7 @@ try {
     if(Math.abs(player.getCurrentTime()-t)>1.0)window.xpartySeek(t);
     if(p!==(player.getPlayerState()===1))window.xpartyPlay(p);
   };
-  setInterval(()=>report('progress',Math.round(player.getDuration()||0),player.getCurrentTime()),700);
+  setInterval(()=>{report('progress',Math.round(player.getDuration()||0),player.getCurrentTime());if(player.getVideoLoadedFraction)XpartyYT.buffered(key,player.getVideoLoadedFraction());},500);
   report('ready');
 } catch(error){failed(error)}
 })();
