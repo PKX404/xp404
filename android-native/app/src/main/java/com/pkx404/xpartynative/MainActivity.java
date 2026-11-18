@@ -128,7 +128,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       if(videoPill!=null)videoPill.setVisibility(View.GONE);
     }
   };
-  private View micIcon,mentionIcon,emojiIcon,cameraIcon,plusIcon;
+  private View micIcon,micShell,mentionIcon,emojiIcon,cameraIcon,plusIcon;
   private boolean liked=false,imeShown=false,fullscreenNative=false,showChat=true;
   private FrameLayout fullscreenOverlay;
   private ViewGroup fullscreenSourceParent;
@@ -1121,13 +1121,20 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     chatComposer.setGravity(Gravity.CENTER_VERTICAL);
     chatComposer.setPadding(dp(5),dp(6),dp(5),dp(6));
     chatComposer.setBackground(NativeImmersiveBackdrop.headerSkin());
+    // The microphone is the room's primary composer action.  Give it a real
+    // touch target instead of making it look like just another toolbar glyph.
+    FrameLayout micButton=new FrameLayout(this);
+    micButton.setBackground(shape(0xFFF7F4FA,60));
     XPControl mic=xpIcon("mic_off",this::toggleNativeMic);
-    mic.tint(0xFFEDE3FF);micIcon=mic;
-    iconIn(chatComposer,mic,48,54);
+    mic.tint(0xFF30253A);micButton.addView(mic,new FrameLayout.LayoutParams(-1,-1));
+    micShell=micButton;micIcon=mic;
+    chatComposer.addView(micButton,new LinearLayout.LayoutParams(dp(54),dp(54)));
     chatInput=entry("Message");
     chatInput.setTextSize(14);
     chatInput.setPadding(dp(8),dp(6),dp(6),dp(6));
-    chatInput.setBackground(shape(0x66383149,22));
+    // Rave-like open composer: the room remains visible behind it, with no
+    // fake message bubble around the text field.
+    chatInput.setBackground(shape(0x00000000,0));
     chatInput.setPadding(dp(12),dp(4),dp(10),dp(4));
     chatInput.addTextChangedListener(new android.text.TextWatcher(){
       @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
@@ -1162,7 +1169,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     attachmentStatus.setBackgroundColor(0xFF2E2248);
     attachmentStatus.setVisibility(View.GONE);
     roomNativeRoot.addView(attachmentStatus,new LinearLayout.LayoutParams(-1,-2));
-    roomNativeRoot.addView(chatComposer,new LinearLayout.LayoutParams(-1,dp(65)));
+    roomNativeRoot.addView(chatComposer,new LinearLayout.LayoutParams(-1,dp(66)));
 
     TextView footer=text("A PKX404 PRODUCT",10,0xFF857991,true);
     roomFooter=footer;
@@ -1245,7 +1252,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     if(sendIcon!=null)sendIcon.setVisibility(chatInput!=null&&chatInput.getText().toString().trim().length()>0?View.VISIBLE:View.GONE);
     if(roomHeader==null||chatComposer==null)return;
     roomHeader.setVisibility(typing||isLandscapeLayout?View.GONE:View.VISIBLE);
-    if(micIcon!=null)micIcon.setVisibility(typing?View.GONE:View.VISIBLE);
+    if(micShell!=null)micShell.setVisibility(typing?View.GONE:View.VISIBLE);
     if(mentionIcon!=null)mentionIcon.setVisibility(typing?View.GONE:View.VISIBLE);
     if(cameraIcon!=null)cameraIcon.setVisibility(typing?View.GONE:View.VISIBLE);
     if(plusIcon!=null)plusIcon.setVisibility(typing?View.GONE:View.VISIBLE);
@@ -1890,7 +1897,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
   private View roomAvatar(String name,String photo,int size){
     FrameLayout frame=new FrameLayout(this);frame.setBackground(shape(0xFF554665,size));frame.setClipToOutline(true);
     String n=name.trim();TextView initial=text(n.isEmpty()?"•":n.substring(0,n.offsetByCodePoints(0,1)),14,WHITE,true);initial.setGravity(Gravity.CENTER);frame.addView(initial);
-    if(photo!=null&&photo.startsWith("data:image/")){android.widget.ImageView image=new android.widget.ImageView(this);frame.addView(image);com.bumptech.glide.Glide.with(this).load(photo).circleCrop().into(image);}
+    // Room photos can be the local data URI produced by XParty or a normal
+    // HTTPS profile image received from the room.  Both render as true round
+    // avatars, keeping the message rhythm intact.
+    if(photo!=null&&(photo.startsWith("data:image/")||photo.startsWith("https://"))){
+      android.widget.ImageView image=new android.widget.ImageView(this);
+      image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+      frame.addView(image,new FrameLayout.LayoutParams(-1,-1));
+      com.bumptech.glide.Glide.with(this).load(photo).circleCrop().into(image);
+    }
     return frame;
   }
   private androidx.media3.exoplayer.ExoPlayer chatClip;
@@ -1974,7 +1989,10 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
     boolean activity=data.has("activity");
     android.text.SpannableStringBuilder label=new android.text.SpannableStringBuilder();
     if(reply!=null&&!deleted){int start=label.length();label.append("↳ "+reply.optString("name")+"  "+reply.optString("text")+"\n");label.setSpan(new android.text.style.BackgroundColorSpan(0x66443B47),start,label.length()-1,33);label.setSpan(new android.text.style.RelativeSizeSpan(.82f),start,label.length(),33);}
-    if(!self&&!activity){label.append(author+": ");label.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0+label.length()-author.length()-2,label.length(),33);}
+    if(!self&&!activity){
+      int start=label.length();label.append(author+": ");
+      label.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),start,label.length(),33);
+    }
     if(!data.isNull("to"))label.append("Private · ");
     label.append(body);
     JSONObject reactions=data.optJSONObject("reactions");
@@ -2007,9 +2025,17 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       :new View(this);
     LinearLayout.LayoutParams icon=new LinearLayout.LayoutParams(dp(36),dp(36));icon.leftMargin=dp(self?7:0);icon.rightMargin=dp(self?0:7);
     if(!self)row.addView(avatar,icon);
-    bubble=text("",14,WHITE,false);bubble.setText(label);bubble.setShadowLayer(dp(2),0,1,0xB0000000);
+    bubble=text("",16,WHITE,false);bubble.setText(label);bubble.setLineSpacing(dp(2),1f);bubble.setShadowLayer(dp(2),0,1,0xB0000000);
+    // Activity events are deliberately compact pills; ordinary chat remains
+    // unboxed and readable over the immersive room backdrop.
+    if(activity){
+      bubble.setTextSize(15);bubble.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+      bubble.setPadding(dp(11),dp(5),dp(11),dp(5));
+      bubble.setBackground(shape(0x854A424F,22));
+    }
     bubble.setMaxWidth(Math.max(dp(90),(chatScroll.getWidth()>0?chatScroll.getWidth():getResources().getDisplayMetrics().widthPixels)-dp(78)));
-    bubble.setPadding(0,dp(3),0,dp(2));stack.addView(bubble);row.addView(stack);
+    if(!activity)bubble.setPadding(0,dp(3),0,dp(2));
+    stack.addView(bubble);row.addView(stack);
     if(self)row.addView(avatar,icon);
     if(!deleted)updateChatReactions(stack,id,reactions,self);
     if(attachment!=null&&!deleted)previewAttachment(stack,attachment);
