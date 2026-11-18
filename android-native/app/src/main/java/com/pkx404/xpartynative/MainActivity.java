@@ -2025,7 +2025,7 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       :new View(this);
     LinearLayout.LayoutParams icon=new LinearLayout.LayoutParams(dp(36),dp(36));icon.leftMargin=dp(self?7:0);icon.rightMargin=dp(self?0:7);
     if(!self)row.addView(avatar,icon);
-    bubble=text("",16,WHITE,false);bubble.setText(label);bubble.setLineSpacing(dp(2),1f);bubble.setShadowLayer(dp(2),0,1,0xB0000000);
+    bubble=text("",14,WHITE,false);bubble.setTextSize(16);bubble.setText(label);bubble.setLineSpacing(dp(2),1f);bubble.setShadowLayer(dp(2),0,1,0xB0000000);
     // Activity events are deliberately compact pills; ordinary chat remains
     // unboxed and readable over the immersive room backdrop.
     if(activity){
