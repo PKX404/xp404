@@ -45,6 +45,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -256,9 +258,15 @@ public final class MainActivity extends Activity implements RoomSocket.Events {
       .setUserAgent("XParty/0.4.7 (Android; XPTV)")
       .setConnectTimeoutMs(6500).setReadTimeoutMs(9000);
     DefaultDataSource.Factory sources=new DefaultDataSource.Factory(this,network);
+    // Media keeps its own MEDIA route: opening a call capture session must not
+    // make Media3 pause or duck the shared programme automatically.
+    AudioAttributes watchPartyAudio=new AudioAttributes.Builder()
+      .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build();
     player=new ExoPlayer.Builder(this)
       .setMediaSourceFactory(new DefaultMediaSourceFactory(sources))
-      .setLoadControl(fastStart).build();
+      .setLoadControl(fastStart)
+      .setAudioAttributes(watchPartyAudio,false)
+      .build();
     playbackSheet=new NativePlaybackSheet(this,player,new NativePlaybackSheet.Actions(){
       @Override public void playback(){togglePlayback();}
       @Override public void scale(){cycleVideoScaling();}

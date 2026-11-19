@@ -71,6 +71,21 @@ export function createXparty(options={}) {
   if(r.history.length>100){const old=r.history.shift();if(old.attachment)attachments.remove(old.attachment.id);}
   broadcast(r,item);
  }
+ // Host election is a server decision. Never rely on Map insertion order:
+ // reconnects and process restoration can otherwise choose a different host.
+ function nextHost(r,excludedId=null){
+  return [...r.people.values()].filter(x=>x.id!==excludedId&&online(x))
+   .sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0)||String(a.id).localeCompare(String(b.id)))[0]||null;
+ }
+ function assignHost(r,next,previous=null,reason='host-transfer',replaceOwner=false){
+  if(!next||next.id===r.hostId)return false;
+  const old=previous||r.people.get(r.hostId);
+  r.hostId=next.id;
+  if(replaceOwner)r.ownerId=next.id;
+  next.cameraAllowed=true;next.micBlocked=false;
+  activity(r,reason,next.name+' is now the host',next,old);
+  return true;
+ }
  function welcome(p,r){const iceServers=ice(p.id);send(p.ws,{type:'welcome',id:p.id,token:p.token,room:snapshot(r),friendRequests:social.view(r,p),history:(r.history||[]).filter(m=>!m.to||m.from===p.id||m.to===p.id),iceServers,hasRelay:iceServers.some(s=>[s.urls].flat().some(u=>/^turns?:/.test(u))),searchEnabled:true});}
  function dropFile(id){const f=files.get(id);if(f){files.delete(id);storage-=f.size;rm(f.dir,{recursive:true,force:true}).catch(()=>{});}}
  function choose(r,p,s){if(!s||!['youtube','vimeo','twitch','soundcloud','netflix','prime','direct','iptv','file'].includes(s.type))return false;if(isCompanion(s)&&!normalizeCompanionSource(s))return false;if(isEmbedded(s)&&!validProviderId(s.type,s.videoId))return false;if(s.type==='direct'&&!publicVideoURL(s.url)||s.type==='iptv'&&!(s.radio===true?publicRadioURL(s.url):publicStreamURL(s.url)))return false;if(s.type==='file'&&(!finite(s.size,MAX_FILE)||!s.size||!/^video\//.test(s.mime)))return false;
@@ -83,7 +98,7 @@ export function createXparty(options={}) {
  }
  function remove(p,kicked=false){const r=rooms.get(p.code);if(!r)return;clients.delete(p.token);r.people.delete(p.id);if(r.endVote)delete r.endVote.votes[p.id];r.queue=(r.queue||[]).map(q=>({...q,votes:(q.votes||[]).filter(x=>x!==p.id)}));
   if(!r.people.size){if(r.source?.type==='file')dropFile(r.source.id);attachments.clearRoom(r.code);rooms.delete(r.code);persist();return;}
-  if(r.hostId===p.id){r.hostId=([...r.people.values()].find(online)||r.people.values().next().value).id;const h=r.people.get(r.hostId);h.cameraAllowed=true;h.micBlocked=false;}
+  if(r.hostId===p.id){const next=nextHost(r);if(next)assignHost(r,next,p,'host-left');}
   if(r.source?.owner===p.id&&r.source.type==='file'&&!r.source.uploaded){dropFile(r.source.id);r.source=null;r.playback.playing=false;}
   state(r);
  }
@@ -175,10 +190,10 @@ export function createXparty(options={}) {
    if(['skip-settings','skip-vote'].includes(m.type)){if(rate('skip:'+p.id,8,5000)&&configureSkip(r,p,m,online))state(r);return;}
    if(m.type==='directory-preview'&&typeof m.enabled==='boolean'){p.directoryPreview=m.enabled;state(r);return;}
    if(m.type==='room-directory'){if(updateDirectory(r,p.id,m))state(r);else send(ws,{type:'error',message:'Only the host can update the listing. Public rooms need a title.'});return;}
-   if(m.type==='leave'){activity(r,'left',p.name+' left',p);p.left=true;p.reservedUntil=null;control.cancel(r,'Participant left.');if(r.ownerId!==p.id){remove(p);}else{p.ws=null;p.buffering=false;p.inCall=false;p.mic=false;p.camera=false;p.ready=false;if(r.hostId===p.id){const next=[...r.people.values()].find(x=>x!==p&&online(x));if(next){r.hostId=next.id;next.cameraAllowed=true;next.micBlocked=false;}}state(r);}ws.person=null;return ws.close(1000,'Left');}
+   if(m.type==='leave'){activity(r,'left',p.name+' left',p);p.left=true;p.reservedUntil=null;control.cancel(r,'Participant left.');if(r.ownerId!==p.id){remove(p);}else{p.ws=null;p.buffering=false;p.inCall=false;p.mic=false;p.camera=false;p.ready=false;if(r.hostId===p.id){const next=nextHost(r,p.id);if(next)assignHost(r,next,p,'host-left');}state(r);ws.person=null;return ws.close(1000,'Left');}
    if(m.type==='end-room'&&host){for(const x of r.people.values()){clients.delete(x.token);send(x.ws,{type:'ended',message:'The host ended the room.'});x.ws?.close(1000,'Ended');}if(r.source?.type==='file')dropFile(r.source.id);attachments.clearRoom(r.code);rooms.delete(r.code);persist();return;}
    if(m.type==='kick'&&host){const target=r.people.get(m.target);if(target&&target!==p&&target.id!==r.ownerId){send(target.ws,{type:'kicked',message:'The host removed you from the room.'});activity(r,'kick',target.name+' was kicked by '+p.name,p,target);remove(target,true);target.ws?.close(4003,'Removed');}return;}
-   if(m.type==='transfer-host'&&host){control.cancel(r,'Host changed.');const target=r.people.get(m.target);if(target&&target!==p&&online(target)){r.hostId=target.id;r.ownerId=target.id;target.cameraAllowed=true;target.micBlocked=false;state(r);}return;}
+   if(m.type==='transfer-host'&&host){control.cancel(r,'Host changed.');const target=r.people.get(m.target);if(target&&target!==p&&online(target)){assignHost(r,target,p,'host-transfer',true);state(r);}return;}
    if(m.type==='moderate'&&host){const target=r.people.get(m.target);if(!target||target===p)return;
     if(m.action==='block-chat'){target.chatBlocked=true;}else if(m.action==='allow-chat'){target.chatBlocked=false;}else if(m.action==='mute'){target.micBlocked=true;target.mic=false;}else if(m.action==='allow-mic')target.micBlocked=false;else if(m.action==='camera-off'){target.cameraAllowed=false;target.cameraRequested=false;target.camera=false;}else if(m.action==='approve-camera'){target.cameraAllowed=true;target.cameraRequested=false;}else if(m.action==='deny-camera'){target.cameraAllowed=false;target.cameraRequested=false;}else return;
     send(target.ws,{type:'moderation',action:m.action});state(r);return;
@@ -327,7 +342,7 @@ export function createXparty(options={}) {
   }catch{send(ws,{type:'error',message:'Invalid request'});}});
   ws.on('close',()=>{clearTimeout(timeout);const p=ws.person;if(p&&p.ws===ws&&clients.has(p.token)){p.ws=null;p.buffering=false;p.ready=false;p.disconnectedAt=Date.now();p.reservedUntil=Date.now()+graceMs;const r=rooms.get(p.code);if(r){if(r.controller?.id===p.id)r.controller=null;state(r);}}});
  });
- const recovery=setInterval(()=>{for(const r of rooms.values()){let expiredCall=false;for(const member of r.people.values()){if(!online(member)&&member.inCall&&member.reservedUntil&&member.reservedUntil<=Date.now()){member.inCall=false;member.mic=false;member.camera=false;expiredCall=true;}}if(expiredCall)state(r);tickTogether(r,online);syncBuffering(r);control.sweep(r);const host=r.people.get(r.hostId);if(host&&!online(host)&&host.reservedUntil&&host.reservedUntil<=Date.now()){const next=[...r.people.values()].filter(online).sort((a,b)=>a.joinedAt-b.joinedAt)[0];if(next){control.cancel(r,'Host reconnect window elapsed.');r.hostId=next.id;next.cameraAllowed=true;next.micBlocked=false;state(r);}}}},250);recovery.unref();
+ const recovery=setInterval(()=>{for(const r of rooms.values()){let expiredCall=false;for(const member of r.people.values()){if(!online(member)&&member.inCall&&member.reservedUntil&&member.reservedUntil<=Date.now()){member.inCall=false;member.mic=false;member.camera=false;expiredCall=true;}}if(expiredCall)state(r);tickTogether(r,online);syncBuffering(r);control.sweep(r);const host=r.people.get(r.hostId);if(host&&!online(host)&&host.reservedUntil&&host.reservedUntil<=Date.now()){const next=nextHost(r,host.id);if(next){control.cancel(r,'Host reconnect window elapsed.');assignHost(r,next,host,'host-timeout');state(r);}}}},250);recovery.unref();
  const maintenance=setInterval(()=>{for(const ws of wss.clients){if(!ws.alive){ws.terminate();continue;}ws.alive=false;ws.ping();}for(const[key,b]of buckets)if(b.until<Date.now())buckets.delete(key);
   // Watching quietly is still activity: only rooms with no connected people expire.
   const now=Date.now();for(const r of rooms.values()){
